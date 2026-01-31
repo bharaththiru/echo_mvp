@@ -7,30 +7,24 @@ workflows:
       flutter: stable
       xcode: 16.4.x
       cocoapods: default
+    cache:
+      cache_paths:
+        - ~/.pub-cache
+        - ios/Pods
     scripts:
       - name: Flutter packages
         script: |
           flutter --version
           flutter pub get
-      - name: Install pods
+      - name: Install CocoaPods
         script: |
           cd ios
-          pod install
+          pod install --repo-update
           cd ..
-
-      - name: Strip invalid -G flags
+      - name: Strip -G flags
         script: |
-          unset CFLAGS CXXFLAGS LDFLAGS OTHER_CFLAGS OTHER_CPLUSPLUSFLAGS OTHER_LDFLAGS
-          export CFLAGS=""
-          export CXXFLAGS=""
-          export LDFLAGS=""
-          export OTHER_CFLAGS=""
-          export OTHER_CPLUSPLUSFLAGS=""
-          export OTHER_LDFLAGS=""
-          find ios -name "*.xcconfig" -o -name "project.pbxproj" | while read -r file; do
-            perl -pi -e 's/(^|\\s)-G(\\s|$)/ /g; s/\\s{2,}/ /g; s/\\s+$//g' "$file"
-          done
-
+          find ios -type f \( -name "*.xcconfig" -o -name "project.pbxproj" \) -print0 | \
+            xargs -0 perl -0777 -pi -e 's/(^|\s)-G[^\s"]+//g; s/\s{2,}/ /g; s/\s+$//gm'
       - name: Build iOS (no codesign)
         script: |
           xcodebuild \
@@ -46,7 +40,6 @@ workflows:
             DEVELOPMENT_TEAM="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
             build
-
       - name: Package unsigned IPA
         script: |
           IPA_DIR=build/ios/ipa
@@ -55,7 +48,6 @@ workflows:
           ditto "$APP_PATH" "$IPA_DIR/Payload/Runner.app"
           cd "$IPA_DIR"
           ditto -c -k --sequesterRsrc --keepParent Payload Echo.ipa
-
     artifacts:
       - build/ios/ipa/Echo.ipa
       - build/ios/DerivedData/Build/Products/Release-iphoneos/Runner.app
