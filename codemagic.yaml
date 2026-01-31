@@ -10,8 +10,12 @@ workflows:
     cache:
       cache_paths:
         - ~/.pub-cache
-        - ios/Pods
+        - ios/.symlinks
     scripts:
+      - name: Clean build artifacts
+        script: |
+          flutter clean
+          rm -rf ios/Pods ios/.symlinks ios/Flutter/Flutter.podspec ios/Podfile.lock
       - name: Flutter packages
         script: |
           flutter --version
