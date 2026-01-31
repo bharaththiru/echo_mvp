@@ -1,28 +1,31 @@
 workflows:
   ios_sideloadly:
     name: iOS Sideloadly (unsigned IPA)
-    instance_type: mac_mini_m1
+    instance_type: mac_mini_m2
     max_build_duration: 60
     environment:
       flutter: stable
-      xcode: latest
+      xcode: 16.4.x
       cocoapods: default
     scripts:
       - name: Flutter packages
         script: |
           flutter --version
           flutter pub get
+
       - name: Build iOS (no codesign)
         script: |
           flutter build ios --release --no-codesign
+
       - name: Package unsigned IPA
         script: |
           IPA_DIR=build/ios/ipa
-          PAYLOAD_DIR="${IPA_DIR}/Payload"
-          mkdir -p "${PAYLOAD_DIR}"
-          cp -R build/ios/iphoneos/Runner.app "${PAYLOAD_DIR}/"
-          cd "${IPA_DIR}"
-          /usr/bin/zip -r Echo.ipa Payload
+          APP_PATH=build/ios/iphoneos/Runner.app
+          mkdir -p "$IPA_DIR/Payload"
+          ditto "$APP_PATH" "$IPA_DIR/Payload/Runner.app"
+          cd "$IPA_DIR"
+          ditto -c -k --sequesterRsrc --keepParent Payload Echo.ipa
+
     artifacts:
       - build/ios/ipa/Echo.ipa
       - build/ios/iphoneos/Runner.app
