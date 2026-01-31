@@ -13,6 +13,14 @@ workflows:
           flutter --version
           flutter pub get
 
+      - name: Clear invalid -G flags
+        script: |
+          export CFLAGS="${CFLAGS//-G/}"
+          export CXXFLAGS="${CXXFLAGS//-G/}"
+          export LDFLAGS="${LDFLAGS//-G/}"
+          export OTHER_CFLAGS="${OTHER_CFLAGS//-G/}"
+          export OTHER_CPLUSPLUSFLAGS="${OTHER_CPLUSPLUSFLAGS//-G/}"
+          export OTHER_LDFLAGS="${OTHER_LDFLAGS//-G/}"
       - name: Build iOS (no codesign)
         script: |
           flutter build ios --release --no-codesign
