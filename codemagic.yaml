@@ -12,21 +12,47 @@ workflows:
         script: |
           flutter --version
           flutter pub get
+      - name: Generate iOS config
+        script: |
+          flutter build ios --config-only
+
+      - name: Install pods
+        script: |
+          cd ios
+          pod install
+          cd ..
+
+      - name: Strip invalid -G flags
+        script: |
+          unset CFLAGS CXXFLAGS LDFLAGS OTHER_CFLAGS OTHER_CPLUSPLUSFLAGS OTHER_LDFLAGS
+          export CFLAGS=""
+          export CXXFLAGS=""
+          export LDFLAGS=""
+          export OTHER_CFLAGS=""
+          export OTHER_CPLUSPLUSFLAGS=""
+          export OTHER_LDFLAGS=""
+          find ios -name "*.xcconfig" -o -name "project.pbxproj" | while read -r file; do
+            perl -pi -e 's/(^|\\s)-G(\\s|$)/ /g; s/\\s{2,}/ /g; s/\\s+$//g' "$file"
+          done
 
       - name: Build iOS (no codesign)
         script: |
-          export CFLAGS="${CFLAGS//-G/}"
-          export CXXFLAGS="${CXXFLAGS//-G/}"
-          export LDFLAGS="${LDFLAGS//-G/}"
-          export OTHER_CFLAGS="${OTHER_CFLAGS//-G/}"
-          export OTHER_CPLUSPLUSFLAGS="${OTHER_CPLUSPLUSFLAGS//-G/}"
-          export OTHER_LDFLAGS="${OTHER_LDFLAGS//-G/}"
-          flutter build ios --release --no-codesign
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
 
       - name: Package unsigned IPA
         script: |
           IPA_DIR=build/ios/ipa
-          APP_PATH=build/ios/iphoneos/Runner.app
+          APP_PATH=build/ios/DerivedData/Build/Products/Release-iphoneos/Runner.app
           mkdir -p "$IPA_DIR/Payload"
           ditto "$APP_PATH" "$IPA_DIR/Payload/Runner.app"
           cd "$IPA_DIR"
@@ -34,4 +60,4 @@ workflows:
 
     artifacts:
       - build/ios/ipa/Echo.ipa
-      - build/ios/iphoneos/Runner.app
+      - build/ios/DerivedData/Build/Products/Release-iphoneos/Runner.app
