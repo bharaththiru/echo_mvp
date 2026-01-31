@@ -1,6 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/app_scope.dart';
 import '../app/theme.dart';
@@ -49,26 +49,21 @@ class _AuthScreenState extends State<AuthScreen> {
     });
 
     try {
-      final response = _isSignUp
-          ? await appState.signUp(email: email, password: password)
-          : await appState.signInWithPassword(email: email, password: password);
+      if (_isSignUp) {
+        await appState.signUp(email: email, password: password);
+      } else {
+        await appState.signInWithPassword(email: email, password: password);
+      }
       if (!mounted) {
         return;
       }
-      if (_isSignUp && response.session == null) {
-        setState(() {
-          _statusMessage = 'Check your email to confirm your account.';
-          _statusIsError = false;
-        });
-        return;
-      }
       context.go('/listen');
-    } on AuthException catch (error) {
+    } on FirebaseAuthException catch (error) {
       if (!mounted) {
         return;
       }
       setState(() {
-        _statusMessage = error.message;
+        _statusMessage = error.message ?? 'Unable to sign in right now.';
         _statusIsError = true;
       });
     } catch (_) {

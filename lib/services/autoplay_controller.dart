@@ -219,6 +219,10 @@ class AutoplayController extends ChangeNotifier {
   String? _mutedNoteId;
   double _userVolume;
   bool _isDisposed = false;
+  bool _wrappedQueue = false;
+  String? _positionNoteId;
+  Duration _lastObservedPosition = Duration.zero;
+  int _positionResetCount = 0;
 
   static const _transitionDelay = Duration(milliseconds: 300);
   static const _resolveTimeout = Duration(seconds: 8);
@@ -229,6 +233,9 @@ class AutoplayController extends ChangeNotifier {
   static const _stallTimeout = Duration(seconds: 10);
   static const _queueRefreshCooldown = Duration(seconds: 30);
   static const _queueRefreshThreshold = 2;
+  static const _positionResetMinPosition = Duration(seconds: 4);
+  static const _positionResetThreshold = Duration(seconds: 2);
+  static const _maxPositionResetsPerClip = 2;
 
   void attach(String hashtagId, {bool forceRefresh = false}) {
     if (_isDisposed) {
@@ -383,6 +390,22 @@ class AutoplayController extends ChangeNotifier {
         _setState(
           _state.copyWith(phase: AutoplayPhase.error, errorMessage: loadError),
         );
+      }
+      if (!loading && loadError == null) {
+        _setState(
+          _state.copyWith(
+            queue: const [],
+            currentIndex: 0,
+            currentNote: null,
+            phase: AutoplayPhase.completed,
+            isPreparing: false,
+            isTransitioning: false,
+            statusText: "It's quiet here. Check back later.",
+            errorMessage: null,
+            isMuted: false,
+          ),
+        );
+        unawaited(_audio.stop());
       }
       return;
     }
@@ -794,7 +817,11 @@ class AutoplayController extends ChangeNotifier {
     if (currentNote != null) {
       _playedIds.add(currentNote.id);
     }
-    final nextIndex = _nextPlayableIndex(fromIndex: _state.currentIndex);
+    _wrappedQueue = false;
+    final nextIndex = _nextPlayableIndex(
+      fromIndex: _state.currentIndex,
+      markWrap: true,
+    );
     if (nextIndex == null) {
       if (_allNotesFailed()) {
         await _enterFatalError(
@@ -804,6 +831,10 @@ class AutoplayController extends ChangeNotifier {
       }
       await _finishQueue(message: 'No more clips right now.');
       return;
+    }
+    if (_wrappedQueue) {
+      _showTransientMessage('Reached the end, starting over.');
+      _wrappedQueue = false;
     }
 
     _setState(
@@ -922,7 +953,10 @@ class AutoplayController extends ChangeNotifier {
     return _state.queue.every((note) => _failedIds.contains(note.id));
   }
 
-  int? _nextPlayableIndex({required int fromIndex}) {
+  int? _nextPlayableIndex({
+    required int fromIndex,
+    bool markWrap = false,
+  }) {
     if (_state.queue.isEmpty) {
       return null;
     }
@@ -942,6 +976,9 @@ class AutoplayController extends ChangeNotifier {
     }
     // Queue exhausted: allow replay in a calm, non-repeating order.
     _playedIds.clear();
+    if (markWrap) {
+      _wrappedQueue = true;
+    }
     final lastId = (fromIndex >= 0 && fromIndex < _state.queue.length)
         ? _state.queue[fromIndex].id
         : null;
@@ -1081,8 +1118,15 @@ class AutoplayController extends ChangeNotifier {
     }
     final audioState = _audio.state;
     final currentNote = _state.currentNote;
+    final previousPhase = _state.phase;
     final isCurrentActive =
         currentNote != null && audioState.sourceId == currentNote.id;
+
+    if (currentNote != null && _positionNoteId != currentNote.id) {
+      _positionNoteId = currentNote.id;
+      _lastObservedPosition = Duration.zero;
+      _positionResetCount = 0;
+    }
 
     if (audioState.phase == AudioPlaybackPhase.interrupted) {
       final shouldResume = !_state.userPaused && _state.isPlaying;
@@ -1160,10 +1204,12 @@ class AutoplayController extends ChangeNotifier {
       ),
     );
 
+    _trackPositionResets(audioState, currentNote);
+
     if (audioState.phase == AudioPlaybackPhase.completed &&
         !_state.isTransitioning &&
         !_state.isPreparing &&
-        _state.phase != AutoplayPhase.completed) {
+        previousPhase != AutoplayPhase.completed) {
       unawaited(_advance(_AdvanceReason.autoplay));
       return;
     }
@@ -1178,6 +1224,41 @@ class AutoplayController extends ChangeNotifier {
           message: 'Clip unavailable. Skipping...',
         ),
       );
+    }
+  }
+
+  void _trackPositionResets(AudioPlaybackState audioState, VoiceNote currentNote) {
+    if (_isDisposed || _state.isPreparing || _state.isTransitioning) {
+      return;
+    }
+    if (audioState.phase != AudioPlaybackPhase.playing &&
+        audioState.phase != AudioPlaybackPhase.paused) {
+      return;
+    }
+    if (_positionNoteId != currentNote.id) {
+      return;
+    }
+    final position = audioState.position;
+    if (_lastObservedPosition >= _positionResetMinPosition &&
+        position < const Duration(seconds: 1) &&
+        _lastObservedPosition - position > _positionResetThreshold) {
+      _positionResetCount += 1;
+      if (_positionResetCount <= _maxPositionResetsPerClip) {
+        final resumeAt = _clampPosition(_lastObservedPosition, audioState.duration);
+        _showTransientMessage('Playback restarted. Resuming...');
+        unawaited(_audio.seek(resumeAt));
+      } else {
+        unawaited(
+          _handleClipFailure(
+            noteId: currentNote.id,
+            message: 'Playback kept restarting. Skipping...',
+          ),
+        );
+      }
+      return;
+    }
+    if (position >= _lastObservedPosition) {
+      _lastObservedPosition = position;
     }
   }
 
@@ -1289,6 +1370,7 @@ class AutoplayController extends ChangeNotifier {
     _resumeNoteId = null;
     _mutedNoteId = null;
     _consecutiveFailures = 0;
+    _wrappedQueue = false;
     _clearTransientMessage();
     _notesSignature = '';
     _pendingStop = stopPlayback ? _audio.stop() : null;

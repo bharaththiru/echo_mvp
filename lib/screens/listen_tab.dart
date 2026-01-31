@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../app/app_scope.dart';
 import '../app/theme.dart';
 import '../models/hashtag.dart';
-import '../utils/time_format.dart';
 import '../widgets/echo_components.dart';
 
 class ListenTab extends StatefulWidget {
@@ -73,13 +72,13 @@ class _ListenTabState extends State<ListenTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Listen', style: theme.textTheme.displaySmall),
-              const SizedBox(height: 16),
-              EchoInput(
-                controller: _searchController,
-                hintText: 'Search hashtags, moods',
-                prefixIcon: Icons.search,
-                onChanged: _onSearchChanged,
-              ),
+            const SizedBox(height: 16),
+            EchoInput(
+              controller: _searchController,
+              hintText: 'Search moods, tones',
+              prefixIcon: Icons.search,
+              onChanged: _onSearchChanged,
+            ),
             ],
           ),
         ),
@@ -99,7 +98,7 @@ class _ListenTabState extends State<ListenTab> {
               if (allHashtags.isEmpty) {
                 return _EmptyState(
                   title: 'No hashtags yet',
-                  subtitle: 'Add hashtags in Supabase to get started.',
+                  subtitle: 'Add hashtags in Firebase to get started.',
                   onRetry: () => appState.refreshHashtags(force: true),
                 );
               }
@@ -108,7 +107,7 @@ class _ListenTabState extends State<ListenTab> {
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                 children: [
                   if (_query.isNotEmpty) ...[
-                    const EchoSectionTitle('Search results'),
+                    const EchoSectionTitle('Your matches'),
                     const SizedBox(height: 12),
                     _HashtagGrid(
                       hashtags: filtered,
@@ -117,7 +116,7 @@ class _ListenTabState extends State<ListenTab> {
                     ),
                   ] else ...[
                     if (forYourVibe.isNotEmpty) ...[
-                      const EchoSectionTitle('For your current vibe'),
+                      const EchoSectionTitle('Set the tone'),
                       const SizedBox(height: 12),
                       SizedBox(
                         height: 200,
@@ -141,7 +140,7 @@ class _ListenTabState extends State<ListenTab> {
                       const SizedBox(height: 24),
                     ],
                     if (popularNow.isNotEmpty) ...[
-                      const EchoSectionTitle('Popular right now'),
+                      const EchoSectionTitle('Slow drift'),
                       const SizedBox(height: 12),
                       ...popularNow.map(
                         (hashtag) => Padding(
@@ -155,7 +154,7 @@ class _ListenTabState extends State<ListenTab> {
                       const SizedBox(height: 16),
                     ],
                     if (newAndNiche.isNotEmpty) ...[
-                      const EchoSectionTitle('New and niche'),
+                      const EchoSectionTitle('Quiet corners'),
                       const SizedBox(height: 12),
                       _HashtagGrid(
                         hashtags: newAndNiche,
@@ -165,12 +164,6 @@ class _ListenTabState extends State<ListenTab> {
                     ],
                   ],
                   const SizedBox(height: 12),
-                  Text(
-                    'Updated ${formatRelativeTime(DateTime.now().subtract(const Duration(minutes: 6)))}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: EchoColors.textSecondary.withValues(alpha: 0.85),
-                    ),
-                  ),
                 ],
               );
             },

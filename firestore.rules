@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isActiveClip() {
+      return resource.data.status == 'active'
+        && (resource.data.expires_at == null || resource.data.expires_at > request.time);
+    }
+
+    match /hashtags/{tagId} {
+      allow read: if resource.data.is_active != false;
+      allow write: if false;
+    }
+
+    match /voice_notes/{noteId} {
+      allow read: if isActiveClip();
+      allow create: if isSignedIn()
+        && request.resource.data.author_id == request.auth.uid
+        && request.resource.data.status == 'active'
+        && request.resource.data.duration_seconds > 0
+        && request.resource.data.duration_seconds <= 12
+        && request.resource.data.storage_path.matches('^' + request.auth.uid + '/.*');
+      allow update, delete: if isSignedIn()
+        && resource.data.author_id == request.auth.uid;
+    }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn()
+        && request.resource.data.reporter_user_id == request.auth.uid;
+      allow read: if isSignedIn()
+        && resource.data.reporter_user_id == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+
+      match /daily_skip_usage/{dateId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      match /blocks/{blockedUserId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+  }
+}

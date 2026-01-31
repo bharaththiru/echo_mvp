@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/seed_data.dart';
 import '../models/hashtag.dart';
@@ -13,26 +15,26 @@ import '../models/voice_note.dart';
 import '../services/audio_controller.dart';
 import '../services/autoplay_controller.dart';
 import '../services/autoplay_data_source.dart';
-import '../services/supabase_repository.dart';
+import '../services/firebase_repository.dart';
 import '../utils/id_generator.dart';
-import 'supabase_config.dart';
+import 'firebase_config.dart';
 
 class AppState extends ChangeNotifier implements AutoplayDataSource {
   AppState._({
     required SharedPreferences prefs,
     required this.settings,
     required this.audio,
-    required SupabaseClient supabase,
-    required SupabaseRepository repository,
-    required Session? session,
+    required FirebaseAuth auth,
+    required FirebaseRepository repository,
+    required User? user,
     required String recordingsDirectory,
     required this.onboardingComplete,
     required this.onboardingInterests,
     required this.savedHashtags,
   }) : _prefs = prefs,
-       _supabase = supabase,
+       _auth = auth,
        _repository = repository,
-       _session = session,
+       _user = user,
        _recordingsDirectory = recordingsDirectory,
        _idGenerator = IdGenerator();
 
@@ -59,10 +61,10 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
 
   final SharedPreferences _prefs;
   final IdGenerator _idGenerator;
-  final SupabaseClient _supabase;
-  final SupabaseRepository _repository;
-  late final StreamSubscription<AuthState> _authSubscription;
-  Session? _session;
+  final FirebaseAuth _auth;
+  final FirebaseRepository _repository;
+  late final StreamSubscription<User?> _authSubscription;
+  User? _user;
   final AudioController audio;
   late final AutoplayController autoplay;
   final String _recordingsDirectory;
@@ -93,9 +95,12 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     final prefs = await SharedPreferences.getInstance();
     final settings = AppSettings.fromPrefs(prefs);
     final audio = await AudioController.create();
-    final supabase = Supabase.instance.client;
-    final repository = SupabaseRepository(supabase);
-    final session = supabase.auth.currentSession;
+    final auth = FirebaseAuth.instance;
+    final repository = FirebaseRepository(
+      firestore: FirebaseFirestore.instance,
+      storage: FirebaseStorage.instance,
+    );
+    final user = auth.currentUser;
     final recordingsDirectory = await _prepareRecordingsDirectory();
     final onboardingComplete = prefs.getBool(_onboardingCompleteKey) ?? false;
     final onboardingInterests =
@@ -151,9 +156,9 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
       prefs: prefs,
       settings: settings,
       audio: audio,
-      supabase: supabase,
+      auth: auth,
       repository: repository,
-      session: session,
+      user: user,
       recordingsDirectory: recordingsDirectory,
       onboardingComplete: onboardingComplete,
       onboardingInterests: onboardingInterests,
@@ -184,14 +189,20 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     required AudioController audio,
     required List<Hashtag> hashtags,
     required Map<String, List<VoiceNote>> notesByHashtag,
+    FirebaseAuth? auth,
+    FirebaseRepository? repository,
     AppSettings? settings,
     bool onboardingComplete = true,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final resolvedSettings = settings ?? AppSettings.fromPrefs(prefs);
-    final supabase = SupabaseClient('https://example.com', 'anon-key');
-    supabase.auth.stopAutoRefresh();
-    final repository = SupabaseRepository(supabase);
+    final resolvedAuth = auth ?? FirebaseAuth.instance;
+    final resolvedRepository =
+        repository ??
+        FirebaseRepository(
+          firestore: FirebaseFirestore.instance,
+          storage: FirebaseStorage.instance,
+        );
     final recordingsDirectory = Directory.systemTemp
         .createTempSync('echo_test')
         .path;
@@ -200,9 +211,9 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
       prefs: prefs,
       settings: resolvedSettings,
       audio: audio,
-      supabase: supabase,
-      repository: repository,
-      session: null,
+      auth: resolvedAuth,
+      repository: resolvedRepository,
+      user: null,
       recordingsDirectory: recordingsDirectory,
       onboardingComplete: onboardingComplete,
       onboardingInterests: saved,
@@ -210,7 +221,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     );
     state.autoplay = AutoplayController(dataSource: state, audio: audio);
     state.autoplay.syncSuppressed(noteIds: const [], authorIds: const []);
-    state._authSubscription = const Stream<AuthState>.empty().listen((_) {});
+    state._authSubscription = const Stream<User?>.empty().listen((_) {});
     state._hashtags
       ..clear()
       ..addAll(hashtags);
@@ -248,21 +259,21 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
   }
 
   Future<void> _maybeAutoSignIn() async {
-    if (!SupabaseConfig.skipAuth || _session != null) {
+    if (!FirebaseConfig.skipAuth || _user != null) {
       return;
     }
-    final email = SupabaseConfig.devEmail;
-    final password = SupabaseConfig.devPassword;
+    final email = FirebaseConfig.devEmail;
+    final password = FirebaseConfig.devPassword;
     if (email.isEmpty || password.isEmpty) {
       return;
     }
     try {
-      final response = await _supabase.auth.signInWithPassword(
+      final response = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
-      _session = response.session;
-    } on AuthException {
+      _user = response.user;
+    } on FirebaseAuthException {
       return;
     } catch (_) {
       return;
@@ -270,43 +281,46 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
   }
 
   void _bindAuth() {
-    _authSubscription = _supabase.auth.onAuthStateChange.listen((data) {
-      _session = data.session;
+    _authSubscription = _auth.authStateChanges().listen((user) {
+      _user = user;
       refreshMyPosts(force: true);
       notifyListeners();
     });
   }
 
-  bool get isAuthenticated => _session != null;
+  bool get isAuthenticated => _user != null;
 
-  bool get skipAuth => SupabaseConfig.skipAuth;
+  bool get skipAuth => FirebaseConfig.skipAuth;
 
-  String? get userEmail => _session?.user.email;
+  String? get userEmail => _user?.email;
 
-  String? get userId => _session?.user.id;
+  String? get userId => _user?.uid;
 
-  bool get _isDevUnauthed => skipAuth && _session == null;
+  bool get _isDevUnauthed => skipAuth && _user == null;
 
   PendingPostDraft? get pendingPostDraft => _pendingPostDraft;
 
   bool get isPosting => _postInFlight != null;
 
-  Future<AuthResponse> signInWithPassword({
+  Future<UserCredential> signInWithPassword({
     required String email,
     required String password,
   }) {
-    return _supabase.auth.signInWithPassword(email: email, password: password);
+    return _auth.signInWithEmailAndPassword(email: email, password: password);
   }
 
-  Future<AuthResponse> signUp({
+  Future<UserCredential> signUp({
     required String email,
     required String password,
   }) {
-    return _supabase.auth.signUp(email: email, password: password);
+    return _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
   }
 
   Future<void> signOut() {
-    return _supabase.auth.signOut();
+    return _auth.signOut();
   }
 
   List<Hashtag> get hashtags => List<Hashtag>.unmodifiable(_hashtags);
@@ -633,6 +647,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     }
     try {
       await _repository.reportClip(
+        reporterUserId: currentUser,
         clipId: note.id,
         reason: reason,
         details: details,
@@ -851,6 +866,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
           .createNote(
             id: noteId,
             hashtagId: hashtag.id,
+            hashtagLabel: hashtag.name,
             durationSeconds: duration.inSeconds == 0 ? 12 : duration.inSeconds,
             storagePath: storagePath,
             allowReplies: allowReplies,
@@ -917,7 +933,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
       return _consumeSkipLocal(scope: 'anon');
     }
     try {
-      final response = await _repository.consumeSkip();
+      final response = await _repository.consumeSkip(userId: currentUser);
       final ok = response['ok'] == true;
       final skipsLeft = _parseInt(response['skips_left']);
       final date = response['local_date']?.toString() ?? _localDateKey();
