@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
 import '../app/theme.dart';
+import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/echo_components.dart';
 
@@ -22,7 +23,11 @@ class SettingsScreen extends StatelessWidget {
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                padding: EchoLayout.pagePadding(
+                  context,
+                  top: 24,
+                  bottom: 16,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -38,44 +43,84 @@ class SettingsScreen extends StatelessWidget {
               ),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  padding: EchoLayout.listPadding(context),
                   children: [
                     const EchoSectionTitle('Appearance'),
                     const SizedBox(height: 12),
                     Text('Theme', style: theme.textTheme.bodySmall),
                     const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ThemeOption(
-                            label: 'Light',
-                            icon: Icons.wb_sunny,
-                            isSelected: settings.themeMode == ThemeMode.light,
-                            onTap: () =>
-                                appState.updateThemeMode(ThemeMode.light),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _ThemeOption(
-                            label: 'Dark',
-                            icon: Icons.nightlight_round,
-                            isSelected: settings.themeMode == ThemeMode.dark,
-                            onTap: () =>
-                                appState.updateThemeMode(ThemeMode.dark),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _ThemeOption(
-                            label: 'System',
-                            icon: Icons.desktop_windows,
-                            isSelected: settings.themeMode == ThemeMode.system,
-                            onTap: () =>
-                                appState.updateThemeMode(ThemeMode.system),
-                          ),
-                        ),
-                      ],
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isCompact = constraints.maxWidth < 360;
+                        if (isCompact) {
+                          return Column(
+                            children: [
+                              _ThemeOption(
+                                label: 'Light',
+                                icon: Icons.wb_sunny,
+                                isSelected:
+                                    settings.themeMode == ThemeMode.light,
+                                onTap: () =>
+                                    appState.updateThemeMode(ThemeMode.light),
+                              ),
+                              const SizedBox(height: 12),
+                              _ThemeOption(
+                                label: 'Dark',
+                                icon: Icons.nightlight_round,
+                                isSelected:
+                                    settings.themeMode == ThemeMode.dark,
+                                onTap: () =>
+                                    appState.updateThemeMode(ThemeMode.dark),
+                              ),
+                              const SizedBox(height: 12),
+                              _ThemeOption(
+                                label: 'System',
+                                icon: Icons.desktop_windows,
+                                isSelected:
+                                    settings.themeMode == ThemeMode.system,
+                                onTap: () =>
+                                    appState.updateThemeMode(ThemeMode.system),
+                              ),
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: _ThemeOption(
+                                label: 'Light',
+                                icon: Icons.wb_sunny,
+                                isSelected:
+                                    settings.themeMode == ThemeMode.light,
+                                onTap: () =>
+                                    appState.updateThemeMode(ThemeMode.light),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _ThemeOption(
+                                label: 'Dark',
+                                icon: Icons.nightlight_round,
+                                isSelected:
+                                    settings.themeMode == ThemeMode.dark,
+                                onTap: () =>
+                                    appState.updateThemeMode(ThemeMode.dark),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _ThemeOption(
+                                label: 'System',
+                                icon: Icons.desktop_windows,
+                                isSelected:
+                                    settings.themeMode == ThemeMode.system,
+                                onTap: () =>
+                                    appState.updateThemeMode(ThemeMode.system),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     _ToggleTile(

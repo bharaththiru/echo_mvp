@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/app_scope.dart';
 import '../app/theme.dart';
 import '../utils/time_format.dart';
+import '../utils/responsive.dart';
 import '../widgets/echo_components.dart';
 
 class InboxTab extends StatefulWidget {
@@ -39,7 +40,11 @@ class _InboxTabState extends State<InboxTab> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+          padding: EchoLayout.pagePadding(
+            context,
+            top: 32,
+            bottom: 16,
+          ),
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text('Inbox', style: theme.textTheme.displaySmall),
@@ -47,7 +52,7 @@ class _InboxTabState extends State<InboxTab> {
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            padding: EchoLayout.listPadding(context),
             children: [
               if (!appState.isAuthenticated && !appState.skipAuth)
                 EchoCard(
@@ -222,7 +227,9 @@ class _EmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
+        padding: EdgeInsets.symmetric(
+          horizontal: EchoLayout.horizontalPadding(context),
+        ),
         child: EchoCard(
           padding: const EdgeInsets.all(22),
           child: Column(

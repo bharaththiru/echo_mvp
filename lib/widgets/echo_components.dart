@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app/theme.dart';
+import '../utils/responsive.dart';
 
 class EchoCard extends StatelessWidget {
   const EchoCard({
@@ -63,12 +64,13 @@ class EchoPrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final height = EchoLayout.buttonHeight(context);
     return Semantics(
       button: true,
       label: semanticLabel ?? label,
       child: SizedBox(
         width: double.infinity,
-        height: 54,
+        height: height,
         child: ElevatedButton(
           onPressed: isLoading ? null : onPressed,
           child: isLoading
@@ -103,6 +105,7 @@ class EchoSecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final height = EchoLayout.secondaryButtonHeight(context);
     final child = icon == null
         ? Text(label)
         : Row(
@@ -115,7 +118,7 @@ class EchoSecondaryButton extends StatelessWidget {
           );
     return SizedBox(
       width: double.infinity,
-      height: 52,
+      height: height,
       child: OutlinedButton(onPressed: onPressed, child: child),
     );
   }

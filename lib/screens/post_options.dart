@@ -6,6 +6,7 @@ import '../app/app_state.dart';
 import '../app/theme.dart';
 import '../models/hashtag.dart';
 import '../utils/time_format.dart';
+import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/echo_components.dart';
 
@@ -184,11 +185,15 @@ class _PostOptionsState extends State<PostOptions> {
     return AppScaffold(
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+        Padding(
+          padding: EchoLayout.pagePadding(
+            context,
+            top: 24,
+            bottom: 16,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
                 TextButton.icon(
                   onPressed: () => context.pop(),
                   icon: const Icon(Icons.arrow_back),
@@ -207,10 +212,10 @@ class _PostOptionsState extends State<PostOptions> {
               ],
             ),
           ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-              children: [
+        Expanded(
+          child: ListView(
+            padding: EchoLayout.listPadding(context),
+            children: [
                 if (pendingDraft != null)
                   EchoCard(
                     padding: const EdgeInsets.all(16),
@@ -388,9 +393,9 @@ class _PostOptionsState extends State<PostOptions> {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            child: EchoPrimaryButton(
+        Padding(
+          padding: EchoLayout.listPadding(context),
+          child: EchoPrimaryButton(
               label: 'Post',
               isLoading: posting,
               onPressed: _selectedHashtag == null ? null : _post,

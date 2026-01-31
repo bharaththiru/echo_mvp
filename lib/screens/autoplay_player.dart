@@ -6,6 +6,7 @@ import '../app/theme.dart';
 import '../models/voice_note.dart';
 import '../services/autoplay_controller.dart';
 import '../utils/time_format.dart';
+import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/echo_components.dart';
 import '../widgets/report_reason_sheet.dart';
@@ -163,7 +164,11 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+              padding: EchoLayout.pagePadding(
+                context,
+                top: 24,
+                bottom: 16,
+              ),
               child: Row(
                 children: [
                   TextButton.icon(
@@ -231,7 +236,11 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                padding: EchoLayout.pagePadding(
+                  context,
+                  top: 24,
+                  bottom: 16,
+                ),
                 child: Row(
                   children: [
                     TextButton.icon(
@@ -244,7 +253,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
               ),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  padding: EchoLayout.listPadding(context),
                   children: [
                     EchoCard(
                       padding: const EdgeInsets.all(24),

@@ -7,6 +7,7 @@ import '../models/hashtag.dart';
 import '../models/voice_note.dart';
 import '../services/audio_controller.dart';
 import '../utils/time_format.dart';
+import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/echo_components.dart';
 import '../widgets/report_reason_sheet.dart';
@@ -102,11 +103,15 @@ class _HashtagDetailState extends State<HashtagDetail> {
     return AppScaffold(
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+        Padding(
+          padding: EchoLayout.pagePadding(
+            context,
+            top: 24,
+            bottom: 16,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
                 TextButton.icon(
                   onPressed: () => context.pop(),
                   icon: const Icon(Icons.arrow_back),
@@ -158,7 +163,7 @@ class _HashtagDetailState extends State<HashtagDetail> {
                 }
 
                 return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  padding: EchoLayout.listPadding(context),
                   itemCount: notes.length,
                   separatorBuilder: (context, index) =>
                       const SizedBox(height: 12),
@@ -432,7 +437,9 @@ class _EmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
+        padding: EdgeInsets.symmetric(
+          horizontal: EchoLayout.horizontalPadding(context),
+        ),
         child: EchoCard(
           padding: const EdgeInsets.all(22),
           child: Column(

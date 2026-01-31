@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../app/app_scope.dart';
 import '../app/app_state.dart';
 import '../app/theme.dart';
+import '../utils/responsive.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -97,7 +98,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         mediaQuery.accessibleNavigation ||
         appState.settings.reduceMotion;
     final theme = Theme.of(context);
-    final horizontalPadding = mediaQuery.size.width < 360 ? 20.0 : 24.0;
+    final horizontalPadding = EchoLayout.horizontalPadding(context);
     final showSkip = _currentIndex < _pages.length - 1;
     final buttonLabel = _currentIndex == _pages.length - 1
         ? 'Choose a hashtag'

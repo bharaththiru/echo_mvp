@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/theme.dart';
+import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
 
 class OnboardingWelcome extends StatelessWidget {
@@ -13,7 +14,11 @@ class OnboardingWelcome extends StatelessWidget {
 
     return AppScaffold(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        padding: EchoLayout.pagePadding(
+          context,
+          top: 32,
+          bottom: 32,
+        ),
         child: Column(
           children: [
             const Spacer(),

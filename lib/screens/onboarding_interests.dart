@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../app/app_scope.dart';
 import '../app/theme.dart';
 import '../data/seed_data.dart';
+import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
 
 class OnboardingInterests extends StatefulWidget {
@@ -61,7 +62,11 @@ class _OnboardingInterestsState extends State<OnboardingInterests> {
 
     return AppScaffold(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        padding: EchoLayout.pagePadding(
+          context,
+          top: 32,
+          bottom: 32,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/theme.dart';
+import '../utils/responsive.dart';
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({super.key, required this.child, this.bottomNavigationBar});
@@ -11,6 +12,7 @@ class AppScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final maxWidth = EchoLayout.maxContentWidth(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
@@ -20,7 +22,7 @@ class AppScaffold extends StatelessWidget {
         body: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
+              constraints: BoxConstraints(maxWidth: maxWidth),
               child: child,
             ),
           ),

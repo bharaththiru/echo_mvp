@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../app/app_scope.dart';
 import '../app/theme.dart';
 import '../services/audio_controller.dart';
+import '../utils/responsive.dart';
 
 class RecordTab extends StatefulWidget {
   const RecordTab({super.key});
@@ -327,152 +328,182 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
         return Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+              padding: EchoLayout.pagePadding(
+                context,
+                top: 32,
+                bottom: 16,
+              ),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text('Record', style: theme.textTheme.displaySmall),
               ),
             ),
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Stack(
-                    alignment: Alignment.center,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final shortestSide =
+                      min(constraints.maxWidth, constraints.maxHeight);
+                  final ringSize =
+                      (shortestSide * 0.7).clamp(160.0, 240.0).toDouble();
+                  final innerSize =
+                      (ringSize * 0.66).clamp(120.0, ringSize - 40).toDouble();
+                  final iconSize =
+                      (innerSize * 0.3).clamp(32.0, 50.0).toDouble();
+                  final verticalGap = shortestSide < 360 ? 16.0 : 24.0;
+                  final labelGap = shortestSide < 360 ? 4.0 : 6.0;
+                  final waveBase = shortestSide < 360 ? 16.0 : 20.0;
+                  final waveAmplitude = shortestSide < 360 ? 40.0 : 60.0;
+
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      SizedBox(
-                        height: 240,
-                        width: 240,
-                        child: CircularProgressIndicator(
-                          value: _isRecording
-                              ? 1 - (_remainingSeconds / _maxSeconds)
-                              : 0,
-                          strokeWidth: 8,
-                          strokeCap: StrokeCap.round,
-                          backgroundColor: EchoColors.muted,
-                          valueColor: AlwaysStoppedAnimation(ringColor),
-                        ),
-                      ),
-                      SizedBox(
-                        height: 160,
-                        width: 160,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            shape: const CircleBorder(),
-                            padding: EdgeInsets.zero,
-                            backgroundColor: _isRecording
-                                ? EchoColors.action
-                                : EchoColors.accent,
-                            foregroundColor: EchoColors.background,
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            height: ringSize,
+                            width: ringSize,
+                            child: CircularProgressIndicator(
+                              value: _isRecording
+                                  ? 1 - (_remainingSeconds / _maxSeconds)
+                                  : 0,
+                              strokeWidth: 8,
+                              strokeCap: StrokeCap.round,
+                              backgroundColor: EchoColors.muted,
+                              valueColor: AlwaysStoppedAnimation(ringColor),
+                            ),
                           ),
-                          onPressed: _isRecording
-                              ? _stopRecording
-                              : _hasRecording
-                              ? () async {
-                                  final path = _recordingPath;
-                                  if (path == null) {
-                                    return;
-                                  }
-                                  final valid = await _isValidRecordingFile(
-                                    path,
-                                  );
-                                  if (!valid) {
-                                    appState.clearPendingPostDraft();
-                                    appState.clearPendingRecording();
-                                    if (!mounted) {
-                                      return;
+                          SizedBox(
+                            height: innerSize,
+                            width: innerSize,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                shape: const CircleBorder(),
+                                padding: EdgeInsets.zero,
+                                backgroundColor: _isRecording
+                                    ? EchoColors.action
+                                    : EchoColors.accent,
+                                foregroundColor: EchoColors.background,
+                              ),
+                              onPressed: _isRecording
+                                  ? _stopRecording
+                                  : _hasRecording
+                                  ? () async {
+                                      final path = _recordingPath;
+                                      if (path == null) {
+                                        return;
+                                      }
+                                      final valid = await _isValidRecordingFile(
+                                        path,
+                                      );
+                                      if (!valid) {
+                                        appState.clearPendingPostDraft();
+                                        appState.clearPendingRecording();
+                                        if (!mounted) {
+                                          return;
+                                        }
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Recording not found. Please record again.',
+                                            ),
+                                          ),
+                                        );
+                                        setState(() {
+                                          _hasRecording = false;
+                                          _recordingPath = null;
+                                        });
+                                        return;
+                                      }
+                                      appState.audio.toggle(
+                                        sourceId: 'recording_preview',
+                                        path: path,
+                                      );
                                     }
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Recording not found. Please record again.',
-                                        ),
-                                      ),
-                                    );
-                                    setState(() {
-                                      _hasRecording = false;
-                                      _recordingPath = null;
-                                    });
-                                    return;
-                                  }
-                                  appState.audio.toggle(
-                                    sourceId: 'recording_preview',
-                                    path: path,
-                                  );
-                                }
-                              : _startRecording,
-                          child: Icon(
-                            _isRecording
-                                ? Icons.close
-                                : _hasRecording
-                                ? (isPlaying ? Icons.pause : Icons.play_arrow)
-                                : Icons.mic,
-                            size: 46,
-                            color: theme.colorScheme.onPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  if (_isRecording) ...[
-                    Text(
-                      '$_remainingSeconds',
-                      style: theme.textTheme.displaySmall,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'seconds remaining',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: EchoColors.textSecondary,
-                      ),
-                    ),
-                  ] else if (_hasRecording) ...[
-                    Text('Your recording', style: theme.textTheme.titleLarge),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Tap to preview',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: EchoColors.textSecondary,
-                      ),
-                    ),
-                  ] else ...[
-                    Text('Tap to record', style: theme.textTheme.titleLarge),
-                    const SizedBox(height: 6),
-                    Text(
-                      '12 seconds max',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: EchoColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  if (_isRecording)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: _waveHeights
-                          .map(
-                            (height) => AnimatedContainer(
-                              duration: reduceMotion
-                                  ? Duration.zero
-                                  : const Duration(milliseconds: 180),
-                              margin: const EdgeInsets.symmetric(horizontal: 3),
-                              width: 6,
-                              height: 20 + 60 * height,
-                              decoration: BoxDecoration(
-                                color: ringColor.withValues(alpha: 0.92),
-                                borderRadius: BorderRadius.circular(8),
+                                  : _startRecording,
+                              child: Icon(
+                                _isRecording
+                                    ? Icons.close
+                                    : _hasRecording
+                                    ? (isPlaying
+                                        ? Icons.pause
+                                        : Icons.play_arrow)
+                                    : Icons.mic,
+                                size: iconSize,
+                                color: theme.colorScheme.onPrimary,
                               ),
                             ),
-                          )
-                          .toList(),
-                    ),
-                ],
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: verticalGap),
+                      if (_isRecording) ...[
+                        Text(
+                          '$_remainingSeconds',
+                          style: theme.textTheme.displaySmall,
+                        ),
+                        SizedBox(height: labelGap),
+                        Text(
+                          'seconds remaining',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: EchoColors.textSecondary,
+                          ),
+                        ),
+                      ] else if (_hasRecording) ...[
+                        Text(
+                          'Your recording',
+                          style: theme.textTheme.titleLarge,
+                        ),
+                        SizedBox(height: labelGap),
+                        Text(
+                          'Tap to preview',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: EchoColors.textSecondary,
+                          ),
+                        ),
+                      ] else ...[
+                        Text('Tap to record', style: theme.textTheme.titleLarge),
+                        SizedBox(height: labelGap),
+                        Text(
+                          '12 seconds max',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: EchoColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                      SizedBox(height: verticalGap),
+                      if (_isRecording)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: _waveHeights
+                              .map(
+                                (height) => AnimatedContainer(
+                                  duration: reduceMotion
+                                      ? Duration.zero
+                                      : const Duration(milliseconds: 180),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 3,
+                                  ),
+                                  width: 6,
+                                  height: waveBase + waveAmplitude * height,
+                                  decoration: BoxDecoration(
+                                    color: ringColor.withValues(alpha: 0.92),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                    ],
+                  );
+                },
               ),
             ),
             if (_hasRecording)
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                padding: EchoLayout.listPadding(context),
                 child: Column(
                   children: [
                     SizedBox(

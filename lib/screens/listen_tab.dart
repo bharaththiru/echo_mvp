@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../app/app_scope.dart';
 import '../app/theme.dart';
 import '../models/hashtag.dart';
+import '../utils/responsive.dart';
 import '../widgets/echo_components.dart';
 
 class ListenTab extends StatefulWidget {
@@ -44,6 +45,11 @@ class _ListenTabState extends State<ListenTab> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = EchoLayout.horizontalPadding(context);
+    final availableWidth = screenWidth - (horizontalPadding * 2);
+    final cardWidth =
+        (availableWidth * 0.75).clamp(180.0, 240.0).toDouble();
     final appState = AppScope.of(context);
     final allHashtags = appState.hashtags;
     final isLoading = appState.hashtagsLoading;
@@ -67,7 +73,11 @@ class _ListenTabState extends State<ListenTab> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+          padding: EchoLayout.pagePadding(
+            context,
+            top: 32,
+            bottom: 16,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -104,7 +114,7 @@ class _ListenTabState extends State<ListenTab> {
               }
 
               return ListView(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                padding: EchoLayout.listPadding(context),
                 children: [
                   if (_query.isNotEmpty) ...[
                     const EchoSectionTitle('Your matches'),
@@ -115,26 +125,27 @@ class _ListenTabState extends State<ListenTab> {
                           context.push('/hashtag/${hashtag.id}'),
                     ),
                   ] else ...[
-                    if (forYourVibe.isNotEmpty) ...[
-                      const EchoSectionTitle('Set the tone'),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        height: 200,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemBuilder: (context, index) {
-                            final hashtag = forYourVibe[index];
-                            return _HashtagCard(
-                              hashtag: hashtag,
-                              moodTintEnabled:
-                                  appState.settings.moodTintEnabled,
-                              onTap: () =>
-                                  context.push('/hashtag/${hashtag.id}'),
-                            );
-                          },
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(width: 16),
-                          itemCount: forYourVibe.length,
+                  if (forYourVibe.isNotEmpty) ...[
+                    const EchoSectionTitle('Set the tone'),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 200,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemBuilder: (context, index) {
+                          final hashtag = forYourVibe[index];
+                          return _HashtagCard(
+                            hashtag: hashtag,
+                            moodTintEnabled:
+                                appState.settings.moodTintEnabled,
+                            onTap: () =>
+                                context.push('/hashtag/${hashtag.id}'),
+                            width: cardWidth,
+                          );
+                        },
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(width: 16),
+                        itemCount: forYourVibe.length,
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -190,7 +201,9 @@ class _EmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
+        padding: EdgeInsets.symmetric(
+          horizontal: EchoLayout.horizontalPadding(context),
+        ),
         child: EchoCard(
           padding: const EdgeInsets.all(22),
           child: Column(
@@ -220,11 +233,13 @@ class _HashtagCard extends StatelessWidget {
     required this.hashtag,
     required this.moodTintEnabled,
     required this.onTap,
+    required this.width,
   });
 
   final Hashtag hashtag;
   final bool moodTintEnabled;
   final VoidCallback onTap;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
@@ -238,7 +253,7 @@ class _HashtagCard extends StatelessWidget {
         : EchoColors.borderSubtle;
 
     return SizedBox(
-      width: 220,
+      width: width,
       child: EchoCard(
         onTap: onTap,
         radius: 24,
@@ -357,30 +372,38 @@ class _HashtagGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: hashtags.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 1.1,
-      ),
-      itemBuilder: (context, index) {
-        final hashtag = hashtags[index];
-        return EchoCard(
-          onTap: () => onTap(hashtag),
-          radius: 18,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(hashtag.icon, color: EchoColors.accent, size: 28),
-              const Spacer(),
-              Text(hashtag.name, style: theme.textTheme.titleMedium),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final crossAxisCount = width < 360 ? 1 : 2;
+        final childAspectRatio = crossAxisCount == 1 ? 2.2 : 1.1;
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: hashtags.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: childAspectRatio,
           ),
+          itemBuilder: (context, index) {
+            final hashtag = hashtags[index];
+            return EchoCard(
+              onTap: () => onTap(hashtag),
+              radius: 18,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(hashtag.icon, color: EchoColors.accent, size: 28),
+                  const Spacer(),
+                  Text(hashtag.name, style: theme.textTheme.titleMedium),
+                ],
+              ),
+            );
+          },
         );
       },
     );

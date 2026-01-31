@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../app/app_scope.dart';
 import '../app/theme.dart';
 import '../utils/time_format.dart';
+import '../utils/responsive.dart';
 import '../widgets/echo_components.dart';
 
 class ProfileTab extends StatelessWidget {
@@ -23,7 +24,11 @@ class ProfileTab extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+          padding: EchoLayout.pagePadding(
+            context,
+            top: 32,
+            bottom: 16,
+          ),
           child: Row(
             children: [
               Expanded(
@@ -38,7 +43,7 @@ class ProfileTab extends StatelessWidget {
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            padding: EchoLayout.listPadding(context),
             children: [
               EchoCard(
                 padding: const EdgeInsets.all(20),
