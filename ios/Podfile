@@ -53,4 +53,21 @@ post_install do |installer|
       end
     end
   end
+
+  installer.aggregate_targets.each do |target|
+    user_project = target.user_project
+    next unless user_project
+    user_project.targets.each do |user_target|
+      user_target.build_configurations.each do |config|
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+        %w[OTHER_CFLAGS OTHER_CPLUSPLUSFLAGS OTHER_LDFLAGS].each do |key|
+          flags = config.build_settings[key]
+          next unless flags
+          resolved = flags.is_a?(String) ? flags.split(' ') : flags
+          resolved = resolved.reject { |flag| flag == '-G' }
+          config.build_settings[key] = resolved
+        end
+      end
+    end
+  end
 end
