@@ -71,6 +71,16 @@ post_install do |installer|
       scrub_and_normalize_flags(config)
     end
 
+    # Targeted BoringSSL-GRPC fix: remove unsupported per-file flags seen on Xcode 16.
+    if target.name == 'BoringSSL-GRPC'
+      target.source_build_phase.files.each do |file|
+        next unless file.settings && file.settings['COMPILER_FLAGS']
+        flags = file.settings['COMPILER_FLAGS'].to_s.split(/\s+/)
+        flags.reject! { |flag| flag == '-GCC_WARN_INHIBIT_ALL_WARNINGS' || flag.start_with?('-G') }
+        file.settings['COMPILER_FLAGS'] = flags.join(' ')
+      end
+    end
+
     # Xcode 16: some older gRPC/BoringSSL pods inject unsupported "-G" flags into file-level compiler flags.
     # Strip any flag that begins with "-G" from source build phases for every target (covers BoringSSL-GRPC).
     target.source_build_phase.files.each do |file|
