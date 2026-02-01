@@ -35,7 +35,21 @@ workflows:
       - name: Build iOS (Flutter, no codesign)
         script: |
           set -euo pipefail
-          flutter build ios --release --no-codesign
+          # Generate Xcode project settings only (no archive) so we can override flags cleanly.
+          flutter build ios --release --no-codesign --config-only
+
+          # Build with xcodebuild while forcing clean OTHER_CFLAGS to strip any lingering -G.
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" \
+            OTHER_CFLAGS="" OTHER_CPLUSPLUSFLAGS="" \
+            build
       - name: Package unsigned IPA
         script: |
           set -euo pipefail
