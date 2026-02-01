@@ -38,30 +38,42 @@ target 'Runner' do
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
 
-post_install do |installer|
-  # Also scrub project-level build settings of stray -G flags
-  installer.pods_project.build_configurations.each do |config|
-    config.build_settings['OTHER_CFLAGS'] = '$(inherited)'
-    config.build_settings['OTHER_CPLUSPLUSFLAGS'] = '$(inherited) -std=gnu++17'
+def scrub_and_normalize_flags(config)
+  # Drop unsupported -G flags while keeping anything CocoaPods adds.
+  normalize = lambda do |key, required_tokens|
+    raw = config.build_settings[key]
+    tokens = Array(raw).flat_map { |v| v.to_s.split(/\s+/) }
+    tokens = tokens.reject { |flag| flag.start_with?('-G') }
+    tokens += required_tokens
+    tokens << '$(inherited)'
+    tokens = tokens.compact.reject(&:empty?).uniq
+    config.build_settings[key] = tokens.join(' ')
   end
 
+  normalize.call('OTHER_CFLAGS', [])
+  normalize.call('OTHER_CPLUSPLUSFLAGS', ['-std=gnu++17'])
+end
+
+post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
 
-    # Align all pods with the app's minimum iOS version and ensure gRPC builds with C++17 on Xcode 16+
+    # Align pods with the app's deployment target and avoid Xcode 16+ module/precompile issues.
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
       config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
-      # Disable explicit/precompiled Swift modules to avoid Xcode 16 "PrecompileModule ...scan" failures
       config.build_settings['EXPLICIT_MODULE_BUILD'] = 'NO'
       config.build_settings['SWIFT_PRECOMPILE_MODULES'] = 'NO'
       config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
       config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'NO'
-      # Allow Firebase umbrella header inside Swift modules to avoid "non-modular header" errors
       config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-      # Ensure no stray -G flags in compiler options (clang for arm64 rejects -G)
-      config.build_settings['OTHER_CFLAGS'] = '$(inherited)'
-      config.build_settings['OTHER_CPLUSPLUSFLAGS'] = '$(inherited) -std=gnu++17'
+
+      scrub_and_normalize_flags(config)
     end
+  end
+
+  # Apply the flag scrub at the project level too so generated xcconfigs stay clean.
+  installer.pods_project.build_configurations.each do |config|
+    scrub_and_normalize_flags(config)
   end
 end

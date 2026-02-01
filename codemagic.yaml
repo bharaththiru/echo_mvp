@@ -6,51 +6,56 @@ workflows:
     environment:
       flutter: stable
       xcode: 16.4
-      cocoapods: default
+      cocoapods: 1.15.2
     cache:
       cache_paths:
         - ~/.pub-cache
+        - ~/Library/Caches/CocoaPods
     scripts:
       - name: Clean workspace
         script: |
+          set -euo pipefail
           flutter clean
           rm -rf ios/Pods ios/.symlinks ios/Flutter/Flutter.podspec ios/Podfile.lock build/ios
       - name: Install dependencies
         script: |
+          set -euo pipefail
           flutter pub get
           cd ios
           pod install --repo-update
           cd ..
-      - name: Strip -G flags (clang workaround)
+      - name: Build iOS (Flutter, no codesign)
         script: |
-          find ios -type f \( -name "*.xcconfig" -o -name "project.pbxproj" \) -print0 | \
-            xargs -0 perl -0777 -pi -e 's/(^|\s)-G(?=\s|$)//g; s/(^|\s)-G[^\s"]+//g; s/\s{2,}/ /g; s/\s+$//gm'
-      - name: "Debug: show any remaining -G flags"
-        script: |
-          echo "Searching for '-G' in build settings after stripping…"
-          find ios -type f \( -name "*.xcconfig" -o -name "project.pbxproj" \) -print0 | \
-            xargs -0 grep -n " -G" || true
-      - name: Build iOS (xcodebuild, no codesign)
-        script: |
-          xcodebuild \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath build/ios/DerivedData \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" \
-            OTHER_CFLAGS="$(inherited)" OTHER_CPLUSPLUSFLAGS="$(inherited)" \
-            build
+          set -euo pipefail
+          flutter build ios --release --no-codesign
       - name: Package unsigned IPA
         script: |
+          set -euo pipefail
+
+          APP_PATH=build/ios/iphoneos/Runner.app
           IPA_DIR=build/ios/ipa
-          APP_PATH=build/ios/DerivedData/Build/Products/Release-iphoneos/Runner.app
+
+          rm -rf "$IPA_DIR"
           mkdir -p "$IPA_DIR/Payload"
           ditto "$APP_PATH" "$IPA_DIR/Payload/Runner.app"
+
+          if [ -d "$APP_PATH/Frameworks" ]; then
+            SWIFT_SUPPORT="$IPA_DIR/SwiftSupport/iphoneos"
+            mkdir -p "$SWIFT_SUPPORT"
+            xcrun --sdk iphoneos swift-stdlib-tool \
+              --copy \
+              --scan-executable "$APP_PATH/Runner" \
+              --scan-folder "$APP_PATH/Frameworks" \
+              --destination "$SWIFT_SUPPORT" \
+              --strip-bitcode
+          fi
+
           cd "$IPA_DIR"
-          ditto -c -k --sequesterRsrc --keepParent Payload Echo.ipa
+          if [ -d "SwiftSupport" ]; then
+            zip -r -y Echo-unsigned.ipa Payload SwiftSupport
+          else
+            zip -r -y Echo-unsigned.ipa Payload
+          fi
     artifacts:
-      - build/ios/ipa/Echo.ipa
-      - build/ios/DerivedData/Build/Products/Release-iphoneos/Runner.app
+      - build/ios/ipa/Echo-unsigned.ipa
+      - build/ios/iphoneos/Runner.app
