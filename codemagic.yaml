@@ -30,11 +30,27 @@ workflows:
           echo "Searching for '-G' in build settings after stripping…"
           find ios -type f \( -name "*.xcconfig" -o -name "project.pbxproj" \) -print0 | \
             xargs -0 grep -n " -G" || true
-      - name: Build IPA (Flutter, no codesign)
+      - name: Build iOS (xcodebuild, no codesign)
         script: |
-          flutter build ipa --release --no-codesign \
-            --build-name=1.0.0 --build-number=1 \
-            --dart-define=CI=true
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" \
+            OTHER_CFLAGS="$(inherited)" OTHER_CPLUSPLUSFLAGS="$(inherited)" \
+            build
+      - name: Package unsigned IPA
+        script: |
+          IPA_DIR=build/ios/ipa
+          APP_PATH=build/ios/DerivedData/Build/Products/Release-iphoneos/Runner.app
+          mkdir -p "$IPA_DIR/Payload"
+          ditto "$APP_PATH" "$IPA_DIR/Payload/Runner.app"
+          cd "$IPA_DIR"
+          ditto -c -k --sequesterRsrc --keepParent Payload Echo.ipa
     artifacts:
       - build/ios/ipa/Echo.ipa
       - build/ios/DerivedData/Build/Products/Release-iphoneos/Runner.app
