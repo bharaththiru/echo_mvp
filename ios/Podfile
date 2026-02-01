@@ -58,49 +58,28 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
 
-    # Align pods with the app's deployment target and avoid Xcode 16+ module/precompile issues.
-    target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
-      config.build_settings['EXPLICIT_MODULE_BUILD'] = 'NO'
-      config.build_settings['SWIFT_PRECOMPILE_MODULES'] = 'NO'
-      config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
-      config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'NO'
-      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-
-      scrub_and_normalize_flags(config)
-    end
-
-    # Targeted BoringSSL-GRPC fix: remove unsupported per-file flags seen on Xcode 16.
-    if target.name == 'BoringSSL-GRPC'
-      target.source_build_phase.files.each do |file|
-        next unless file.settings && file.settings['COMPILER_FLAGS']
-        flags = file.settings['COMPILER_FLAGS'].to_s.split(/\s+/)
-        flags.reject! { |flag| flag == '-GCC_WARN_INHIBIT_ALL_WARNINGS' || flag.start_with?('-G') }
-        file.settings['COMPILER_FLAGS'] = flags.join(' ')
+    # 1. Safety check: only apply settings to targets that support them
+    if target.respond_to?(:build_configurations)
+      target.build_configurations.each do |config|
+        # Align pods with the app's deployment target
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+        
+        # Fix for potential Xcode 16 compatibility (safe to keep on Xcode 15)
+        config.build_settings['EXPLICIT_MODULE_BUILD'] = 'NO'
+        config.build_settings['SWIFT_PRECOMPILE_MODULES'] = 'NO'
+        config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
+        
+        # BoringSSL Fix: Only run this on the actual library target
+        if target.name == 'BoringSSL-GRPC' && target.respond_to?(:source_build_phase)
+          target.source_build_phase.files.each do |file|
+            if file.settings && file.settings['COMPILER_FLAGS']
+              flags = file.settings['COMPILER_FLAGS'].split
+              flags.reject! { |flag| flag == '-GCC_WARN_INHIBIT_ALL_WARNINGS' }
+              file.settings['COMPILER_FLAGS'] = flags.join(' ')
+            end
+          end
+        end
       end
     end
-
-    # Xcode 16: some older gRPC/BoringSSL pods inject unsupported "-G" flags into file-level compiler flags.
-    # Strip any flag that begins with "-G" from source build phases for every target (covers BoringSSL-GRPC).
-    target.source_build_phase.files.each do |file|
-      next unless file.settings && file.settings['COMPILER_FLAGS']
-      flags = file.settings['COMPILER_FLAGS'].to_s.split(/\s+/)
-      flags.reject! { |flag| flag.start_with?('-G') }
-      file.settings['COMPILER_FLAGS'] = flags.join(' ')
-    end
-  end
-
-  # Also scrub the main app target (Runner) because Flutter/Pod install can re-introduce flags there.
-  app_project_path = File.join(__dir__, 'Runner.xcodeproj')
-  if File.exist?(app_project_path)
-    app_project = Xcodeproj::Project.open(app_project_path)
-    app_project.build_configurations.each { |config| scrub_and_normalize_flags(config) }
-    app_project.save
-  end
-
-  # Apply the flag scrub at the project level too so generated xcconfigs stay clean.
-  installer.pods_project.build_configurations.each do |config|
-    scrub_and_normalize_flags(config)
   end
 end
