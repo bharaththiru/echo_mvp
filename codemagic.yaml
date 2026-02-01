@@ -20,31 +20,12 @@ workflows:
           flutter pub get
           cd ios
           pod install --repo-update
-      - name: Build iOS (no codesign)
+          cd ..
+      - name: Build IPA (Flutter, no codesign)
         script: |
-          xcodebuild \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath build/ios/DerivedData \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" \
-            EXPLICIT_MODULE_BUILD=NO \
-            SWIFT_ENABLE_EXPLICIT_MODULES=NO \
-            SWIFT_PRECOMPILE_MODULES=NO \
-            BUILD_LIBRARY_FOR_DISTRIBUTION=NO \
-            OTHER_SWIFT_FLAGS="-disable-explicit-module-build" \
-            build
-      - name: Package unsigned IPA
-        script: |
-          IPA_DIR=build/ios/ipa
-          APP_PATH=build/ios/DerivedData/Build/Products/Release-iphoneos/Runner.app
-          mkdir -p "$IPA_DIR/Payload"
-          ditto "$APP_PATH" "$IPA_DIR/Payload/Runner.app"
-          cd "$IPA_DIR"
-          ditto -c -k --sequesterRsrc --keepParent Payload Echo.ipa
+          flutter build ipa --release --no-codesign \
+            --build-name=1.0.0 --build-number=1 \
+            --dart-define=CI=true
     artifacts:
       - build/ios/ipa/Echo.ipa
       - build/ios/DerivedData/Build/Products/Release-iphoneos/Runner.app
