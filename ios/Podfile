@@ -70,6 +70,15 @@ post_install do |installer|
 
       scrub_and_normalize_flags(config)
     end
+
+    # Xcode 16: some older gRPC/BoringSSL pods inject unsupported "-G" flags into file-level compiler flags.
+    # Strip any flag that begins with "-G" from source build phases for every target (covers BoringSSL-GRPC).
+    target.source_build_phase.files.each do |file|
+      next unless file.settings && file.settings['COMPILER_FLAGS']
+      flags = file.settings['COMPILER_FLAGS'].to_s.split(/\s+/)
+      flags.reject! { |flag| flag.start_with?('-G') }
+      file.settings['COMPILER_FLAGS'] = flags.join(' ')
+    end
   end
 
   # Also scrub the main app target (Runner) because Flutter/Pod install can re-introduce flags there.
