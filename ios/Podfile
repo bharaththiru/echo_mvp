@@ -33,8 +33,8 @@ require File.expand_path(
 flutter_ios_podfile_setup
 
 target 'Runner' do
-  use_frameworks!
-  use_modular_headers!
+  # Use static frameworks to avoid non-modular header issues with Firebase
+  use_frameworks! :linkage => :static
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
