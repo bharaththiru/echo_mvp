@@ -39,6 +39,12 @@ target 'Runner' do
 end
 
 post_install do |installer|
+  # Also scrub project-level build settings of stray -G flags
+  installer.pods_project.build_configurations.each do |config|
+    config.build_settings['OTHER_CFLAGS'] = '$(inherited)'
+    config.build_settings['OTHER_CPLUSPLUSFLAGS'] = '$(inherited)'
+  end
+
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
 
@@ -54,14 +60,8 @@ post_install do |installer|
       # Allow Firebase umbrella header inside Swift modules to avoid "non-modular header" errors
       config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
       # Ensure no stray -G flags in compiler options (clang for arm64 rejects -G)
-      %w[OTHER_CFLAGS OTHER_CPLUSPLUSFLAGS].each do |key|
-        if config.build_settings[key]
-          cleaned = config.build_settings[key].gsub(/(^|\s)-G(?=\s|$)/, ' ').gsub(/(^|\s)-G[^\s"]+/, ' ')
-          config.build_settings[key] = cleaned
-        else
-          config.build_settings[key] = '$(inherited)'
-        end
-      end
+      config.build_settings['OTHER_CFLAGS'] = '$(inherited)'
+      config.build_settings['OTHER_CPLUSPLUSFLAGS'] = '$(inherited)'
     end
   end
 end
