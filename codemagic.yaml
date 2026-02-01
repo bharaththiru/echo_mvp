@@ -24,6 +24,14 @@ workflows:
           cd ios
           pod install --repo-update
           cd ..
+      - name: Strip -G flags from Xcode settings
+        script: |
+          set -euo pipefail
+          find ios -type f \( -name "*.xcconfig" -o -name "project.pbxproj" \) -print0 | \
+            xargs -0 perl -0777 -pi -e 's/(^|\s)-G(?=\s|$)//g; s/(^|\s)-G[^\s"]+//g; s/\s{2,}/ /g; s/\s+$//gm'
+          echo "Remaining -G occurrences (should be none):"
+          find ios -type f \( -name "*.xcconfig" -o -name "project.pbxproj" \) -print0 | \
+            xargs -0 grep -n " -G" || true
       - name: Build iOS (Flutter, no codesign)
         script: |
           set -euo pipefail
