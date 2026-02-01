@@ -72,6 +72,14 @@ post_install do |installer|
     end
   end
 
+  # Also scrub the main app target (Runner) because Flutter/Pod install can re-introduce flags there.
+  app_project_path = File.join(__dir__, 'Runner.xcodeproj')
+  if File.exist?(app_project_path)
+    app_project = Xcodeproj::Project.open(app_project_path)
+    app_project.build_configurations.each { |config| scrub_and_normalize_flags(config) }
+    app_project.save
+  end
+
   # Apply the flag scrub at the project level too so generated xcconfigs stay clean.
   installer.pods_project.build_configurations.each do |config|
     scrub_and_normalize_flags(config)
