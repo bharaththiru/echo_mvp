@@ -24,7 +24,7 @@ workflows:
       - name: Strip -G flags (clang workaround)
         script: |
           find ios -type f \( -name "*.xcconfig" -o -name "project.pbxproj" \) -print0 | \
-            xargs -0 perl -0777 -pi -e 's/(^|\s)-G[^\s"]+//g; s/\s{2,}/ /g; s/\s+$//gm'
+            xargs -0 perl -0777 -pi -e 's/(^|\s)-G(?=\s|$)//g; s/(^|\s)-G[^\s"]+//g; s/\s{2,}/ /g; s/\s+$//gm'
       - name: Build IPA (Flutter, no codesign)
         script: |
           flutter build ipa --release --no-codesign \
