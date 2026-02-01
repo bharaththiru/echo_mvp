@@ -5,30 +5,21 @@ workflows:
     max_build_duration: 60
     environment:
       flutter: stable
-      xcode: 16.4.x
+      xcode: 16.4
       cocoapods: default
     cache:
       cache_paths:
         - ~/.pub-cache
-        - ios/.symlinks
     scripts:
-      - name: Clean build artifacts
+      - name: Clean workspace
         script: |
           flutter clean
-          rm -rf ios/Pods ios/.symlinks ios/Flutter/Flutter.podspec ios/Podfile.lock
-      - name: Flutter packages
+          rm -rf ios/Pods ios/.symlinks ios/Flutter/Flutter.podspec ios/Podfile.lock build/ios
+      - name: Install dependencies
         script: |
-          flutter --version
           flutter pub get
-      - name: Install CocoaPods
-        script: |
           cd ios
           pod install --repo-update
-          cd ..
-      - name: Strip -G flags
-        script: |
-          find ios -type f \( -name "*.xcconfig" -o -name "project.pbxproj" \) -print0 | \
-            xargs -0 perl -0777 -pi -e 's/(^|\s)-G[^\s"]+//g; s/\s{2,}/ /g; s/\s+$//gm'
       - name: Build iOS (no codesign)
         script: |
           xcodebuild \
@@ -38,15 +29,13 @@ workflows:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/ios/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" \
             EXPLICIT_MODULE_BUILD=NO \
             SWIFT_ENABLE_EXPLICIT_MODULES=NO \
             SWIFT_PRECOMPILE_MODULES=NO \
             BUILD_LIBRARY_FOR_DISTRIBUTION=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
+            OTHER_SWIFT_FLAGS="-disable-explicit-module-build" \
             build
       - name: Package unsigned IPA
         script: |
