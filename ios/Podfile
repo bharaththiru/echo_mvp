@@ -1,3 +1,4 @@
+$FirebaseSDKVersion = '11.12.0' # Pin Firebase Apple SDK to a version that supports Xcode 16.3+ and fixes gRPC compile issues
 platform :ios, '13.0'
 
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -41,5 +42,11 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    # Align all pods with the app's minimum iOS version and ensure gRPC builds with C++17 on Xcode 16+
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+    end
   end
 end
