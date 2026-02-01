@@ -47,6 +47,9 @@ post_install do |installer|
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
       config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+      # Disable explicit/precompiled Swift modules to avoid Xcode 16 "PrecompileModule ...scan" failures
+      config.build_settings['EXPLICIT_MODULE_BUILD'] = 'NO'
+      config.build_settings['SWIFT_PRECOMPILE_MODULES'] = 'NO'
     end
   end
 end
