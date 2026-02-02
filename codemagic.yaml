@@ -38,7 +38,7 @@ workflows:
           # Generate Xcode project settings only (no archive) so we can override flags cleanly.
           flutter build ios --release --no-codesign --config-only
 
-          # Build with xcodebuild while forcing clean OTHER_CFLAGS to strip any lingering -G.
+          # Build with xcodebuild (removed unnecessary OTHER_*FLAGS overrides).
           xcodebuild \
             -workspace ios/Runner.xcworkspace \
             -scheme Runner \
@@ -48,7 +48,6 @@ workflows:
             -derivedDataPath build/ios/DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" \
-            OTHER_CFLAGS="" OTHER_CPLUSPLUSFLAGS="" \
             build
       - name: Package unsigned IPA
         script: |
