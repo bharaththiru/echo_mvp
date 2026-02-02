@@ -218,13 +218,14 @@ class AutoplayController extends ChangeNotifier {
   String? _resumeNoteId;
   String? _mutedNoteId;
   double _userVolume;
+  bool _suppressVolumeUpdates = false;
   bool _isDisposed = false;
   bool _wrappedQueue = false;
   String? _positionNoteId;
   Duration _lastObservedPosition = Duration.zero;
   int _positionResetCount = 0;
 
-  static const _transitionDelay = Duration(milliseconds: 300);
+  static const _transitionDelay = Duration.zero;
   static const _resolveTimeout = Duration(seconds: 8);
   static const _playStartTimeout = Duration(seconds: 8);
   static const _retryDelay = Duration(milliseconds: 350);
@@ -236,6 +237,8 @@ class AutoplayController extends ChangeNotifier {
   static const _positionResetMinPosition = Duration(seconds: 4);
   static const _positionResetThreshold = Duration(seconds: 2);
   static const _maxPositionResetsPerClip = 2;
+  static const _crossfadeDuration = Duration(milliseconds: 120);
+  static const _preloadAhead = 2;
 
   void attach(String hashtagId, {bool forceRefresh = false}) {
     if (_isDisposed) {
@@ -466,6 +469,9 @@ class AutoplayController extends ChangeNotifier {
         isMuted: resolvedNote != null && _isMutedNote(resolvedNote.id),
       ),
     );
+    if (resolvedNote != null) {
+      _preloadNextFrom(safeIndex);
+    }
   }
 
   Future<void> _startAutoplay() async {
@@ -633,6 +639,7 @@ class AutoplayController extends ChangeNotifier {
     int index, {
     AutoplayPhase? phaseOverride,
     Duration? startPosition,
+    bool crossfade = false,
   }) async {
     if (_isDisposed || _activeHashtagId == null) {
       return;
@@ -664,7 +671,11 @@ class AutoplayController extends ChangeNotifier {
       return;
     }
 
-    final started = await _attemptStartPlayback(note, token: token);
+    final started = await _attemptStartPlayback(
+      note,
+      token: token,
+      crossfade: crossfade,
+    );
     if (!started || !_isTokenCurrent(token)) {
       return;
     }
@@ -723,6 +734,7 @@ class AutoplayController extends ChangeNotifier {
   Future<bool> _attemptStartPlayback(
     VoiceNote note, {
     required int token,
+    required bool crossfade,
   }) async {
     for (var attempt = 0; attempt < _maxClipAttempts; attempt++) {
       if (!_isTokenCurrent(token)) {
@@ -750,7 +762,12 @@ class AutoplayController extends ChangeNotifier {
       }
 
       try {
-        await _applyVolumeForClip(note.id);
+        final targetVolume = _isMutedNote(note.id) ? 0.0 : _userVolume;
+        if (crossfade && targetVolume > 0) {
+          await _setVolumeForCrossfade(0.0);
+        } else {
+          await _applyVolumeForClip(note.id);
+        }
         await _audio
             .play(
               sourceId: note.id,
@@ -759,6 +776,9 @@ class AutoplayController extends ChangeNotifier {
               title: note.hashtagLabel,
             )
             .timeout(_playStartTimeout);
+        if (crossfade && targetVolume > 0) {
+          await _fadeVolume(0.0, targetVolume, _crossfadeDuration);
+        }
       } on TimeoutException {
         if (!_isTokenCurrent(token)) {
           return false;
@@ -847,21 +867,32 @@ class AutoplayController extends ChangeNotifier {
       ),
     );
 
+    final shouldCrossfade = reason == _AdvanceReason.autoplay;
+    if (shouldCrossfade) {
+      await _fadeVolume(
+        _audio.state.volume,
+        0.0,
+        _crossfadeDuration,
+      );
+    }
     if (stopCurrent) {
       await _audio.stop();
     }
     if (!_isSessionCurrent(sessionToken)) {
       return;
     }
-    await Future<void>.delayed(_transitionDelay);
-    if (_isDisposed || !_isSessionCurrent(sessionToken)) {
-      return;
+    if (_transitionDelay != Duration.zero) {
+      await Future<void>.delayed(_transitionDelay);
+      if (_isDisposed || !_isSessionCurrent(sessionToken)) {
+        return;
+      }
     }
     await _playIndex(
       nextIndex,
       phaseOverride: reason == _AdvanceReason.autoplay
           ? AutoplayPhase.loading
           : AutoplayPhase.transitioning,
+      crossfade: shouldCrossfade,
     );
   }
 
@@ -1000,45 +1031,70 @@ class AutoplayController extends ChangeNotifier {
   }
 
   void _preloadNextFrom(int index) {
-    final nextIndex = _nextPlayableIndex(fromIndex: index);
-    if (nextIndex == null || nextIndex >= _state.queue.length) {
+    final upcoming = _collectUpcoming(fromIndex: index, take: _preloadAhead);
+    if (upcoming.isEmpty) {
       _setState(_state.copyWith(preloadingNoteId: null));
       return;
     }
-    final next = _state.queue[nextIndex];
-    if (_cachedPaths.containsKey(next.id) ||
-        _preloadInFlight.contains(next.id)) {
-      _setState(_state.copyWith(preloadingNoteId: next.id));
-      return;
-    }
-    _preloadInFlight.add(next.id);
-    _setState(_state.copyWith(preloadingNoteId: next.id));
+    final primary = upcoming.first;
+    _setState(_state.copyWith(preloadingNoteId: primary.id));
     final sessionToken = _sessionToken;
-    unawaited(
-      _dataSource
-          .ensureLocalAudioPath(next)
-          .then((path) {
-            _preloadInFlight.remove(next.id);
-            if (!_isSessionCurrent(sessionToken) || _isDisposed) {
-              return;
-            }
-            if (path != null && path.isNotEmpty) {
-              _cachedPaths[next.id] = path;
-            }
-            final stillNext =
-                _state.upcoming(take: 1).firstOrNull?.id == next.id;
-            _setState(
-              _state.copyWith(preloadingNoteId: stillNext ? next.id : null),
-            );
-          })
-          .catchError((_) {
-            _preloadInFlight.remove(next.id);
-            if (!_isSessionCurrent(sessionToken) || _isDisposed) {
-              return;
-            }
-            _setState(_state.copyWith(preloadingNoteId: null));
-          }),
-    );
+    for (final note in upcoming) {
+      if (_cachedPaths.containsKey(note.id) ||
+          _preloadInFlight.contains(note.id)) {
+        continue;
+      }
+      _preloadInFlight.add(note.id);
+      unawaited(
+        _dataSource
+            .ensureLocalAudioPath(note)
+            .then((path) {
+              _preloadInFlight.remove(note.id);
+              if (!_isSessionCurrent(sessionToken) || _isDisposed) {
+                return;
+              }
+              if (path != null && path.isNotEmpty) {
+                _cachedPaths[note.id] = path;
+              }
+              if (note.id == primary.id) {
+                final stillNext =
+                    _state.upcoming(take: 1).firstOrNull?.id == primary.id;
+                _setState(
+                  _state.copyWith(
+                    preloadingNoteId: stillNext ? primary.id : null,
+                  ),
+                );
+              }
+            })
+            .catchError((_) {
+              _preloadInFlight.remove(note.id);
+              if (!_isSessionCurrent(sessionToken) || _isDisposed) {
+                return;
+              }
+              if (note.id == primary.id) {
+                _setState(_state.copyWith(preloadingNoteId: null));
+              }
+            }),
+      );
+    }
+  }
+
+  List<VoiceNote> _collectUpcoming({
+    required int fromIndex,
+    required int take,
+  }) {
+    final upcoming = <VoiceNote>[];
+    var cursor = fromIndex;
+    for (var i = 0; i < take; i++) {
+      final nextIndex = _nextPlayableIndex(fromIndex: cursor);
+      if (nextIndex == null || nextIndex >= _state.queue.length) {
+        break;
+      }
+      final note = _state.queue[nextIndex];
+      upcoming.add(note);
+      cursor = nextIndex;
+    }
+    return upcoming;
   }
 
   void _maybeRefreshQueue(int index) {
@@ -1087,6 +1143,46 @@ class AutoplayController extends ChangeNotifier {
       return;
     }
     await _audio.setVolume(targetVolume);
+  }
+
+  Future<void> _fadeVolume(
+    double from,
+    double to,
+    Duration duration,
+  ) async {
+    if (_isDisposed || duration == Duration.zero) {
+      await _audio.setVolume(to);
+      return;
+    }
+    final steps = 6;
+    final stepDuration = Duration(
+      milliseconds: (duration.inMilliseconds / steps).round(),
+    );
+    _suppressVolumeUpdates = true;
+    try {
+      for (var i = 1; i <= steps; i++) {
+        if (_isDisposed) {
+          return;
+        }
+        final t = i / steps;
+        final value = from + (to - from) * t;
+        await _audio.setVolume(value);
+        if (stepDuration > Duration.zero) {
+          await Future<void>.delayed(stepDuration);
+        }
+      }
+    } finally {
+      _suppressVolumeUpdates = false;
+    }
+  }
+
+  Future<void> _setVolumeForCrossfade(double volume) async {
+    _suppressVolumeUpdates = true;
+    try {
+      await _audio.setVolume(volume);
+    } finally {
+      _suppressVolumeUpdates = false;
+    }
   }
 
   Future<void> _resumePlayback(Duration? position) async {
@@ -1180,6 +1276,7 @@ class AutoplayController extends ChangeNotifier {
     }
     final isMuted = _isMutedNote(currentNote.id);
     if (!isMuted &&
+        !_suppressVolumeUpdates &&
         !_state.isPreparing &&
         !_state.isTransitioning &&
         audioState.volume != _userVolume) {

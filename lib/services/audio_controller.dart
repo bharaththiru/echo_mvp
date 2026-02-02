@@ -77,10 +77,11 @@ class AudioController extends ChangeNotifier
     _lastEngineUpdate = DateTime.now();
     _lastPositionTick = _lastEngineUpdate;
     final nextPhase = _mapPhase(snapshot);
+    final resolvedPosition = _resolveSnapshotPosition(snapshot);
     _state = _state.copyWith(
       sourceId: snapshot.sourceId,
       path: snapshot.path,
-      position: snapshot.position,
+      position: resolvedPosition,
       duration: snapshot.duration,
       bufferedPosition: snapshot.bufferedPosition,
       isPlaying: snapshot.isPlaying,
@@ -129,6 +130,19 @@ class AudioController extends ChangeNotifier
         _syncPositionTimer();
         break;
     }
+  }
+
+  Duration _resolveSnapshotPosition(AudioEngineSnapshot snapshot) {
+    if (snapshot.isPlaying &&
+        _state.isPlaying &&
+        _state.sourceId == snapshot.sourceId &&
+        snapshot.position < _state.position) {
+      final diff = _state.position - snapshot.position;
+      if (diff > const Duration(milliseconds: 700)) {
+        return _state.position;
+      }
+    }
+    return snapshot.position;
   }
 
   AudioPlaybackPhase _mapPhase(AudioEngineSnapshot snapshot) {

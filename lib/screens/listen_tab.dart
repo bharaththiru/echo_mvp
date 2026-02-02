@@ -119,10 +119,14 @@ class _ListenTabState extends State<ListenTab> {
                   if (_query.isNotEmpty) ...[
                     const EchoSectionTitle('Your matches'),
                     const SizedBox(height: 12),
-                    _HashtagGrid(
-                      hashtags: filtered,
-                      onTap: (hashtag) =>
-                          context.push('/hashtag/${hashtag.id}'),
+                    ...filtered.map(
+                      (hashtag) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _HashtagListTile(
+                          hashtag: hashtag,
+                          onTap: () => context.push('/hashtag/${hashtag.id}'),
+                        ),
+                      ),
                     ),
                   ] else ...[
                     if (forYourVibe.isNotEmpty) ...[
