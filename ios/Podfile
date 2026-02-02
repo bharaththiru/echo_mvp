@@ -81,5 +81,17 @@ post_install do |installer|
         end
       end
     end
+
+    # New: Patch for gRPC-Core template issue in basic_seq.h
+    if target.name == 'gRPC-Core'
+      file_path = "#{installer.sandbox.pod_dir(target.name)}/src/core/lib/promise/detail/basic_seq.h"
+      if File.exist?(file_path)
+        text = File.read(file_path)
+        # Add <> to the CallSeqFactory call
+        new_text = text.gsub(/Traits::template CallSeqFactory\(/, 'Traits::template CallSeqFactory<>(')
+        File.open(file_path, "w") { |file| file.puts new_text }
+        puts "Patched gRPC-Core basic_seq.h for Xcode 16 compatibility"
+      end
+    end
   end
 end
