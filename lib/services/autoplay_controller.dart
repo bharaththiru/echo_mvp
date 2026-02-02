@@ -773,36 +773,6 @@ class AutoplayController extends ChangeNotifier {
         title: current.hashtagLabel,
       ),
     );
-
-    final upcoming = _collectUpcomingSequential(
-      fromIndex: startIndex,
-      take: _queueFillTarget - 1,
-    );
-    for (final note in upcoming) {
-      if (!_isTokenCurrent(token)) {
-        break;
-      }
-      if (note.id == current.id) {
-        continue;
-      }
-      String? path;
-      try {
-        path = await _resolvePath(note, token: token).timeout(_resolveTimeout);
-      } on TimeoutException {
-        path = null;
-      }
-      if (!_isTokenCurrent(token) || path == null || path.isEmpty) {
-        continue;
-      }
-      items.add(
-        AudioQueueItem(
-          sourceId: note.id,
-          path: path,
-          duration: note.duration,
-          title: note.hashtagLabel,
-        ),
-      );
-    }
     return items;
   }
 

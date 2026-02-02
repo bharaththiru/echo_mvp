@@ -25,6 +25,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final List<MediaItem> _queueItems = <MediaItem>[];
   bool _queueMode = false;
   StreamSubscription<int?>? _indexSub;
+  StreamSubscription<SequenceState?>? _sequenceSub;
   AudioSession? _session;
   final _eventController = StreamController<EchoAudioEvent>.broadcast();
 
@@ -140,6 +141,13 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       mediaItem.add(_queueItems[index]);
       _broadcastState();
     });
+    _sequenceSub = _player.sequenceStateStream.listen((state) {
+      final tag = state?.currentSource?.tag;
+      if (tag is MediaItem) {
+        mediaItem.add(tag);
+        _broadcastState();
+      }
+    });
   }
 
   MediaItem _buildMediaItem(AudioQueueItem item) {
@@ -183,12 +191,13 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }) async {
     _lastErrorMessage = null;
     _queueMode = true;
-    _queueItems
-      ..clear()
-      ..addAll(items.map(_buildMediaItem));
-    final sources = items
-        .map((item) => AudioSource.uri(_resolveUri(item.path)))
-        .toList();
+    _queueItems.clear();
+    final sources = <AudioSource>[];
+    for (final item in items) {
+      final media = _buildMediaItem(item);
+      _queueItems.add(media);
+      sources.add(AudioSource.uri(_resolveUri(item.path), tag: media));
+    }
     _playlist = ConcatenatingAudioSource(children: sources);
     queue.add(List<MediaItem>.from(_queueItems));
     await _player.setAudioSource(
@@ -207,11 +216,13 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       await setQueue(items);
       return;
     }
-    final sources = items
-        .map((item) => AudioSource.uri(_resolveUri(item.path)))
-        .toList();
+    final sources = <AudioSource>[];
+    for (final item in items) {
+      final media = _buildMediaItem(item);
+      _queueItems.add(media);
+      sources.add(AudioSource.uri(_resolveUri(item.path), tag: media));
+    }
     await _playlist!.addAll(sources);
-    _queueItems.addAll(items.map(_buildMediaItem));
     queue.add(List<MediaItem>.from(_queueItems));
   }
 
@@ -361,6 +372,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await _becomingNoisySub?.cancel();
     await _devicesChangedSub?.cancel();
     await _indexSub?.cancel();
+    await _sequenceSub?.cancel();
     await _eventController.close();
     await _player.dispose();
   }
