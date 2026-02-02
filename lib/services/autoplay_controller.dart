@@ -684,11 +684,11 @@ class AutoplayController extends ChangeNotifier {
       ..clear()
       ..addEntries(
         queueItems.map((item) {
-          final note = _state.queue.firstWhere(
+          final resolvedNote = _state.queue.firstWhere(
             (n) => n.id == item.sourceId,
             orElse: () => note,
           );
-          return MapEntry(item.sourceId, note);
+          return MapEntry(item.sourceId, resolvedNote);
         }),
       );
     _playbackQueueIndex = 0;
