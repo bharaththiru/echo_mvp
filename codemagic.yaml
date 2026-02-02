@@ -78,6 +78,7 @@ workflows:
               --copy \
               --scan-executable "$APP_PATH/Runner" \
               --scan-folder "$APP_PATH/Frameworks" \
+              --platform iphoneos \
               --destination "$SWIFT_SUPPORT" \
               --strip-bitcode
           fi
