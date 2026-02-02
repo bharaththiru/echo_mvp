@@ -53,7 +53,18 @@ workflows:
         script: |
           set -euo pipefail
 
-          APP_PATH=build/ios/iphoneos/Runner.app
+          # Prefer the xcodebuild DerivedData output, fallback to Flutter default.
+          APP_PATH=""
+          if [ -d "build/ios/iphoneos/Runner.app" ]; then
+            APP_PATH=build/ios/iphoneos/Runner.app
+          else
+            APP_PATH=$(find build/ios/DerivedData/Build/Products -maxdepth 2 -type d -name "Runner.app" | head -n 1)
+          fi
+
+          if [ -z "$APP_PATH" ]; then
+            echo "Runner.app not found. Check build step output paths."
+            exit 1
+          fi
           IPA_DIR=build/ios/ipa
 
           rm -rf "$IPA_DIR"
