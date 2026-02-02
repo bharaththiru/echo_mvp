@@ -86,7 +86,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
   bool _myPostsLoading = false;
   String? _hashtagsError;
   String? _myPostsError;
-  String? _audioCacheDirectory;
+  final Map<String, String> _audioUrlCache = <String, String>{};
   PendingPostDraft? _pendingPostDraft;
   Future<VoiceNote>? _postInFlight;
 
@@ -957,17 +957,17 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     if (note.localPath != null && await File(note.localPath!).exists()) {
       return note.localPath;
     }
+    final cachedUrl = _audioUrlCache[note.id];
+    if (cachedUrl != null && cachedUrl.isNotEmpty) {
+      return cachedUrl;
+    }
     if (note.storagePath.isEmpty) {
       return note.localPath;
     }
     try {
-      final bytes = await _repository.downloadAudio(note.storagePath);
-      final cacheDir = await _audioCacheDir();
-      final file = File('${cacheDir.path}/${note.id}.m4a');
-      await file.writeAsBytes(bytes, flush: true);
-      final updated = note.copyWith(localPath: file.path);
-      _replaceNote(updated);
-      return file.path;
+      final url = await _repository.fetchAudioUrl(note.storagePath);
+      _audioUrlCache[note.id] = url;
+      return url;
     } catch (_) {
       return null;
     }
@@ -996,19 +996,6 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     } catch (_) {
       return _consumeSkipFromCache(scope: currentUser);
     }
-  }
-
-  Future<Directory> _audioCacheDir() async {
-    if (_audioCacheDirectory != null) {
-      return Directory(_audioCacheDirectory!);
-    }
-    final directory = await getTemporaryDirectory();
-    final cache = Directory('${directory.path}/audio_cache');
-    if (!await cache.exists()) {
-      await cache.create(recursive: true);
-    }
-    _audioCacheDirectory = cache.path;
-    return cache;
   }
 
   SkipQuotaResult _consumeSkipLocal({required String scope}) {

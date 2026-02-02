@@ -220,6 +220,82 @@ class AudioController extends ChangeNotifier
   }
 
   @override
+  Future<void> playQueue({
+    required List<AudioQueueItem> queue,
+    int initialIndex = 0,
+    Duration? startPosition,
+  }) async {
+    if (queue.isEmpty) {
+      return;
+    }
+    final resolvedIndex = initialIndex.clamp(0, queue.length - 1).toInt();
+    final item = queue[resolvedIndex];
+    final token = ++_operationToken;
+    _state = _state.copyWith(
+      sourceId: item.sourceId,
+      path: item.path,
+      position: startPosition ?? Duration.zero,
+      duration: item.duration ?? _state.duration,
+      bufferedPosition: Duration.zero,
+      isPlaying: false,
+      phase: AudioPlaybackPhase.loading,
+      interrupted: false,
+      errorMessage: null,
+    );
+    notifyListeners();
+    _syncPositionTimer();
+    try {
+      await _engine.setQueue(
+        queue: queue,
+        initialIndex: resolvedIndex,
+        startPosition: startPosition,
+      );
+      if (token != _operationToken || _isDisposed) {
+        return;
+      }
+      await _engine.setVolume(_state.volume);
+      if (token != _operationToken || _isDisposed) {
+        return;
+      }
+      await _engine.play();
+    } catch (_) {
+      if (token != _operationToken || _isDisposed) {
+        return;
+      }
+      _state = _state.copyWith(
+        isPlaying: false,
+        phase: AudioPlaybackPhase.error,
+        errorMessage: 'Unable to play this clip.',
+      );
+      notifyListeners();
+      _syncPositionTimer();
+    }
+  }
+
+  @override
+  Future<void> appendQueue(List<AudioQueueItem> queue) async {
+    if (queue.isEmpty) {
+      return;
+    }
+    await _engine.appendQueue(queue);
+  }
+
+  @override
+  Future<void> seekToIndex(int index, {Duration? position}) async {
+    await _engine.seekToIndex(index, position: position);
+  }
+
+  @override
+  Future<void> skipToNext() async {
+    await _engine.skipToNext();
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    await _engine.skipToPrevious();
+  }
+
+  @override
   Future<void> pause() async {
     _operationToken++;
     await _engine.pause();

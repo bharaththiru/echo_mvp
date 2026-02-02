@@ -207,6 +207,11 @@ class FirebaseRepository {
     return storagePath;
   }
 
+  Future<String> fetchAudioUrl(String storagePath) async {
+    final ref = _storage.ref(storagePath);
+    return ref.getDownloadURL();
+  }
+
   Future<List<int>> downloadAudio(String storagePath) async {
     final ref = _storage.ref(storagePath);
     const maxSizeBytes = 20 * 1024 * 1024;

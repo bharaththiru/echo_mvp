@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 
+import 'audio_playback_controller.dart';
 import 'echo_audio_handler.dart';
 import 'native_audio_service.dart';
 
@@ -93,6 +94,17 @@ abstract class AudioEngine {
   AudioEngineSnapshot get snapshot;
   Stream<AudioEngineSnapshot> get snapshots;
   Stream<EchoAudioEvent> get events;
+
+  Future<void> setQueue({
+    required List<AudioQueueItem> queue,
+    int initialIndex = 0,
+    Duration? startPosition,
+  });
+
+  Future<void> appendQueue(List<AudioQueueItem> queue);
+  Future<void> seekToIndex(int index, {Duration? position});
+  Future<void> skipToNext();
+  Future<void> skipToPrevious();
 
   Future<void> setSource({
     required String sourceId,
@@ -236,6 +248,43 @@ class AudioServiceEngine implements AudioEngine {
   Stream<EchoAudioEvent> get events => _handler.events;
 
   @override
+  Future<void> setQueue({
+    required List<AudioQueueItem> queue,
+    int initialIndex = 0,
+    Duration? startPosition,
+  }) async {
+    _emitFromLatest(
+      phaseOverride: AudioEnginePhase.loading,
+      errorMessage: null,
+    );
+    await _handler.setQueue(
+      queue,
+      initialIndex: initialIndex,
+      startPosition: startPosition,
+    );
+  }
+
+  @override
+  Future<void> appendQueue(List<AudioQueueItem> queue) async {
+    await _handler.appendQueue(queue);
+  }
+
+  @override
+  Future<void> seekToIndex(int index, {Duration? position}) async {
+    await _handler.seekToIndex(index, position: position);
+  }
+
+  @override
+  Future<void> skipToNext() async {
+    await _handler.skipToNext();
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    await _handler.skipToPrevious();
+  }
+
+  @override
   Future<void> setSource({
     required String sourceId,
     required String path,
@@ -318,6 +367,8 @@ class NativeAudioEngine implements AudioEngine {
   Timer? _pollTimer;
   String? _currentSourceId;
   String? _currentPath;
+  final List<AudioQueueItem> _queue = <AudioQueueItem>[];
+  int _queueIndex = 0;
   bool _isDisposed = false;
 
   @override
@@ -328,6 +379,81 @@ class NativeAudioEngine implements AudioEngine {
 
   @override
   Stream<EchoAudioEvent> get events => _eventController.stream;
+
+  @override
+  Future<void> setQueue({
+    required List<AudioQueueItem> queue,
+    int initialIndex = 0,
+    Duration? startPosition,
+  }) async {
+    if (_isDisposed) {
+      return;
+    }
+    _queue
+      ..clear()
+      ..addAll(queue);
+    if (_queue.isEmpty) {
+      return;
+    }
+    final resolvedIndex =
+        initialIndex.clamp(0, _queue.length - 1).toInt();
+    _queueIndex = resolvedIndex;
+    final item = _queue[resolvedIndex];
+    await setSource(
+      sourceId: item.sourceId,
+      path: item.path,
+      title: item.title,
+      duration: item.duration,
+    );
+    if (startPosition != null && startPosition > Duration.zero) {
+      await seek(startPosition);
+    }
+  }
+
+  @override
+  Future<void> appendQueue(List<AudioQueueItem> queue) async {
+    if (_isDisposed) {
+      return;
+    }
+    _queue.addAll(queue);
+  }
+
+  @override
+  Future<void> seekToIndex(int index, {Duration? position}) async {
+    if (_isDisposed) {
+      return;
+    }
+    if (index < 0 || index >= _queue.length) {
+      return;
+    }
+    _queueIndex = index;
+    final item = _queue[index];
+    await setSource(
+      sourceId: item.sourceId,
+      path: item.path,
+      title: item.title,
+      duration: item.duration,
+    );
+    if (position != null && position > Duration.zero) {
+      await seek(position);
+    }
+  }
+
+  @override
+  Future<void> skipToNext() async {
+    if (_queue.isEmpty || _queueIndex >= _queue.length - 1) {
+      return;
+    }
+    await seekToIndex(_queueIndex + 1);
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    if (_queue.isEmpty || _queueIndex <= 0) {
+      return;
+    }
+    await seekToIndex(_queueIndex - 1);
+  }
 
   @override
   Future<void> setSource({

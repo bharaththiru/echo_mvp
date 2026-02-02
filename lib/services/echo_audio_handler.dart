@@ -5,6 +5,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
+import 'audio_playback_controller.dart';
 enum EchoAudioEventType { interruptionBegan, interruptionEnded, error }
 
 class EchoAudioEvent {
@@ -20,6 +21,10 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   final AudioPlayer _player;
+  ConcatenatingAudioSource? _playlist;
+  final List<MediaItem> _queueItems = <MediaItem>[];
+  bool _queueMode = false;
+  StreamSubscription<int?>? _indexSub;
   AudioSession? _session;
   final _eventController = StreamController<EchoAudioEvent>.broadcast();
 
@@ -30,6 +35,8 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   StreamSubscription<AudioDevicesChangedEvent>? _devicesChangedSub;
 
   Stream<EchoAudioEvent> get events => _eventController.stream;
+
+  static const _queueCrossfade = Duration(milliseconds: 120);
 
   Future<void> _init() async {
     if (kIsWeb) {
@@ -124,6 +131,25 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       mediaItem.add(item.copyWith(duration: duration));
       _broadcastState();
     });
+    _indexSub = _player.currentIndexStream.listen((index) {
+      if (index == null || index < 0 || index >= _queueItems.length) {
+        return;
+      }
+      if (!_queueMode) {
+        return;
+      }
+      mediaItem.add(_queueItems[index]);
+      _broadcastState();
+    });
+  }
+
+  MediaItem _buildMediaItem(AudioQueueItem item) {
+    return MediaItem(
+      id: item.sourceId,
+      title: item.title ?? 'Echo clip',
+      duration: item.duration,
+      extras: {'path': item.path, 'sourceId': item.sourceId},
+    );
   }
 
   Future<void> setSource({
@@ -133,6 +159,10 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     Duration? duration,
   }) async {
     _lastErrorMessage = null;
+    _queueMode = false;
+    _queueItems.clear();
+    queue.add(const <MediaItem>[]);
+    await _player.setCrossfadeDuration(Duration.zero);
     final uri = _resolveUri(path);
     final source = AudioSource.uri(uri);
     await _player.setAudioSource(source, preload: true);
@@ -146,6 +176,53 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       ),
     );
     _broadcastState();
+  }
+
+  Future<void> setQueue(
+    List<AudioQueueItem> items, {
+    int initialIndex = 0,
+    Duration? startPosition,
+  }) async {
+    _lastErrorMessage = null;
+    _queueMode = true;
+    _queueItems
+      ..clear()
+      ..addAll(items.map(_buildMediaItem));
+    final sources = items
+        .map((item) => AudioSource.uri(_resolveUri(item.path)))
+        .toList();
+    _playlist = ConcatenatingAudioSource(children: sources);
+    queue.add(List<MediaItem>.from(_queueItems));
+    await _player.setCrossfadeDuration(_queueCrossfade);
+    await _player.setAudioSource(
+      _playlist!,
+      initialIndex: initialIndex,
+      initialPosition: startPosition,
+    );
+    if (initialIndex >= 0 && initialIndex < _queueItems.length) {
+      mediaItem.add(_queueItems[initialIndex]);
+    }
+    _broadcastState();
+  }
+
+  Future<void> appendQueue(List<AudioQueueItem> items) async {
+    if (_playlist == null) {
+      await setQueue(items);
+      return;
+    }
+    final sources = items
+        .map((item) => AudioSource.uri(_resolveUri(item.path)))
+        .toList();
+    await _playlist!.addAll(sources);
+    _queueItems.addAll(items.map(_buildMediaItem));
+    queue.add(List<MediaItem>.from(_queueItems));
+  }
+
+  Future<void> seekToIndex(int index, {Duration? position}) async {
+    if (_queueMode) {
+      await _player.seek(position ?? Duration.zero, index: index);
+      _broadcastState();
+    }
   }
 
   Uri _resolveUri(String path) {
@@ -286,6 +363,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await _interruptionSub?.cancel();
     await _becomingNoisySub?.cancel();
     await _devicesChangedSub?.cancel();
+    await _indexSub?.cancel();
     await _eventController.close();
     await _player.dispose();
   }
