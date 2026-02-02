@@ -1,0 +1,525 @@
+import 'package:flutter/material.dart';
+
+class EchoColors {
+  static const deepNavy = Color(0xFF071952);
+  static const deepTeal = Color(0xFF0B666A);
+  static const teal = Color(0xFF35A29F);
+  static const mint = Color(0xFF97FEED);
+
+  static const textPrimary = Color(0xFFEAF2FF);
+  static const textSecondary = Color(0xFFA8B3C7);
+  static const textTertiary = Color(0xFF6F7A92);
+
+  static const danger = Color(0xFFB56D6D);
+}
+
+class EchoRadii {
+  static const double card = 16;
+  static const double button = 14;
+  static const double input = 14;
+  static const double pill = 24;
+  static const double sheet = 20;
+  static const double nav = 22;
+}
+
+@immutable
+class EchoSemantic extends ThemeExtension<EchoSemantic> {
+  const EchoSemantic({
+    required this.bg,
+    required this.surface1,
+    required this.surface2,
+    required this.surface3,
+    required this.border,
+    required this.borderSubtle,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.textTertiary,
+    required this.accentPrimary,
+    required this.accentSecondary,
+    required this.accentMuted,
+    required this.danger,
+    required this.dangerMuted,
+    required this.overlay,
+    required this.shadow,
+  });
+
+  final Color bg;
+  final Color surface1;
+  final Color surface2;
+  final Color surface3;
+  final Color border;
+  final Color borderSubtle;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color textTertiary;
+  final Color accentPrimary;
+  final Color accentSecondary;
+  final Color accentMuted;
+  final Color danger;
+  final Color dangerMuted;
+  final Color overlay;
+  final Color shadow;
+
+  factory EchoSemantic.fromBrightness(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    if (isDark) {
+      final surface1 =
+          Color.lerp(EchoColors.deepNavy, Colors.white, 0.06)!;
+      final surface2 =
+          Color.lerp(EchoColors.deepNavy, EchoColors.deepTeal, 0.28)!;
+      final surface3 =
+          Color.lerp(EchoColors.deepNavy, Colors.white, 0.1)!;
+      return EchoSemantic(
+        bg: EchoColors.deepNavy,
+        surface1: surface1,
+        surface2: surface2,
+        surface3: surface3,
+        border: EchoColors.deepTeal.withValues(alpha: 0.55),
+        borderSubtle: EchoColors.deepTeal.withValues(alpha: 0.28),
+        textPrimary: EchoColors.textPrimary,
+        textSecondary: EchoColors.textSecondary,
+        textTertiary: EchoColors.textTertiary,
+        accentPrimary: EchoColors.teal,
+        accentSecondary: EchoColors.mint,
+        accentMuted: EchoColors.teal.withValues(alpha: 0.18),
+        danger: EchoColors.danger,
+        dangerMuted: EchoColors.danger.withValues(alpha: 0.7),
+        overlay: EchoColors.deepNavy.withValues(alpha: 0.9),
+        shadow: Colors.black.withValues(alpha: 0.35),
+      );
+    }
+
+    return const EchoSemantic(
+      bg: Color(0xFFF4F7FF),
+      surface1: Color(0xFFFFFFFF),
+      surface2: Color(0xFFEAF1FA),
+      surface3: Color(0xFFF1F5FB),
+      border: Color(0xFFD6DFEB),
+      borderSubtle: Color(0xFFE7EEF6),
+      textPrimary: EchoColors.deepNavy,
+      textSecondary: Color(0xFF4E5E77),
+      textTertiary: Color(0xFF7A8BA3),
+      accentPrimary: EchoColors.teal,
+      accentSecondary: EchoColors.mint,
+      accentMuted: Color(0x1F35A29F),
+      danger: EchoColors.danger,
+      dangerMuted: Color(0xB3B56D6D),
+      overlay: Color(0xE6FFFFFF),
+      shadow: Color(0x1A000000),
+    );
+  }
+
+  @override
+  EchoSemantic copyWith({
+    Color? bg,
+    Color? surface1,
+    Color? surface2,
+    Color? surface3,
+    Color? border,
+    Color? borderSubtle,
+    Color? textPrimary,
+    Color? textSecondary,
+    Color? textTertiary,
+    Color? accentPrimary,
+    Color? accentSecondary,
+    Color? accentMuted,
+    Color? danger,
+    Color? dangerMuted,
+    Color? overlay,
+    Color? shadow,
+  }) {
+    return EchoSemantic(
+      bg: bg ?? this.bg,
+      surface1: surface1 ?? this.surface1,
+      surface2: surface2 ?? this.surface2,
+      surface3: surface3 ?? this.surface3,
+      border: border ?? this.border,
+      borderSubtle: borderSubtle ?? this.borderSubtle,
+      textPrimary: textPrimary ?? this.textPrimary,
+      textSecondary: textSecondary ?? this.textSecondary,
+      textTertiary: textTertiary ?? this.textTertiary,
+      accentPrimary: accentPrimary ?? this.accentPrimary,
+      accentSecondary: accentSecondary ?? this.accentSecondary,
+      accentMuted: accentMuted ?? this.accentMuted,
+      danger: danger ?? this.danger,
+      dangerMuted: dangerMuted ?? this.dangerMuted,
+      overlay: overlay ?? this.overlay,
+      shadow: shadow ?? this.shadow,
+    );
+  }
+
+  @override
+  EchoSemantic lerp(ThemeExtension<EchoSemantic>? other, double t) {
+    if (other is! EchoSemantic) {
+      return this;
+    }
+    return EchoSemantic(
+      bg: Color.lerp(bg, other.bg, t)!,
+      surface1: Color.lerp(surface1, other.surface1, t)!,
+      surface2: Color.lerp(surface2, other.surface2, t)!,
+      surface3: Color.lerp(surface3, other.surface3, t)!,
+      border: Color.lerp(border, other.border, t)!,
+      borderSubtle: Color.lerp(borderSubtle, other.borderSubtle, t)!,
+      textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
+      textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
+      textTertiary: Color.lerp(textTertiary, other.textTertiary, t)!,
+      accentPrimary: Color.lerp(accentPrimary, other.accentPrimary, t)!,
+      accentSecondary: Color.lerp(accentSecondary, other.accentSecondary, t)!,
+      accentMuted: Color.lerp(accentMuted, other.accentMuted, t)!,
+      danger: Color.lerp(danger, other.danger, t)!,
+      dangerMuted: Color.lerp(dangerMuted, other.dangerMuted, t)!,
+      overlay: Color.lerp(overlay, other.overlay, t)!,
+      shadow: Color.lerp(shadow, other.shadow, t)!,
+    );
+  }
+}
+
+ThemeData buildEchoTheme(Brightness brightness) {
+  final resolvedBrightness = brightness == Brightness.dark
+      ? Brightness.dark
+      : Brightness.light;
+  final tokens = EchoSemantic.fromBrightness(resolvedBrightness);
+  final colorScheme = ColorScheme(
+    brightness: resolvedBrightness,
+    primary: tokens.accentPrimary,
+    onPrimary: tokens.bg,
+    secondary: tokens.surface2,
+    onSecondary: tokens.textPrimary,
+    tertiary: tokens.accentSecondary,
+    onTertiary: resolvedBrightness == Brightness.dark
+        ? tokens.bg
+        : tokens.textPrimary,
+    error: tokens.danger,
+    onError: resolvedBrightness == Brightness.dark
+        ? tokens.bg
+        : tokens.textPrimary,
+    surface: tokens.surface1,
+    onSurface: tokens.textPrimary,
+    surfaceContainerHighest: tokens.surface2,
+    onSurfaceVariant: tokens.textSecondary,
+    outline: tokens.border,
+    outlineVariant: tokens.borderSubtle,
+    shadow: Colors.black,
+    scrim: Colors.black,
+    inverseSurface: tokens.textPrimary,
+    onInverseSurface: tokens.bg,
+  );
+
+  final textTheme = _textTheme(tokens);
+
+  return ThemeData(
+    useMaterial3: true,
+    brightness: resolvedBrightness,
+    fontFamily: 'Lora',
+    colorScheme: colorScheme,
+    extensions: [tokens],
+    scaffoldBackgroundColor: tokens.bg,
+    canvasColor: tokens.bg,
+    textTheme: textTheme,
+    appBarTheme: AppBarTheme(
+      backgroundColor: tokens.bg,
+      foregroundColor: tokens.textPrimary,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      titleTextStyle: textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.1,
+      ),
+    ),
+    cardTheme: CardThemeData(
+      color: tokens.surface1,
+      shadowColor: tokens.shadow,
+      surfaceTintColor: Colors.transparent,
+      elevation: 3,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(EchoRadii.card),
+        side: BorderSide(color: tokens.borderSubtle),
+      ),
+    ),
+    dividerTheme: DividerThemeData(
+      color: tokens.borderSubtle,
+      thickness: 1,
+      space: 1,
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: tokens.surface2,
+      contentTextStyle: textTheme.bodyMedium?.copyWith(
+        color: tokens.textPrimary,
+      ),
+      actionTextColor: tokens.accentPrimary,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: tokens.borderSubtle),
+      ),
+      elevation: 6,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: tokens.surface1,
+      surfaceTintColor: Colors.transparent,
+      titleTextStyle: textTheme.titleLarge,
+      contentTextStyle: textTheme.bodyMedium,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(EchoRadii.sheet),
+      ),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: tokens.surface1,
+      surfaceTintColor: Colors.transparent,
+      modalBackgroundColor: tokens.surface1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(EchoRadii.sheet),
+        ),
+      ),
+    ),
+    progressIndicatorTheme: ProgressIndicatorThemeData(
+      color: tokens.accentPrimary,
+      circularTrackColor: tokens.surface3,
+      linearTrackColor: tokens.surface3,
+    ),
+    iconTheme: IconThemeData(color: tokens.textPrimary),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: tokens.surface2,
+      hintStyle: textTheme.bodyMedium?.copyWith(
+        color: tokens.textTertiary,
+      ),
+      labelStyle: textTheme.bodySmall?.copyWith(
+        color: tokens.textSecondary,
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 18,
+        vertical: 16,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(EchoRadii.input),
+        borderSide: BorderSide(color: tokens.borderSubtle),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(EchoRadii.input),
+        borderSide: BorderSide(color: tokens.borderSubtle),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(EchoRadii.input),
+        borderSide: BorderSide(color: tokens.accentSecondary, width: 1.2),
+      ),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: tokens.accentPrimary,
+        foregroundColor: tokens.bg,
+        disabledBackgroundColor: tokens.accentPrimary.withValues(alpha: 0.45),
+        disabledForegroundColor: tokens.bg.withValues(alpha: 0.7),
+        elevation: 0,
+        minimumSize: const Size.fromHeight(54),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(EchoRadii.button),
+        ),
+        textStyle: textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.1,
+        ),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: tokens.textPrimary,
+        disabledForegroundColor: tokens.textPrimary.withValues(alpha: 0.5),
+        minimumSize: const Size.fromHeight(52),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+        side: BorderSide(color: tokens.border),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(EchoRadii.button),
+        ),
+        textStyle: textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.1,
+        ),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: tokens.textSecondary,
+        disabledForegroundColor: tokens.textSecondary.withValues(alpha: 0.55),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        textStyle: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+      ),
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(
+        foregroundColor: tokens.textPrimary,
+      ),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return tokens.textSecondary.withValues(alpha: 0.5);
+        }
+        return states.contains(WidgetState.selected)
+            ? tokens.accentPrimary
+            : tokens.textSecondary;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return tokens.accentPrimary.withValues(alpha: 0.45);
+        }
+        return tokens.surface3;
+      }),
+      trackOutlineColor: WidgetStateProperty.all(
+        tokens.border.withValues(alpha: 0.7),
+      ),
+    ),
+    sliderTheme: SliderThemeData(
+      activeTrackColor: tokens.accentPrimary,
+      inactiveTrackColor: tokens.surface3,
+      thumbColor: tokens.accentPrimary,
+      overlayColor: tokens.accentPrimary.withValues(alpha: 0.12),
+      trackHeight: 4,
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: tokens.surface2,
+      disabledColor: tokens.surface2.withValues(alpha: 0.6),
+      selectedColor: tokens.accentPrimary,
+      secondarySelectedColor: tokens.accentPrimary,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      labelStyle: textTheme.bodySmall?.copyWith(
+        color: tokens.textPrimary,
+        fontWeight: FontWeight.w600,
+      ),
+      secondaryLabelStyle: textTheme.bodySmall?.copyWith(
+        color: tokens.bg,
+        fontWeight: FontWeight.w700,
+      ),
+      side: BorderSide(color: tokens.borderSubtle),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(EchoRadii.pill),
+      ),
+    ),
+    bottomNavigationBarTheme: BottomNavigationBarThemeData(
+      backgroundColor: tokens.surface1.withValues(alpha: 0.9),
+      selectedItemColor: tokens.accentPrimary,
+      unselectedItemColor: tokens.textTertiary,
+      elevation: 0,
+      type: BottomNavigationBarType.fixed,
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: tokens.surface1.withValues(alpha: 0.9),
+      indicatorColor: tokens.accentPrimary.withValues(alpha: 0.16),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        final isSelected = states.contains(WidgetState.selected);
+        return textTheme.labelSmall?.copyWith(
+          color: isSelected ? tokens.accentPrimary : tokens.textTertiary,
+          fontWeight: FontWeight.w600,
+        );
+      }),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        final isSelected = states.contains(WidgetState.selected);
+        return IconThemeData(
+          color: isSelected ? tokens.accentPrimary : tokens.textTertiary,
+          size: 22,
+        );
+      }),
+    ),
+    listTileTheme: ListTileThemeData(
+      iconColor: tokens.textSecondary,
+      textColor: tokens.textPrimary,
+    ),
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: tokens.accentSecondary,
+      selectionColor: tokens.accentPrimary.withValues(alpha: 0.25),
+      selectionHandleColor: tokens.accentSecondary,
+    ),
+    splashFactory: InkRipple.splashFactory,
+    highlightColor: tokens.accentPrimary.withValues(alpha: 0.08),
+    hoverColor: tokens.accentPrimary.withValues(alpha: 0.04),
+    focusColor: tokens.accentSecondary.withValues(alpha: 0.14),
+    dividerColor: tokens.borderSubtle,
+  );
+}
+
+TextTheme _textTheme(EchoSemantic tokens) {
+  final base = const TextTheme(
+    displayLarge: TextStyle(
+      fontSize: 40,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.3,
+      height: 1.15,
+    ),
+    displayMedium: TextStyle(
+      fontSize: 34,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.25,
+      height: 1.18,
+    ),
+    displaySmall: TextStyle(
+      fontSize: 30,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.2,
+      height: 1.2,
+    ),
+    headlineMedium: TextStyle(
+      fontSize: 26,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.2,
+      height: 1.24,
+    ),
+    headlineSmall: TextStyle(
+      fontSize: 22,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.15,
+      height: 1.26,
+    ),
+    titleLarge: TextStyle(
+      fontSize: 20,
+      fontWeight: FontWeight.w600,
+      letterSpacing: -0.1,
+      height: 1.3,
+    ),
+    titleMedium: TextStyle(
+      fontSize: 17,
+      fontWeight: FontWeight.w600,
+      letterSpacing: -0.05,
+      height: 1.32,
+    ),
+    titleSmall: TextStyle(
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
+      height: 1.35,
+    ),
+    bodyLarge: TextStyle(
+      fontSize: 16.5,
+      fontWeight: FontWeight.w500,
+      height: 1.46,
+    ),
+    bodyMedium: TextStyle(
+      fontSize: 15.5,
+      fontWeight: FontWeight.w500,
+      height: 1.46,
+    ),
+    bodySmall: TextStyle(
+      fontSize: 13.5,
+      fontWeight: FontWeight.w400,
+      height: 1.42,
+    ),
+    labelLarge: TextStyle(
+      fontSize: 15,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.05,
+    ),
+    labelMedium: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+    labelSmall: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+  );
+
+  return base.apply(
+    bodyColor: tokens.textPrimary,
+    displayColor: tokens.textPrimary,
+  );
+}
+
+extension EchoThemeX on BuildContext {
+  EchoSemantic get echo => Theme.of(this).extension<EchoSemantic>()!;
+}

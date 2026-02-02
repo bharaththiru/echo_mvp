@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/echo_components.dart';
@@ -95,6 +95,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final title = _isSignUp ? 'Create your account' : 'Welcome back';
     final actionLabel = _isSignUp ? 'Create account' : 'Sign in';
     final toggleLabel = _isSignUp
@@ -116,7 +117,7 @@ class _AuthScreenState extends State<AuthScreen> {
             Text(
               'Save your voice notes and sync across devices.',
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: EchoColors.textSecondary,
+                color: tokens.textSecondary,
                 height: 1.45,
               ),
             ),
@@ -153,7 +154,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         _obscurePassword
                             ? Icons.visibility
                             : Icons.visibility_off,
-                        color: EchoColors.textSecondary,
+                        color: tokens.textSecondary,
                       ),
                     ),
                   ),
@@ -163,8 +164,8 @@ class _AuthScreenState extends State<AuthScreen> {
                       _statusMessage!,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: _statusIsError
-                            ? EchoColors.action
-                            : EchoColors.textSecondary,
+                            ? tokens.danger
+                            : tokens.textSecondary,
                       ),
                     ),
                   ],

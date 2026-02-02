@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
 
 class EchoCard extends StatelessWidget {
@@ -25,11 +25,12 @@ class EchoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.echo;
     final resolvedRadius = radius ?? EchoRadii.card;
-    final resolvedColor = color ?? EchoColors.surface;
+    final resolvedColor = color ?? tokens.surface1;
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(resolvedRadius),
-      side: BorderSide(color: borderColor ?? EchoColors.borderSubtle),
+      side: BorderSide(color: borderColor ?? tokens.borderSubtle),
     );
     final content = Padding(padding: padding, child: child);
 
@@ -80,7 +81,7 @@ class EchoPrimaryButton extends StatelessWidget {
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      theme.colorScheme.onTertiary,
+                      theme.colorScheme.onPrimary,
                     ),
                   ),
                 )
@@ -160,6 +161,7 @@ class EchoInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.echo;
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
@@ -171,15 +173,16 @@ class EchoInput extends StatelessWidget {
       autofillHints: autofillHints,
       textCapitalization: textCapitalization,
       enabled: enabled,
-      style: Theme.of(
-        context,
-      ).textTheme.bodyLarge?.copyWith(color: EchoColors.textPrimary),
+      style: Theme.of(context)
+          .textTheme
+          .bodyLarge
+          ?.copyWith(color: tokens.textPrimary),
       decoration: InputDecoration(
         hintText: hintText,
         labelText: labelText,
         prefixIcon: prefixIcon == null
             ? null
-            : Icon(prefixIcon, color: EchoColors.textSecondary),
+            : Icon(prefixIcon, color: tokens.textSecondary),
         suffixIcon: suffixIcon,
       ),
     );
@@ -194,10 +197,11 @@ class EchoSectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     return Text(
       label,
       style: theme.textTheme.titleMedium?.copyWith(
-        color: EchoColors.textSecondary,
+        color: tokens.textSecondary,
         fontWeight: FontWeight.w600,
       ),
     );
@@ -211,9 +215,10 @@ class EchoDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.echo;
     return Container(
       height: height,
-      color: EchoColors.border.withValues(alpha: 0.7),
+      color: tokens.borderSubtle,
     );
   }
 }

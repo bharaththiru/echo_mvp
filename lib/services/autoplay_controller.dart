@@ -19,7 +19,7 @@ enum AutoplayPhase {
   error,
 }
 
-enum _AdvanceReason { autoplay, userSkip, userMute, errorRecovery }
+enum _AdvanceReason { autoplay, userSkip, errorRecovery }
 
 class AutoplayState {
   const AutoplayState({

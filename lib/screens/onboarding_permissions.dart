@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/echo_components.dart';
@@ -52,6 +52,7 @@ class _OnboardingPermissionsState extends State<OnboardingPermissions> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
 
     return AppScaffold(
       child: Padding(
@@ -68,7 +69,7 @@ class _OnboardingPermissionsState extends State<OnboardingPermissions> {
             Text(
               'These are optional. You can enable them later in settings.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: EchoColors.textSecondary,
+                color: tokens.textSecondary,
               ),
             ),
             const SizedBox(height: 24),
@@ -129,6 +130,7 @@ class _PermissionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
 
     return EchoCard(
       padding: const EdgeInsets.all(20),
@@ -142,11 +144,11 @@ class _PermissionCard extends StatelessWidget {
                 height: 48,
                 width: 48,
                 decoration: BoxDecoration(
-                  color: EchoColors.muted,
+                  color: tokens.surface2,
                   shape: BoxShape.circle,
-                  border: Border.all(color: EchoColors.borderSubtle),
+                  border: Border.all(color: tokens.borderSubtle),
                 ),
-                child: Icon(icon, color: EchoColors.accent),
+                child: Icon(icon, color: tokens.accentPrimary),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -158,7 +160,7 @@ class _PermissionCard extends StatelessWidget {
                     Text(
                       description,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: EchoColors.textSecondary,
+                        color: tokens.textSecondary,
                         height: 1.4,
                       ),
                     ),

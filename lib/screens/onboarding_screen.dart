@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
 import '../app/app_state.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -98,6 +98,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         mediaQuery.accessibleNavigation ||
         appState.settings.reduceMotion;
     final theme = Theme.of(context);
+    final tokens = context.echo;
+    final overlayStyle = theme.brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
     final horizontalPadding = EchoLayout.horizontalPadding(context);
     final showSkip = _currentIndex < _pages.length - 1;
     final buttonLabel = _currentIndex == _pages.length - 1
@@ -107,9 +111,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         '$buttonLabel, page ${_currentIndex + 1} of ${_pages.length}';
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: overlayStyle,
       child: Scaffold(
-        backgroundColor: EchoColors.background,
+        backgroundColor: tokens.bg,
         body: SafeArea(
           child: Column(
             children: [
@@ -125,7 +129,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     Text(
                       'Echo',
                       style: theme.textTheme.titleMedium?.copyWith(
-                        color: EchoColors.textPrimary,
+                        color: tokens.textPrimary,
                         fontWeight: FontWeight.w600,
                         fontSize: 18,
                       ),
@@ -135,7 +139,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       TextButton(
                         onPressed: () => _completeOnboarding(appState),
                         style: TextButton.styleFrom(
-                          foregroundColor: EchoColors.textSecondary,
+                          foregroundColor: tokens.textSecondary,
                           textStyle: theme.textTheme.bodySmall?.copyWith(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -219,8 +223,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           onPressed: () =>
                               _onPrimaryCta(appState, reduceMotion),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: EchoColors.accent,
-                            foregroundColor: EchoColors.background,
+                            backgroundColor: tokens.accentPrimary,
+                            foregroundColor: tokens.bg,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18),
                             ),
@@ -237,7 +241,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     Text(
                       'Audio-only. No camera.',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: EchoColors.textSecondary,
+                        color: tokens.textSecondary,
                         fontSize: 13,
                       ),
                     ),
@@ -261,22 +265,23 @@ class _OnboardingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final titleStyle = theme.textTheme.headlineSmall?.copyWith(
       fontSize: 30,
       fontWeight: FontWeight.w700,
       letterSpacing: -0.2,
-      color: EchoColors.textPrimary,
+      color: tokens.textPrimary,
     );
     final bodyStyle = theme.textTheme.bodyLarge?.copyWith(
       fontSize: 16,
       height: 1.45,
       fontWeight: FontWeight.w500,
-      color: EchoColors.textPrimary.withValues(alpha: 0.88),
+      color: tokens.textPrimary.withValues(alpha: 0.88),
     );
     final microStyle = theme.textTheme.bodySmall?.copyWith(
       fontSize: 13.5,
       height: 1.4,
-      color: EchoColors.textSecondary,
+      color: tokens.textSecondary,
     );
     final indicatorDuration = reduceMotion
         ? Duration.zero
@@ -286,9 +291,9 @@ class _OnboardingCard extends StatelessWidget {
       duration: indicatorDuration,
       curve: Curves.easeOut,
       decoration: BoxDecoration(
-        color: EchoColors.surface,
+        color: tokens.surface1,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: EchoColors.borderSubtle),
+        border: Border.all(color: tokens.borderSubtle),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -345,6 +350,7 @@ class _DotsIndicator extends StatelessWidget {
     final duration = reduceMotion
         ? Duration.zero
         : const Duration(milliseconds: 180);
+    final tokens = context.echo;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(count, (index) {
@@ -353,11 +359,11 @@ class _DotsIndicator extends StatelessWidget {
         final width = lerpDouble(8, 18, selectedness) ?? 8;
         final color =
             Color.lerp(
-              EchoColors.textSecondary.withValues(alpha: 0.65),
-              EchoColors.accent,
+              tokens.textSecondary.withValues(alpha: 0.65),
+              tokens.accentPrimary,
               selectedness,
             ) ??
-            EchoColors.textSecondary;
+            tokens.textSecondary;
         return AnimatedContainer(
           duration: duration,
           curve: Curves.easeOut,

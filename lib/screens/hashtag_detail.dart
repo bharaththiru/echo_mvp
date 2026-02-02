@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../models/hashtag.dart';
 import '../models/voice_note.dart';
 import '../services/audio_controller.dart';
@@ -80,6 +80,7 @@ class _HashtagDetailState extends State<HashtagDetail> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final appState = AppScope.of(context);
     final hashtag = appState.hashtagById(widget.hashtagId);
     if (hashtag == null && appState.hashtagsLoading) {
@@ -103,15 +104,15 @@ class _HashtagDetailState extends State<HashtagDetail> {
     return AppScaffold(
       child: Column(
         children: [
-        Padding(
-          padding: EchoLayout.pagePadding(
-            context,
-            top: 24,
-            bottom: 16,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          Padding(
+            padding: EchoLayout.pagePadding(
+              context,
+              top: 24,
+              bottom: 16,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 TextButton.icon(
                   onPressed: () => context.pop(),
                   icon: const Icon(Icons.arrow_back),
@@ -132,7 +133,7 @@ class _HashtagDetailState extends State<HashtagDetail> {
                 Text(
                   '${notes.length} notes',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: EchoColors.textSecondary,
+                    color: tokens.textSecondary,
                   ),
                 ),
               ],
@@ -224,13 +225,14 @@ class _HashtagHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final tint = hashtag.gradient.first;
     final surfaceColor = moodTintEnabled
-        ? Color.lerp(EchoColors.surface, tint, 0.6) ?? EchoColors.surface
-        : EchoColors.surface;
+        ? Color.lerp(tokens.surface1, tint, 0.6) ?? tokens.surface1
+        : tokens.surface1;
     final borderColor = moodTintEnabled
         ? tint.withValues(alpha: 0.6)
-        : EchoColors.borderSubtle;
+        : tokens.borderSubtle;
 
     return EchoCard(
       padding: const EdgeInsets.all(22),
@@ -240,14 +242,14 @@ class _HashtagHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(hashtag.icon, size: 40, color: EchoColors.accent),
+          Icon(hashtag.icon, size: 40, color: tokens.accentPrimary),
           const SizedBox(height: 12),
           Text(hashtag.name, style: theme.textTheme.headlineSmall),
           const SizedBox(height: 8),
           Text(
             hashtag.description,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: EchoColors.textSecondary,
+              color: tokens.textSecondary,
               height: 1.45,
             ),
           ),
@@ -279,6 +281,7 @@ class _VoiceNoteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final isActive = audioState.sourceId == note.id;
     final isPlaying = isActive && audioState.isPlaying;
     final progress = isActive ? audioState.progress : 0.0;
@@ -300,7 +303,7 @@ class _VoiceNoteCard extends StatelessWidget {
                     Text(
                       'Anonymous - $timestamp',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: EchoColors.textSecondary,
+                        color: tokens.textSecondary,
                       ),
                     ),
                     if (transcriptsEnabled &&
@@ -309,7 +312,7 @@ class _VoiceNoteCard extends StatelessWidget {
                       Text(
                         note.transcriptPreview!,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: EchoColors.textSecondary.withValues(
+                          color: tokens.textSecondary.withValues(
                             alpha: 0.92,
                           ),
                           height: 1.4,
@@ -320,7 +323,7 @@ class _VoiceNoteCard extends StatelessWidget {
                 ),
               ),
               PopupMenuButton<String>(
-                color: EchoColors.surface,
+                color: tokens.surface1,
                 onSelected: onMenuSelected,
                 itemBuilder: (context) => [
                   const PopupMenuItem(value: 'save', child: Text('Save')),
@@ -348,20 +351,20 @@ class _VoiceNoteCard extends StatelessWidget {
               IconButton.filled(
                 onPressed: onPlay,
                 icon: isPreparing
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            EchoColors.background,
+                            tokens.bg,
                           ),
                         ),
                       )
                     : Icon(isPlaying ? Icons.pause : Icons.play_arrow),
                 style: IconButton.styleFrom(
-                  backgroundColor: EchoColors.accent,
-                  foregroundColor: EchoColors.background,
+                  backgroundColor: tokens.accentPrimary,
+                  foregroundColor: tokens.bg,
                   padding: const EdgeInsets.all(16),
                 ),
               ),
@@ -374,9 +377,9 @@ class _VoiceNoteCard extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: progress.isNaN ? 0 : progress.clamp(0, 1),
                         minHeight: 6,
-                        backgroundColor: EchoColors.muted,
-                        valueColor: const AlwaysStoppedAnimation(
-                          EchoColors.accent,
+                        backgroundColor: tokens.surface3,
+                        valueColor: AlwaysStoppedAnimation(
+                          tokens.accentPrimary,
                         ),
                       ),
                     ),
@@ -389,7 +392,7 @@ class _VoiceNoteCard extends StatelessWidget {
                             isActive ? audioState.position : Duration.zero,
                           ),
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: EchoColors.textSecondary,
+                            color: tokens.textSecondary,
                           ),
                         ),
                         Container(
@@ -398,13 +401,13 @@ class _VoiceNoteCard extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: EchoColors.muted,
+                            color: tokens.surface2,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             formatDuration(note.duration),
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: EchoColors.textSecondary,
+                              color: tokens.textSecondary,
                             ),
                           ),
                         ),
@@ -435,6 +438,7 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     return Center(
       child: Padding(
         padding: EdgeInsets.symmetric(
@@ -451,7 +455,7 @@ class _EmptyState extends StatelessWidget {
                 subtitle,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: EchoColors.textSecondary,
+                  color: tokens.textSecondary,
                 ),
               ),
               const SizedBox(height: 16),

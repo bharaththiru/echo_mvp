@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
 import '../app/app_state.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../models/hashtag.dart';
 import '../utils/time_format.dart';
 import '../utils/responsive.dart';
@@ -129,6 +129,7 @@ class _PostOptionsState extends State<PostOptions> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final appState = AppScope.of(context);
     final hashtags = appState.hashtags;
     final posting = _isPosting || appState.isPosting;
@@ -185,15 +186,15 @@ class _PostOptionsState extends State<PostOptions> {
     return AppScaffold(
       child: Column(
         children: [
-        Padding(
-          padding: EchoLayout.pagePadding(
-            context,
-            top: 24,
-            bottom: 16,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          Padding(
+            padding: EchoLayout.pagePadding(
+              context,
+              top: 24,
+              bottom: 16,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 TextButton.icon(
                   onPressed: () => context.pop(),
                   icon: const Icon(Icons.arrow_back),
@@ -205,27 +206,27 @@ class _PostOptionsState extends State<PostOptions> {
                 Text(
                   'No likes. No public comments. This is just a voice note.',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: EchoColors.textSecondary,
+                    color: tokens.textSecondary,
                     height: 1.45,
                   ),
                 ),
               ],
             ),
           ),
-        Expanded(
-          child: ListView(
-            padding: EchoLayout.listPadding(context),
-            children: [
+          Expanded(
+            child: ListView(
+              padding: EchoLayout.listPadding(context),
+              children: [
                 if (pendingDraft != null)
                   EchoCard(
                     padding: const EdgeInsets.all(16),
                     radius: 18,
-                    color: EchoColors.muted,
-                    borderColor: EchoColors.borderSubtle,
+                    color: tokens.surface2,
+                    borderColor: tokens.borderSubtle,
                     child: Text(
                       'Pending upload detected. You can retry posting this clip.',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: EchoColors.textSecondary,
+                        color: tokens.textSecondary,
                       ),
                     ),
                   ),
@@ -235,7 +236,7 @@ class _PostOptionsState extends State<PostOptions> {
                 Text(
                   'Required',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: EchoColors.textSecondary,
+                    color: tokens.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -249,7 +250,7 @@ class _PostOptionsState extends State<PostOptions> {
                 Text(
                   'Suggested',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: EchoColors.textSecondary,
+                    color: tokens.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -257,12 +258,12 @@ class _PostOptionsState extends State<PostOptions> {
                   EchoCard(
                     padding: const EdgeInsets.all(16),
                     radius: 18,
-                    color: EchoColors.muted,
+                    color: tokens.surface2,
                     child: Text(
                       hashtagsError ??
                           'Hashtags are loading. Please try again shortly.',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: EchoColors.textSecondary,
+                        color: tokens.textSecondary,
                       ),
                     ),
                   )
@@ -273,14 +274,14 @@ class _PostOptionsState extends State<PostOptions> {
                     children: filteredHashtags.map((tag) {
                       final isSelected = _selectedHashtag?.name == tag;
                       final backgroundColor = isSelected
-                          ? EchoColors.accent
-                          : EchoColors.surface;
+                          ? tokens.accentPrimary
+                          : tokens.surface1.withValues(alpha: 0.9);
                       final borderColor = isSelected
-                          ? EchoColors.accent.withValues(alpha: 0.75)
-                          : EchoColors.borderSubtle;
+                          ? tokens.accentPrimary.withValues(alpha: 0.75)
+                          : tokens.borderSubtle;
                       final textColor = isSelected
-                          ? EchoColors.background
-                          : EchoColors.textPrimary;
+                          ? tokens.bg
+                          : tokens.textPrimary;
                       return GestureDetector(
                         onTap: () {
                           final selected = hashtags.firstWhere(
@@ -297,6 +298,18 @@ class _PostOptionsState extends State<PostOptions> {
                             color: backgroundColor,
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(color: borderColor),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color:
+                                          tokens.accentSecondary.withValues(
+                                        alpha: 0.16,
+                                      ),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ]
+                                : null,
                           ),
                           child: Text(
                             tag,
@@ -315,7 +328,7 @@ class _PostOptionsState extends State<PostOptions> {
                 Text(
                   'Optional - Max 60 characters',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: EchoColors.textSecondary,
+                    color: tokens.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -328,7 +341,7 @@ class _PostOptionsState extends State<PostOptions> {
                 EchoCard(
                   padding: const EdgeInsets.all(16),
                   radius: 18,
-                  color: EchoColors.muted,
+                  color: tokens.surface2,
                   child: Row(
                     children: [
                       Expanded(
@@ -343,7 +356,7 @@ class _PostOptionsState extends State<PostOptions> {
                             Text(
                               'Others can send you a private 12s reply',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: EchoColors.textSecondary,
+                                color: tokens.textSecondary,
                               ),
                             ),
                           ],
@@ -361,7 +374,7 @@ class _PostOptionsState extends State<PostOptions> {
                 EchoCard(
                   padding: const EdgeInsets.all(16),
                   radius: 18,
-                  color: EchoColors.muted,
+                  color: tokens.surface2,
                   child: Row(
                     children: [
                       Expanded(
@@ -376,7 +389,7 @@ class _PostOptionsState extends State<PostOptions> {
                             Text(
                               'Your note will be automatically removed',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: EchoColors.textSecondary,
+                                color: tokens.textSecondary,
                               ),
                             ),
                           ],
@@ -393,9 +406,9 @@ class _PostOptionsState extends State<PostOptions> {
               ],
             ),
           ),
-        Padding(
-          padding: EchoLayout.listPadding(context),
-          child: EchoPrimaryButton(
+          Padding(
+            padding: EchoLayout.listPadding(context),
+            child: EchoPrimaryButton(
               label: 'Post',
               isLoading: posting,
               onPressed: _selectedHashtag == null ? null : _post,

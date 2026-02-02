@@ -1,8 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../models/voice_note.dart';
 import '../services/autoplay_controller.dart';
 import '../utils/time_format.dart';
@@ -103,9 +105,11 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final appState = AppScope.of(context);
     final autoplay = _autoplay ?? appState.autoplay;
     final moodTint = appState.settings.moodTintEnabled;
+    final reduceMotion = appState.settings.reduceMotion;
     final hashtag = appState.hashtagById(widget.hashtagId);
 
     if (hashtag == null && appState.hashtagsLoading) {
@@ -144,7 +148,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
               loadError,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: EchoColors.textSecondary,
+                color: tokens.textSecondary,
               ),
             ),
             const SizedBox(height: 16),
@@ -205,11 +209,11 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
           final currentIndex = noteIndex < 0 ? index : noteIndex;
           final tint = hashtag.gradient.first;
           final cardColor = moodTint
-              ? Color.lerp(EchoColors.surface, tint, 0.62) ?? EchoColors.surface
-              : EchoColors.surface;
+              ? Color.lerp(tokens.surface1, tint, 0.62) ?? tokens.surface1
+              : tokens.surface1;
           final cardBorder = moodTint
               ? tint.withValues(alpha: 0.62)
-              : EchoColors.borderSubtle;
+              : tokens.borderSubtle;
 
           final duration = state.duration.inMilliseconds > 0
               ? state.duration
@@ -221,12 +225,12 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                   1,
                 );
           final isPreparing = state.isPreparing || state.isTransitioning;
-          final statusLabel = _statusLabel(state);
-          final showStatus = statusLabel != null && statusLabel.isNotEmpty;
+          final statusLabel = _statusLabel(state) ?? 'Ready';
           final showSpinner =
               state.isBuffering ||
               state.isPreparing ||
               state.phase == AutoplayPhase.transitioning;
+          final isError = state.phase == AutoplayPhase.error;
           final upcoming = state.upcoming(take: 3);
           final canBlock =
               note.authorId != null &&
@@ -269,7 +273,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                               Icon(
                                 hashtag.icon,
                                 size: 44,
-                                color: EchoColors.accent,
+                                color: tokens.accentPrimary,
                               ),
                               Row(
                                 children: [
@@ -279,25 +283,25 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: EchoColors.muted,
+                                      color: tokens.surface2,
                                       borderRadius: BorderRadius.circular(14),
                                       border: Border.all(
-                                        color: EchoColors.borderSubtle,
+                                        color: tokens.borderSubtle,
                                       ),
                                     ),
                                     child: Text(
                                       '${currentIndex + 1} of ${state.queue.length}',
                                       style: theme.textTheme.bodySmall?.copyWith(
-                                        color: EchoColors.textSecondary,
+                                        color: tokens.textSecondary,
                                       ),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
                                   PopupMenuButton<String>(
-                                    color: EchoColors.surface,
-                                    icon: const Icon(
+                                    color: tokens.surface1,
+                                    icon: Icon(
                                       Icons.more_horiz,
-                                      color: EchoColors.textSecondary,
+                                      color: tokens.textSecondary,
                                     ),
                                     onSelected: (action) =>
                                         _handleMenuAction(note, action),
@@ -332,7 +336,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                             Text(
                               '"${note.transcriptPreview!}"',
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: EchoColors.textSecondary.withValues(
+                                color: tokens.textSecondary.withValues(
                                   alpha: 0.92,
                                 ),
                               ),
@@ -341,52 +345,18 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                           Text(
                             'Anonymous - ${formatRelativeTime(note.createdAt)}',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: EchoColors.textSecondary,
+                              color: tokens.textSecondary,
                             ),
                           ),
                           const SizedBox(height: 12),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(minHeight: 20),
-                            child: showStatus
-                                ? Row(
-                                    children: [
-                                      if (showSpinner)
-                                        const SizedBox(
-                                          height: 14,
-                                          width: 14,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        ),
-                                      if (showSpinner) const SizedBox(width: 8),
-                                      Text(
-                                        statusLabel,
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                              color:
-                                                  state.phase ==
-                                                      AutoplayPhase.error
-                                                  ? EchoColors.action
-                                                  : EchoColors.textSecondary,
-                                            ),
-                                      ),
-                                    ],
-                                  )
-                                : const SizedBox.shrink(),
-                          ),
-                          const SizedBox(height: 12),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: LinearProgressIndicator(
-                              value: (progress.isNaN ? 0.0 : progress)
-                                  .clamp(0.0, 1.0)
-                                  .toDouble(),
-                              minHeight: 8,
-                              backgroundColor: EchoColors.muted,
-                              valueColor: const AlwaysStoppedAnimation(
-                                EchoColors.accent,
-                              ),
-                            ),
+                          _NowListeningBar(
+                            label: statusLabel,
+                            showSpinner: showSpinner,
+                            progress: (progress.isNaN ? 0.0 : progress)
+                                .clamp(0.0, 1.0)
+                                .toDouble(),
+                            reduceMotion: reduceMotion,
+                            isError: isError,
                           ),
                           const SizedBox(height: 8),
                           Row(
@@ -395,13 +365,13 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                               Text(
                                 formatDuration(state.position),
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: EchoColors.textSecondary,
+                                  color: tokens.textSecondary,
                                 ),
                               ),
                               Text(
                                 formatDuration(duration),
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: EchoColors.textSecondary,
+                                  color: tokens.textSecondary,
                                 ),
                               ),
                             ],
@@ -416,8 +386,8 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                         child: EchoCard(
                           padding: const EdgeInsets.all(16),
                           radius: 18,
-                          color: EchoColors.muted,
-                          borderColor: EchoColors.borderSubtle,
+                          color: tokens.surface2,
+                          borderColor: tokens.borderSubtle,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -429,7 +399,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                               Text(
                                 state.errorMessage!,
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: EchoColors.textSecondary,
+                                  color: tokens.textSecondary,
                                 ),
                               ),
                               const SizedBox(height: 12),
@@ -465,13 +435,13 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                 ? null
                                 : () => autoplay.togglePlayPause(),
                             child: isPreparing
-                                ? const SizedBox(
+                                ? SizedBox(
                                     height: 24,
                                     width: 24,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       valueColor: AlwaysStoppedAnimation<Color>(
-                                        EchoColors.background,
+                                        tokens.bg,
                                       ),
                                     ),
                                   )
@@ -525,8 +495,8 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                     EchoCard(
                       padding: const EdgeInsets.all(16),
                       radius: 18,
-                      color: EchoColors.muted,
-                      borderColor: EchoColors.borderSubtle,
+                      color: tokens.surface2,
+                      borderColor: tokens.borderSubtle,
                       child: Row(
                         children: [
                           Expanded(
@@ -541,7 +511,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                 Text(
                                   'Bigger controls, easier tapping',
                                   style: theme.textTheme.bodySmall?.copyWith(
-                                    color: EchoColors.textSecondary,
+                                    color: tokens.textSecondary,
                                   ),
                                 ),
                               ],
@@ -558,7 +528,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                     Text(
                       'Up next',
                       style: theme.textTheme.titleSmall?.copyWith(
-                        color: EchoColors.textSecondary,
+                        color: tokens.textSecondary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -579,17 +549,17 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                 height: 38,
                                 width: 38,
                                 decoration: BoxDecoration(
-                                  color: EchoColors.muted,
+                                  color: tokens.surface2,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                    color: EchoColors.borderSubtle,
+                                    color: tokens.borderSubtle,
                                   ),
                                 ),
                                 child: Center(
                                   child: Text(
                                     '${absoluteIndex + 1}',
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: EchoColors.accent,
+                                      color: tokens.accentPrimary,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -611,7 +581,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                       formatRelativeTime(nextNote.createdAt),
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(
-                                            color: EchoColors.textSecondary,
+                                            color: tokens.textSecondary,
                                           ),
                                     ),
                                   ],
@@ -620,7 +590,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                               Text(
                                 formatDuration(nextNote.duration),
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: EchoColors.textSecondary,
+                                  color: tokens.textSecondary,
                                 ),
                               ),
                             ],
@@ -632,13 +602,13 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                     EchoCard(
                       padding: const EdgeInsets.all(16),
                       radius: 16,
-                      color: EchoColors.muted,
-                      borderColor: EchoColors.border,
+                      color: tokens.surface2,
+                      borderColor: tokens.border,
                       child: Text(
                         'Message slot (disabled in MVP)',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: EchoColors.textSecondary,
+                          color: tokens.textSecondary,
                         ),
                       ),
                     ),
@@ -649,6 +619,185 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
           );
         },
       ),
+    );
+  }
+}
+
+class _NowListeningBar extends StatelessWidget {
+  const _NowListeningBar({
+    required this.label,
+    required this.showSpinner,
+    required this.progress,
+    required this.reduceMotion,
+    required this.isError,
+  });
+
+  final String label;
+  final bool showSpinner;
+  final double progress;
+  final bool reduceMotion;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.echo;
+    final clamped = progress.clamp(0.0, 1.0);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          decoration: BoxDecoration(
+            color: tokens.surface1.withValues(alpha: 0.9),
+            border: Border.all(color: tokens.borderSubtle),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (showSpinner)
+                    SizedBox(
+                      height: 12,
+                      width: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          tokens.accentSecondary,
+                        ),
+                      ),
+                    ),
+                  if (showSpinner) const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isError ? tokens.danger : tokens.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  const dotSize = 8.0;
+                  final trackWidth = constraints.maxWidth;
+                  final left = (trackWidth - dotSize) * clamped;
+                  return Stack(
+                    alignment: Alignment.centerLeft,
+                    children: [
+                      Container(
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: tokens.surface3,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      FractionallySizedBox(
+                        widthFactor: clamped,
+                        child: Container(
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: tokens.accentPrimary,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: left,
+                        child: _PulseDot(
+                          color: tokens.accentSecondary,
+                          reduceMotion: reduceMotion,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PulseDot extends StatefulWidget {
+  const _PulseDot({required this.color, required this.reduceMotion});
+
+  final Color color;
+  final bool reduceMotion;
+
+  @override
+  State<_PulseDot> createState() => _PulseDotState();
+}
+
+class _PulseDotState extends State<_PulseDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    if (!widget.reduceMotion) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _PulseDot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.reduceMotion) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final base = Container(
+      height: 8,
+      width: 8,
+      decoration: BoxDecoration(
+        color: widget.color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: widget.color.withValues(alpha: 0.55),
+            blurRadius: 8,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+    );
+    if (widget.reduceMotion) {
+      return base;
+    }
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, _) {
+        final scale = lerpDouble(0.85, 1.1, _animation.value)!;
+        final opacity = lerpDouble(0.6, 1.0, _animation.value)!;
+        return Opacity(
+          opacity: opacity,
+          child: Transform.scale(scale: scale, child: base),
+        );
+      },
     );
   }
 }

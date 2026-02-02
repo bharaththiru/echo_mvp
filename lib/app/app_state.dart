@@ -1297,11 +1297,11 @@ class AppSettings {
   final bool hashtagNotifications;
 
   static AppSettings fromPrefs(SharedPreferences prefs) {
-    final modeName = prefs.getString(AppState._themeModeKey) ?? 'system';
+    final modeName = prefs.getString(AppState._themeModeKey) ?? 'dark';
     return AppSettings(
       themeMode: ThemeMode.values.firstWhere(
         (mode) => mode.name == modeName,
-        orElse: () => ThemeMode.system,
+        orElse: () => ThemeMode.dark,
       ),
       moodTintEnabled: prefs.getBool(AppState._moodTintKey) ?? true,
       transcriptsEnabled: prefs.getBool(AppState._transcriptsKey) ?? true,

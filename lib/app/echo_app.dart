@@ -3,12 +3,19 @@ import 'package:go_router/go_router.dart';
 
 import 'app_state.dart';
 import 'router.dart';
-import 'theme.dart';
+import '../theme/echo_theme.dart';
 
 class EchoApp extends StatefulWidget {
-  const EchoApp({super.key, required this.appState});
+  const EchoApp({
+    super.key,
+    required this.appState,
+    this.theme,
+    this.darkTheme,
+  });
 
   final AppState appState;
+  final ThemeData? theme;
+  final ThemeData? darkTheme;
 
   @override
   State<EchoApp> createState() => _EchoAppState();
@@ -31,8 +38,8 @@ class _EchoAppState extends State<EchoApp> {
         return MaterialApp.router(
           title: 'Echo',
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.light(),
-          darkTheme: AppTheme.dark(),
+          theme: widget.theme ?? buildEchoTheme(Brightness.light),
+          darkTheme: widget.darkTheme ?? buildEchoTheme(Brightness.dark),
           themeMode: widget.appState.settings.themeMode,
           routerConfig: _router,
         );

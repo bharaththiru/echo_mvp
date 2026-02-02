@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../models/hashtag.dart';
 import '../utils/responsive.dart';
 import '../widgets/echo_components.dart';
@@ -82,13 +82,13 @@ class _ListenTabState extends State<ListenTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Listen', style: theme.textTheme.displaySmall),
-            const SizedBox(height: 16),
-            EchoInput(
-              controller: _searchController,
-              hintText: 'Search moods, tones',
-              prefixIcon: Icons.search,
-              onChanged: _onSearchChanged,
-            ),
+              const SizedBox(height: 16),
+              EchoInput(
+                controller: _searchController,
+                hintText: 'Search moods, tones',
+                prefixIcon: Icons.search,
+                onChanged: _onSearchChanged,
+              ),
             ],
           ),
         ),
@@ -125,27 +125,27 @@ class _ListenTabState extends State<ListenTab> {
                           context.push('/hashtag/${hashtag.id}'),
                     ),
                   ] else ...[
-                  if (forYourVibe.isNotEmpty) ...[
-                    const EchoSectionTitle('Set the tone'),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 200,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemBuilder: (context, index) {
-                          final hashtag = forYourVibe[index];
-                          return _HashtagCard(
-                            hashtag: hashtag,
-                            moodTintEnabled:
-                                appState.settings.moodTintEnabled,
-                            onTap: () =>
-                                context.push('/hashtag/${hashtag.id}'),
-                            width: cardWidth,
-                          );
-                        },
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(width: 16),
-                        itemCount: forYourVibe.length,
+                    if (forYourVibe.isNotEmpty) ...[
+                      const EchoSectionTitle('Set the tone'),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 200,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemBuilder: (context, index) {
+                            final hashtag = forYourVibe[index];
+                            return _HashtagCard(
+                              hashtag: hashtag,
+                              moodTintEnabled:
+                                  appState.settings.moodTintEnabled,
+                              onTap: () =>
+                                  context.push('/hashtag/${hashtag.id}'),
+                              width: cardWidth,
+                            );
+                          },
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(width: 16),
+                          itemCount: forYourVibe.length,
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -199,6 +199,7 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     return Center(
       child: Padding(
         padding: EdgeInsets.symmetric(
@@ -215,7 +216,7 @@ class _EmptyState extends StatelessWidget {
                 subtitle,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: EchoColors.textSecondary,
+                  color: tokens.textSecondary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -244,13 +245,14 @@ class _HashtagCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final tint = hashtag.gradient.first;
     final cardColor = moodTintEnabled
-        ? Color.lerp(EchoColors.surface, tint, 0.55) ?? EchoColors.surface
-        : EchoColors.surface;
+        ? Color.lerp(tokens.surface1, tint, 0.55) ?? tokens.surface1
+        : tokens.surface1;
     final borderColor = moodTintEnabled
         ? tint.withValues(alpha: 0.6)
-        : EchoColors.borderSubtle;
+        : tokens.borderSubtle;
 
     return SizedBox(
       width: width,
@@ -266,18 +268,18 @@ class _HashtagCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(hashtag.icon, size: 34, color: EchoColors.accent),
+                Icon(hashtag.icon, size: 34, color: tokens.accentPrimary),
                 Container(
                   height: 42,
                   width: 42,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: EchoColors.accent.withValues(alpha: 0.16),
+                    color: tokens.accentPrimary.withValues(alpha: 0.16),
                     border: Border.all(
-                      color: EchoColors.accent.withValues(alpha: 0.3),
+                      color: tokens.accentPrimary.withValues(alpha: 0.3),
                     ),
                   ),
-                  child: const Icon(Icons.play_arrow, color: EchoColors.accent),
+                  child: Icon(Icons.play_arrow, color: tokens.accentPrimary),
                 ),
               ],
             ),
@@ -287,7 +289,7 @@ class _HashtagCard extends StatelessWidget {
             Text(
               hashtag.description,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: EchoColors.textSecondary,
+                color: tokens.textSecondary,
                 height: 1.4,
               ),
             ),
@@ -307,6 +309,7 @@ class _HashtagListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
 
     return EchoCard(
       onTap: onTap,
@@ -318,11 +321,11 @@ class _HashtagListTile extends StatelessWidget {
             height: 50,
             width: 50,
             decoration: BoxDecoration(
-              color: EchoColors.muted,
+              color: tokens.surface2,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: EchoColors.borderSubtle),
+              border: Border.all(color: tokens.borderSubtle),
             ),
-            child: Icon(hashtag.icon, color: EchoColors.accent),
+            child: Icon(hashtag.icon, color: tokens.accentPrimary),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -334,7 +337,7 @@ class _HashtagListTile extends StatelessWidget {
                 Text(
                   hashtag.description,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: EchoColors.textSecondary,
+                    color: tokens.textSecondary,
                   ),
                 ),
               ],
@@ -345,14 +348,14 @@ class _HashtagListTile extends StatelessWidget {
             width: 38,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: EchoColors.accent.withValues(alpha: 0.16),
+              color: tokens.accentPrimary.withValues(alpha: 0.16),
               border: Border.all(
-                color: EchoColors.accent.withValues(alpha: 0.32),
+                color: tokens.accentPrimary.withValues(alpha: 0.32),
               ),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.play_arrow,
-              color: EchoColors.accent,
+              color: tokens.accentPrimary,
               size: 18,
             ),
           ),
@@ -371,6 +374,7 @@ class _HashtagGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -397,7 +401,7 @@ class _HashtagGrid extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(hashtag.icon, color: EchoColors.accent, size: 28),
+                  Icon(hashtag.icon, color: tokens.accentPrimary, size: 28),
                   const Spacer(),
                   Text(hashtag.name, style: theme.textTheme.titleMedium),
                 ],

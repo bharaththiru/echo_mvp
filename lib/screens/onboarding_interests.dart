@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../data/seed_data.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
@@ -53,6 +53,7 @@ class _OnboardingInterestsState extends State<OnboardingInterests> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final appState = AppScope.of(context);
     final reduceMotion = appState.settings.reduceMotion;
     final hashtags = appState.hashtags;
@@ -78,7 +79,7 @@ class _OnboardingInterestsState extends State<OnboardingInterests> {
             Text(
               'You can always explore more later.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: EchoColors.textSecondary,
+                color: tokens.textSecondary,
               ),
             ),
             const SizedBox(height: 24),
@@ -90,14 +91,14 @@ class _OnboardingInterestsState extends State<OnboardingInterests> {
                   children: tags.map((tag) {
                     final isSelected = _selected.contains(tag);
                     final backgroundColor = isSelected
-                        ? EchoColors.accent
-                        : EchoColors.surface;
+                        ? tokens.accentPrimary
+                        : tokens.surface1.withValues(alpha: 0.85);
                     final borderColor = isSelected
-                        ? EchoColors.accent.withValues(alpha: 0.8)
-                        : EchoColors.borderSubtle;
+                        ? tokens.accentPrimary.withValues(alpha: 0.75)
+                        : tokens.borderSubtle;
                     final textColor = isSelected
-                        ? EchoColors.background
-                        : EchoColors.textPrimary;
+                        ? tokens.bg
+                        : tokens.textPrimary;
                     return GestureDetector(
                       onTap: () => _toggle(tag),
                       child: AnimatedContainer(
@@ -112,6 +113,18 @@ class _OnboardingInterestsState extends State<OnboardingInterests> {
                           color: backgroundColor,
                           borderRadius: BorderRadius.circular(30),
                           border: Border.all(color: borderColor, width: 1.5),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color:
+                                        tokens.accentSecondary.withValues(
+                                      alpha: 0.18,
+                                    ),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ]
+                              : null,
                         ),
                         child: Text(
                           tag,

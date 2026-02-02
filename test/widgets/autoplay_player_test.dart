@@ -39,7 +39,7 @@ void main() {
       name: '#focus',
       description: 'Quiet concentration',
       icon: Icons.self_improvement,
-      gradient: [EchoColors.surface, EchoColors.muted],
+      gradient: [EchoColors.deepTeal, EchoColors.teal],
       noteCount: 2,
     );
   }
@@ -61,7 +61,7 @@ void main() {
       AppScope(
         state: appState,
         child: MaterialApp(
-          theme: AppTheme.dark(),
+          theme: buildEchoTheme(Brightness.dark),
           home: const AutoplayPlayer(hashtagId: hashtagId),
         ),
       ),

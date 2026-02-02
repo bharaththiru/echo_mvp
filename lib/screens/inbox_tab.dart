@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app/app_scope.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../utils/time_format.dart';
 import '../utils/responsive.dart';
 import '../widgets/echo_components.dart';
@@ -31,6 +31,7 @@ class _InboxTabState extends State<InboxTab> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final appState = AppScope.of(context);
     final myPosts = appState.userPosts();
     final showTranscript = appState.settings.transcriptsEnabled;
@@ -58,11 +59,11 @@ class _InboxTabState extends State<InboxTab> {
                 EchoCard(
                   padding: const EdgeInsets.all(16),
                   radius: 18,
-                  color: EchoColors.muted,
+                  color: tokens.surface2,
                   child: Text(
                     'Sign in to see your posted notes here.',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: EchoColors.textSecondary,
+                      color: tokens.textSecondary,
                     ),
                   ),
                 )
@@ -70,11 +71,11 @@ class _InboxTabState extends State<InboxTab> {
                 EchoCard(
                   padding: const EdgeInsets.all(16),
                   radius: 18,
-                  color: EchoColors.muted,
+                  color: tokens.surface2,
                   child: Text(
                     'Replies are coming soon. Your latest posts show up here.',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: EchoColors.textSecondary,
+                      color: tokens.textSecondary,
                     ),
                   ),
                 ),
@@ -95,7 +96,7 @@ class _InboxTabState extends State<InboxTab> {
                   child: Text(
                     'No posts yet. Record a note to see it here.',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: EchoColors.textSecondary,
+                      color: tokens.textSecondary,
                     ),
                   ),
                 )
@@ -114,7 +115,7 @@ class _InboxTabState extends State<InboxTab> {
                             Text(
                               post.hashtagLabel,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: EchoColors.accent,
+                                color: tokens.accentPrimary,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -122,7 +123,7 @@ class _InboxTabState extends State<InboxTab> {
                             Text(
                               formatRelativeTime(post.createdAt),
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: EchoColors.textSecondary,
+                                color: tokens.textSecondary,
                               ),
                             ),
                           ],
@@ -133,7 +134,7 @@ class _InboxTabState extends State<InboxTab> {
                               ? (post.transcriptPreview ?? 'Voice note')
                               : 'Voice note',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: EchoColors.textSecondary.withValues(
+                            color: tokens.textSecondary.withValues(
                               alpha: 0.92,
                             ),
                           ),
@@ -171,21 +172,21 @@ class _InboxTabState extends State<InboxTab> {
                                       );
                                     },
                               icon: isPreparing
-                                  ? const SizedBox(
+                                  ? SizedBox(
                                       height: 18,
                                       width: 18,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
                                         valueColor:
                                             AlwaysStoppedAnimation<Color>(
-                                              EchoColors.background,
-                                            ),
+                                          tokens.bg,
+                                        ),
                                       ),
                                     )
                                   : const Icon(Icons.play_arrow),
                               style: IconButton.styleFrom(
-                                backgroundColor: EchoColors.accent,
-                                foregroundColor: EchoColors.background,
+                                backgroundColor: tokens.accentPrimary,
+                                foregroundColor: tokens.bg,
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -194,7 +195,7 @@ class _InboxTabState extends State<InboxTab> {
                                   ? 'Replies enabled'
                                   : 'Replies disabled',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: EchoColors.textSecondary,
+                                color: tokens.textSecondary,
                               ),
                             ),
                           ],
@@ -225,6 +226,7 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     return Center(
       child: Padding(
         padding: EdgeInsets.symmetric(
@@ -241,7 +243,7 @@ class _EmptyState extends StatelessWidget {
                 subtitle,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: EchoColors.textSecondary,
+                  color: tokens.textSecondary,
                 ),
               ),
               const SizedBox(height: 16),

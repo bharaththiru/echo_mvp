@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 
 class ReportReasonOption {
   const ReportReasonOption(this.id, this.label);
@@ -21,12 +21,13 @@ const List<ReportReasonOption> reportReasonOptions = [
 Future<String?> showReportReasonSheet(BuildContext context) {
   return showModalBottomSheet<String>(
     context: context,
-    backgroundColor: EchoColors.surface,
+    backgroundColor: context.echo.surface1,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(EchoRadii.sheet)),
     ),
     builder: (context) {
       final theme = Theme.of(context);
+      final tokens = context.echo;
       return SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
@@ -39,7 +40,7 @@ Future<String?> showReportReasonSheet(BuildContext context) {
               Text(
                 'This will hide the clip for you.',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: EchoColors.textSecondary,
+                  color: tokens.textSecondary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -54,11 +55,9 @@ Future<String?> showReportReasonSheet(BuildContext context) {
                     return ListTile(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
-                        side: const BorderSide(
-                          color: EchoColors.borderSubtle,
-                        ),
+                        side: BorderSide(color: tokens.borderSubtle),
                       ),
-                      tileColor: EchoColors.muted,
+                      tileColor: tokens.surface2,
                       title: Text(option.label),
                       onTap: () => Navigator.of(context).pop(option.id),
                     );

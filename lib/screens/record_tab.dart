@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../services/audio_controller.dart';
 import '../utils/responsive.dart';
 
@@ -290,12 +290,12 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
       return;
     }
     final valid = await _isValidRecordingFile(path);
+    if (!mounted) {
+      return;
+    }
     if (!valid) {
       appState.clearPendingPostDraft();
       appState.clearPendingRecording();
-      if (!mounted) {
-        return;
-      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Recording not found. Please record again.'),
@@ -314,6 +314,7 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final appState = AppScope.of(context);
     final reduceMotion = appState.settings.reduceMotion;
 
@@ -323,7 +324,9 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
         final audioState = appState.audio.state;
         final isPlaying =
             audioState.sourceId == 'recording_preview' && audioState.isPlaying;
-        final ringColor = _isRecording ? EchoColors.action : EchoColors.accent;
+        final ringColor = _isRecording
+            ? tokens.accentSecondary
+            : tokens.accentPrimary;
 
         return Column(
           children: [
@@ -369,7 +372,7 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                                   : 0,
                               strokeWidth: 8,
                               strokeCap: StrokeCap.round,
-                              backgroundColor: EchoColors.muted,
+                              backgroundColor: tokens.surface3,
                               valueColor: AlwaysStoppedAnimation(ringColor),
                             ),
                           ),
@@ -380,15 +383,30 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                               style: ElevatedButton.styleFrom(
                                 shape: const CircleBorder(),
                                 padding: EdgeInsets.zero,
-                                backgroundColor: _isRecording
-                                    ? EchoColors.action
-                                    : EchoColors.accent,
-                                foregroundColor: EchoColors.background,
+                                backgroundColor: tokens.accentPrimary,
+                                foregroundColor: tokens.bg,
+                                shadowColor: _isRecording
+                                    ? tokens.accentSecondary.withValues(
+                                        alpha: 0.55,
+                                      )
+                                    : tokens.shadow,
+                                elevation: _isRecording ? 4 : 2,
+                                side: _isRecording
+                                    ? BorderSide(
+                                        color: tokens.accentSecondary.withValues(
+                                          alpha: 0.6,
+                                        ),
+                                        width: 1.2,
+                                      )
+                                    : null,
                               ),
                               onPressed: _isRecording
                                   ? _stopRecording
                                   : _hasRecording
                                   ? () async {
+                                      final messenger = ScaffoldMessenger.of(
+                                        context,
+                                      );
                                       final path = _recordingPath;
                                       if (path == null) {
                                         return;
@@ -396,15 +414,13 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                                       final valid = await _isValidRecordingFile(
                                         path,
                                       );
+                                      if (!mounted) {
+                                        return;
+                                      }
                                       if (!valid) {
                                         appState.clearPendingPostDraft();
                                         appState.clearPendingRecording();
-                                        if (!mounted) {
-                                          return;
-                                        }
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
+                                        messenger.showSnackBar(
                                           const SnackBar(
                                             content: Text(
                                               'Recording not found. Please record again.',
@@ -448,7 +464,7 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                         Text(
                           'seconds remaining',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: EchoColors.textSecondary,
+                            color: tokens.textSecondary,
                           ),
                         ),
                       ] else if (_hasRecording) ...[
@@ -460,7 +476,7 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                         Text(
                           'Tap to preview',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: EchoColors.textSecondary,
+                            color: tokens.textSecondary,
                           ),
                         ),
                       ] else ...[
@@ -469,7 +485,7 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                         Text(
                           '12 seconds max',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: EchoColors.textSecondary,
+                            color: tokens.textSecondary,
                           ),
                         ),
                       ],

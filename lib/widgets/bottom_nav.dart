@@ -1,8 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import 'app_scaffold.dart';
 
 class BottomNavShell extends StatelessWidget {
@@ -42,6 +44,7 @@ class BottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final reduceMotion = AppScope.of(context).settings.reduceMotion;
     final duration = reduceMotion
         ? Duration.zero
@@ -55,58 +58,83 @@ class BottomNavBar extends StatelessWidget {
 
     return SafeArea(
       top: false,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: EchoColors.surface,
-          border: Border(
-            top: BorderSide(color: EchoColors.border.withValues(alpha: 0.7)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(EchoRadii.nav),
+            boxShadow: [
+              BoxShadow(
+                color: tokens.shadow.withValues(alpha: 0.4),
+                blurRadius: 22,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: items.map((item) {
-            final isActive = currentIndex == item.index;
-            final backgroundColor = isActive
-                ? EchoColors.accent.withValues(alpha: 0.14)
-                : Colors.transparent;
-            final foregroundColor = isActive
-                ? EchoColors.accent
-                : EchoColors.textSecondary;
-            return Expanded(
-              child: GestureDetector(
-                onTap: () => onTap(item.index),
-                child: AnimatedContainer(
-                  duration: duration,
-                  curve: Curves.easeOutCubic,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: backgroundColor,
-                    borderRadius: BorderRadius.circular(20),
-                    border: isActive
-                        ? Border.all(
-                            color: EchoColors.accent.withValues(alpha: 0.28),
-                          )
-                        : null,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(item.icon, size: 22, color: foregroundColor),
-                      const SizedBox(height: 4),
-                      Text(
-                        item.label,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: foregroundColor,
-                          fontWeight: FontWeight.w600,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(EchoRadii.nav),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: tokens.surface1.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(EchoRadii.nav),
+                  border: Border.all(color: tokens.borderSubtle),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: items.map((item) {
+                    final isActive = currentIndex == item.index;
+                    final backgroundColor = isActive
+                        ? tokens.accentPrimary.withValues(alpha: 0.16)
+                        : Colors.transparent;
+                    final foregroundColor = isActive
+                        ? tokens.accentPrimary
+                        : tokens.textTertiary;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => onTap(item.index),
+                        child: AnimatedContainer(
+                          duration: duration,
+                          curve: Curves.easeOutCubic,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: backgroundColor,
+                            borderRadius: BorderRadius.circular(20),
+                            border: isActive
+                                ? Border.all(
+                                    color: tokens.accentPrimary.withValues(
+                                      alpha: 0.28,
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(item.icon, size: 22, color: foregroundColor),
+                              const SizedBox(height: 4),
+                              Text(
+                                item.label,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: foregroundColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  }).toList(),
                 ),
               ),
-            );
-          }).toList(),
+            ),
+          ),
         ),
       ),
     );

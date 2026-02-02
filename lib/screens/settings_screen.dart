@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/echo_components.dart';
@@ -13,6 +13,7 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final appState = AppScope.of(context);
 
     return AppScaffold(
@@ -185,7 +186,7 @@ class SettingsScreen extends StatelessWidget {
                       child: Text(
                         'Echo v1.0.0',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: EchoColors.textSecondary,
+                          color: tokens.textSecondary,
                         ),
                       ),
                     ),
@@ -216,15 +217,16 @@ class _ThemeOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final backgroundColor = isSelected
-        ? EchoColors.accent.withValues(alpha: 0.18)
-        : EchoColors.surface;
+        ? tokens.accentPrimary.withValues(alpha: 0.18)
+        : tokens.surface1;
     final borderColor = isSelected
-        ? EchoColors.accent.withValues(alpha: 0.48)
-        : EchoColors.borderSubtle;
+        ? tokens.accentPrimary.withValues(alpha: 0.48)
+        : tokens.borderSubtle;
     final foregroundColor = isSelected
-        ? EchoColors.accent
-        : EchoColors.textSecondary;
+        ? tokens.accentPrimary
+        : tokens.textSecondary;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -242,8 +244,8 @@ class _ThemeOption extends StatelessWidget {
               label,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: isSelected
-                    ? EchoColors.textPrimary
-                    : EchoColors.textSecondary,
+                    ? tokens.textPrimary
+                    : tokens.textSecondary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -270,10 +272,11 @@ class _ToggleTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     return EchoCard(
       padding: const EdgeInsets.all(16),
       radius: 18,
-      color: EchoColors.muted,
+      color: tokens.surface2,
       child: Row(
         children: [
           Expanded(
@@ -285,7 +288,7 @@ class _ToggleTile extends StatelessWidget {
                 Text(
                   subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: EchoColors.textSecondary,
+                    color: tokens.textSecondary,
                   ),
                 ),
               ],
@@ -307,10 +310,11 @@ class _LinkTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     return EchoCard(
       padding: const EdgeInsets.all(16),
       radius: 18,
-      color: EchoColors.muted,
+      color: tokens.surface2,
       child: Row(
         children: [
           Expanded(
@@ -323,14 +327,14 @@ class _LinkTile extends StatelessWidget {
                   Text(
                     subtitle!,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: EchoColors.textSecondary,
+                      color: tokens.textSecondary,
                     ),
                   ),
                 ],
               ],
             ),
           ),
-          const Icon(Icons.chevron_right, color: EchoColors.textSecondary),
+          Icon(Icons.chevron_right, color: tokens.textSecondary),
         ],
       ),
     );

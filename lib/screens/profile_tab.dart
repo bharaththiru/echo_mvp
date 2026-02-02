@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../utils/time_format.dart';
 import '../utils/responsive.dart';
 import '../widgets/echo_components.dart';
@@ -13,6 +13,7 @@ class ProfileTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     final appState = AppScope.of(context);
     final isAuthenticated = appState.isAuthenticated;
     final skipAuth = appState.skipAuth;
@@ -55,14 +56,14 @@ class ProfileTab extends StatelessWidget {
                       width: 80,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: EchoColors.accent,
+                        color: tokens.accentPrimary,
                         border: Border.all(
-                          color: EchoColors.accent.withValues(alpha: 0.45),
+                          color: tokens.accentPrimary.withValues(alpha: 0.45),
                         ),
                       ),
                       child: Icon(
                         Icons.person,
-                        color: EchoColors.background,
+                        color: tokens.bg,
                         size: 36,
                       ),
                     ),
@@ -79,7 +80,7 @@ class ProfileTab extends StatelessWidget {
                           ? 'Signed in'
                           : 'Sign in to sync your notes',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: EchoColors.textSecondary,
+                        color: tokens.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -97,12 +98,12 @@ class ProfileTab extends StatelessWidget {
               const SizedBox(height: 24),
               Row(
                 children: [
-                  const Icon(Icons.bookmark, color: EchoColors.textSecondary),
+                  Icon(Icons.bookmark, color: tokens.textSecondary),
                   const SizedBox(width: 8),
                   Text(
                     'Saved hashtags',
                     style: theme.textTheme.titleMedium?.copyWith(
-                      color: EchoColors.textSecondary,
+                      color: tokens.textSecondary,
                     ),
                   ),
                 ],
@@ -118,9 +119,9 @@ class ProfileTab extends StatelessWidget {
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: EchoColors.muted,
+                      color: tokens.surface2,
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: EchoColors.borderSubtle),
+                      border: Border.all(color: tokens.borderSubtle),
                     ),
                     child: Text(
                       tag,
@@ -140,7 +141,7 @@ class ProfileTab extends StatelessWidget {
                   child: Text(
                     'Record a note to see it here.',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: EchoColors.textSecondary,
+                      color: tokens.textSecondary,
                     ),
                   ),
                 )
@@ -157,14 +158,16 @@ class ProfileTab extends StatelessWidget {
                           width: 36,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: EchoColors.accent.withValues(alpha: 0.16),
+                            color: tokens.accentPrimary.withValues(alpha: 0.16),
                             border: Border.all(
-                              color: EchoColors.accent.withValues(alpha: 0.35),
+                              color: tokens.accentPrimary.withValues(
+                                alpha: 0.35,
+                              ),
                             ),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.play_arrow,
-                            color: EchoColors.accent,
+                            color: tokens.accentPrimary,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -177,7 +180,7 @@ class ProfileTab extends StatelessWidget {
                                   Text(
                                     post.hashtagLabel,
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: EchoColors.accent,
+                                      color: tokens.accentPrimary,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -185,7 +188,7 @@ class ProfileTab extends StatelessWidget {
                                   Text(
                                     formatRelativeTime(post.createdAt),
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: EchoColors.textSecondary,
+                                      color: tokens.textSecondary,
                                     ),
                                   ),
                                 ],
@@ -196,7 +199,7 @@ class ProfileTab extends StatelessWidget {
                                     ? (post.transcriptPreview ?? 'Voice note')
                                     : 'Voice note',
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: EchoColors.textSecondary.withValues(
+                                  color: tokens.textSecondary.withValues(
                                     alpha: 0.92,
                                   ),
                                 ),
@@ -237,15 +240,16 @@ class _PreferenceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = context.echo;
     return EchoCard(
       onTap: onTap,
       padding: const EdgeInsets.all(16),
       radius: 18,
-      color: EchoColors.muted,
+      color: tokens.surface2,
       child: Row(
         children: [
           Expanded(child: Text(title, style: theme.textTheme.bodyMedium)),
-          const Icon(Icons.chevron_right, color: EchoColors.textSecondary),
+          Icon(Icons.chevron_right, color: tokens.textSecondary),
         ],
       ),
     );

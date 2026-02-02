@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../app/theme.dart';
+import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
 
 class AppScaffold extends StatelessWidget {
@@ -13,10 +13,14 @@ class AppScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final maxWidth = EchoLayout.maxContentWidth(context);
+    final tokens = context.echo;
+    final brightness = Theme.of(context).brightness;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: brightness == Brightness.dark
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: EchoColors.background,
+        backgroundColor: tokens.bg,
         resizeToAvoidBottomInset: true,
         bottomNavigationBar: bottomNavigationBar,
         body: SafeArea(
