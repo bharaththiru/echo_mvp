@@ -200,6 +200,8 @@ class AutoplayController extends ChangeNotifier {
   final Set<String> _suppressedAuthorIds = <String>{};
   final Set<String> _preloadInFlight = <String>{};
   final Map<String, String> _cachedPaths = <String, String>{};
+  final Map<String, VoiceNote> _playbackQueueNotes =
+      <String, VoiceNote>{};
   Timer? _stallTimer;
   int _stallToken = 0;
   DateTime? _lastQueueRefreshAt;
@@ -632,6 +634,7 @@ class AutoplayController extends ChangeNotifier {
     _failedIds.clear();
     _playbackQueueIds.clear();
     _playbackQueueIndex = -1;
+    _playbackQueueNotes.clear();
     await _startAutoplay();
   }
 
@@ -677,6 +680,17 @@ class AutoplayController extends ChangeNotifier {
     _playbackQueueIds
       ..clear()
       ..addAll(queueItems.map((item) => item.sourceId));
+    _playbackQueueNotes
+      ..clear()
+      ..addEntries(
+        queueItems.map((item) {
+          final note = _state.queue.firstWhere(
+            (n) => n.id == item.sourceId,
+            orElse: () => note,
+          );
+          return MapEntry(item.sourceId, note);
+        }),
+      );
     _playbackQueueIndex = 0;
     await _audio.playQueue(
       queue: queueItems,
@@ -1153,6 +1167,7 @@ class AutoplayController extends ChangeNotifier {
             title: note.hashtagLabel,
           ),
         );
+        _playbackQueueNotes[note.id] = note;
       }
       if (!_isSessionCurrent(sessionToken) || _isDisposed) {
         return;
@@ -1267,9 +1282,13 @@ class AutoplayController extends ChangeNotifier {
     final activeId = audioState.sourceId;
     if (activeId != null &&
         (currentNote == null || currentNote.id != activeId)) {
-      final resolvedIndex =
-          _state.queue.indexWhere((note) => note.id == activeId);
-      if (resolvedIndex != -1) {
+      final queuedNote = _playbackQueueNotes[activeId];
+      final resolvedIndex = queuedNote == null
+          ? _state.queue.indexWhere((note) => note.id == activeId)
+          : _state.queue.indexWhere((note) => note.id == queuedNote.id);
+      final nextNote = queuedNote ??
+          (resolvedIndex == -1 ? null : _state.queue[resolvedIndex]);
+      if (nextNote != null) {
         if (currentNote != null) {
           _playedIds.add(currentNote.id);
         }
@@ -1279,20 +1298,25 @@ class AutoplayController extends ChangeNotifier {
         }
         _setState(
           _state.copyWith(
-            currentIndex: resolvedIndex,
-            currentNote: _state.queue[resolvedIndex],
+            currentIndex: resolvedIndex == -1 ? _state.currentIndex : resolvedIndex,
+            currentNote: nextNote,
             isPreparing: false,
             isTransitioning: false,
             isMuted: _isMutedNote(activeId),
           ),
         );
-        _maybeRefreshQueue(resolvedIndex);
-        _preloadNextFrom(resolvedIndex);
+        if (resolvedIndex != -1) {
+          _maybeRefreshQueue(resolvedIndex);
+          _preloadNextFrom(resolvedIndex);
+        }
       }
       _playbackQueueIndex = _playbackQueueIds.indexOf(activeId);
       if (_playbackQueueIndex != -1) {
         unawaited(_fillQueueAhead());
       }
+      _positionNoteId = activeId;
+      _lastObservedPosition = Duration.zero;
+      _positionResetCount = 0;
     }
     if (activeId != null && _playbackQueueIndex == -1) {
       _playbackQueueIndex = _playbackQueueIds.indexOf(activeId);
@@ -1417,6 +1441,11 @@ class AutoplayController extends ChangeNotifier {
     }
     if (audioState.phase != AudioPlaybackPhase.playing &&
         audioState.phase != AudioPlaybackPhase.paused) {
+      return;
+    }
+    if (_playbackQueueIds.isNotEmpty &&
+        audioState.sourceId != null &&
+        audioState.sourceId != currentNote.id) {
       return;
     }
     if (_positionNoteId != currentNote.id) {
@@ -1550,6 +1579,7 @@ class AutoplayController extends ChangeNotifier {
     _cachedPaths.clear();
     _playbackQueueIds.clear();
     _playbackQueueIndex = -1;
+    _playbackQueueNotes.clear();
     _cancelStallGuard();
     _resumeAfterInterruption = false;
     _resumePosition = null;
