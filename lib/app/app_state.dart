@@ -345,7 +345,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
   Future<UserCredential?> signInWithApple() async {
     final isAvailable = await SignInWithApple.isAvailable();
     if (!isAvailable) {
-      throw const FirebaseAuthException(
+      throw FirebaseAuthException(
         code: 'apple-sign-in-unavailable',
         message: 'Sign in with Apple is not available on this device.',
       );
@@ -361,7 +361,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     );
     final idToken = credential.identityToken;
     if (idToken == null) {
-      throw const FirebaseAuthException(
+      throw FirebaseAuthException(
         code: 'apple-sign-in-failed',
         message: 'Unable to retrieve Apple identity token.',
       );
