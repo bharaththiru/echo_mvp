@@ -36,7 +36,6 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   Stream<EchoAudioEvent> get events => _eventController.stream;
 
-  static const _queueCrossfade = Duration(milliseconds: 120);
 
   Future<void> _init() async {
     if (kIsWeb) {
@@ -162,7 +161,6 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _queueMode = false;
     _queueItems.clear();
     queue.add(const <MediaItem>[]);
-    await _player.setCrossfadeDuration(Duration.zero);
     final uri = _resolveUri(path);
     final source = AudioSource.uri(uri);
     await _player.setAudioSource(source, preload: true);
@@ -193,7 +191,6 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         .toList();
     _playlist = ConcatenatingAudioSource(children: sources);
     queue.add(List<MediaItem>.from(_queueItems));
-    await _player.setCrossfadeDuration(_queueCrossfade);
     await _player.setAudioSource(
       _playlist!,
       initialIndex: initialIndex,
