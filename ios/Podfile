@@ -1,4 +1,4 @@
-platform :ios, '14.0'
+platform :ios, '15.0'
 
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
@@ -61,7 +61,7 @@ post_install do |installer|
     # Apply general build settings to all valid targets
     if target.respond_to?(:build_configurations)
       target.build_configurations.each do |config|
-        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
         
         # Xcode 16 specific compatibility settings
         config.build_settings['EXPLICIT_MODULE_BUILD'] = 'NO'
