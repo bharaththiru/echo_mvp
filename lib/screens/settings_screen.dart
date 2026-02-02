@@ -52,7 +52,7 @@ class SettingsScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     LayoutBuilder(
                       builder: (context, constraints) {
-                        final isCompact = constraints.maxWidth < 360;
+                        final isCompact = constraints.maxWidth < 320;
                         if (isCompact) {
                           return Column(
                             children: [

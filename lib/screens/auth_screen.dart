@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -84,6 +86,90 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    final appState = AppScope.of(context);
+    setState(() {
+      _isLoading = true;
+      _statusMessage = null;
+      _statusIsError = false;
+    });
+    try {
+      final result = await appState.signInWithGoogle();
+      if (!mounted) {
+        return;
+      }
+      if (result == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      context.go('/listen');
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _statusMessage = error.message ?? 'Unable to sign in right now.';
+        _statusIsError = true;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _statusMessage = 'Unable to sign in right now.';
+        _statusIsError = true;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _signInWithApple() async {
+    final appState = AppScope.of(context);
+    setState(() {
+      _isLoading = true;
+      _statusMessage = null;
+      _statusIsError = false;
+    });
+    try {
+      final result = await appState.signInWithApple();
+      if (!mounted) {
+        return;
+      }
+      if (result == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      context.go('/listen');
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _statusMessage = error.message ?? 'Unable to sign in right now.';
+        _statusIsError = true;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _statusMessage = 'Unable to sign in right now.';
+        _statusIsError = true;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   void _toggleMode() {
     setState(() {
       _isSignUp = !_isSignUp;
@@ -101,6 +187,8 @@ class _AuthScreenState extends State<AuthScreen> {
     final toggleLabel = _isSignUp
         ? 'Already have an account? Sign in'
         : 'New here? Create an account';
+    const showSocialSignIn = false;
+    final showApple = showSocialSignIn && Platform.isIOS;
 
     return AppScaffold(
       child: SingleChildScrollView(
@@ -175,6 +263,44 @@ class _AuthScreenState extends State<AuthScreen> {
                     isLoading: _isLoading,
                     onPressed: _submit,
                   ),
+                  if (showSocialSignIn) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(child: Divider(color: tokens.borderSubtle)),
+                        const SizedBox(width: 12),
+                        Text(
+                          'or',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: tokens.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(child: Divider(color: tokens.borderSubtle)),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isLoading ? null : _signInWithGoogle,
+                        icon: const Icon(Icons.g_mobiledata),
+                        label: const Text('Continue with Google'),
+                      ),
+                    ),
+                    if (showApple) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _isLoading ? null : _signInWithApple,
+                          icon: const Icon(Icons.apple),
+                          label: const Text('Continue with Apple'),
+                        ),
+                      ),
+                    ],
+                  ],
                   const SizedBox(height: 8),
                   TextButton(
                     onPressed: _isLoading ? null : _toggleMode,

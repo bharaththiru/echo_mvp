@@ -24,10 +24,11 @@ class AppScaffold extends StatelessWidget {
         resizeToAvoidBottomInset: true,
         bottomNavigationBar: bottomNavigationBar,
         body: SafeArea(
-          child: Center(
+          child: Align(
+            alignment: Alignment.topCenter,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: maxWidth),
-              child: child,
+              child: SizedBox(width: double.infinity, child: child),
             ),
           ),
         ),

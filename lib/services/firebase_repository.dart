@@ -19,6 +19,7 @@ class FirebaseRepository {
   Future<List<Hashtag>> fetchHashtags() async {
     final snapshot = await _firestore
         .collection('hashtags')
+        .where('is_active', isEqualTo: true)
         .orderBy('name')
         .get();
     return snapshot.docs.map((doc) {
