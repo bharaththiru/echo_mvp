@@ -58,26 +58,26 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
 
-    # 1. Safety check: only apply settings to targets that support them
+    # Apply general build settings to all valid targets
     if target.respond_to?(:build_configurations)
       target.build_configurations.each do |config|
-        # Align pods with the app's deployment target
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
         
-        # Fix for potential Xcode 16 compatibility (safe to keep on Xcode 15)
+        # Xcode 16 specific compatibility settings
         config.build_settings['EXPLICIT_MODULE_BUILD'] = 'NO'
         config.build_settings['SWIFT_PRECOMPILE_MODULES'] = 'NO'
         config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
-        
-        # BoringSSL Fix: Only run this on the actual library target
-        if target.name == 'BoringSSL-GRPC' && target.respond_to?(:source_build_phase)
-          target.source_build_phase.files.each do |file|
-            if file.settings && file.settings['COMPILER_FLAGS']
-              flags = file.settings['COMPILER_FLAGS'].split
-              flags.reject! { |flag| flag == '-GCC_WARN_INHIBIT_ALL_WARNINGS' }
-              file.settings['COMPILER_FLAGS'] = flags.join(' ')
-            end
-          end
+      end
+    end
+
+    # The specific fix for the "-G" error (BoringSSL-GRPC)
+    # The 'respond_to?' check prevents the "undefined method" error
+    if target.name == 'BoringSSL-GRPC' && target.respond_to?(:source_build_phase)
+      target.source_build_phase.files.each do |file|
+        if file.settings && file.settings['COMPILER_FLAGS']
+          flags = file.settings['COMPILER_FLAGS'].split
+          flags.reject! { |flag| flag == '-GCC_WARN_INHIBIT_ALL_WARNINGS' }
+          file.settings['COMPILER_FLAGS'] = flags.join(' ')
         end
       end
     end
