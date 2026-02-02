@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -25,6 +26,9 @@ class AudioController extends ChangeNotifier
   AudioPlaybackState _state = AudioPlaybackState.empty;
   int _operationToken = 0;
   bool _isDisposed = false;
+  DateTime? _lastEngineUpdate;
+  DateTime? _lastPositionTick;
+  Timer? _positionTimer;
 
   StreamSubscription<AudioEngineSnapshot>? _engineSub;
   StreamSubscription<EchoAudioEvent>? _engineEventSub;
@@ -70,6 +74,8 @@ class AudioController extends ChangeNotifier
     if (_isDisposed) {
       return;
     }
+    _lastEngineUpdate = DateTime.now();
+    _lastPositionTick = _lastEngineUpdate;
     final nextPhase = _mapPhase(snapshot);
     _state = _state.copyWith(
       sourceId: snapshot.sourceId,
@@ -84,6 +90,7 @@ class AudioController extends ChangeNotifier
       errorMessage: snapshot.errorMessage,
     );
     notifyListeners();
+    _syncPositionTimer();
   }
 
   void _handleEngineEvent(EchoAudioEvent event) {
@@ -99,6 +106,7 @@ class AudioController extends ChangeNotifier
           errorMessage: null,
         );
         notifyListeners();
+        _syncPositionTimer();
         break;
       case EchoAudioEventType.interruptionEnded:
         _state = _state.copyWith(
@@ -109,6 +117,7 @@ class AudioController extends ChangeNotifier
           errorMessage: null,
         );
         notifyListeners();
+        _syncPositionTimer();
         break;
       case EchoAudioEventType.error:
         _state = _state.copyWith(
@@ -117,6 +126,7 @@ class AudioController extends ChangeNotifier
           errorMessage: event.message ?? 'Playback error.',
         );
         notifyListeners();
+        _syncPositionTimer();
         break;
     }
   }
@@ -163,6 +173,7 @@ class AudioController extends ChangeNotifier
       errorMessage: null,
     );
     notifyListeners();
+    _syncPositionTimer();
     try {
       await _engine.stop();
       await _engine.setSource(
@@ -189,6 +200,7 @@ class AudioController extends ChangeNotifier
         errorMessage: 'Unable to play this clip.',
       );
       notifyListeners();
+      _syncPositionTimer();
       return;
     }
   }
@@ -203,6 +215,7 @@ class AudioController extends ChangeNotifier
       errorMessage: null,
     );
     notifyListeners();
+    _syncPositionTimer();
   }
 
   @override
@@ -219,6 +232,7 @@ class AudioController extends ChangeNotifier
       errorMessage: null,
     );
     notifyListeners();
+    _syncPositionTimer();
   }
 
   @override
@@ -234,6 +248,7 @@ class AudioController extends ChangeNotifier
       errorMessage: null,
     );
     notifyListeners();
+    _syncPositionTimer();
   }
 
   @override
@@ -244,6 +259,8 @@ class AudioController extends ChangeNotifier
     await _engine.seek(position);
     _state = _state.copyWith(position: position);
     notifyListeners();
+    _lastPositionTick = DateTime.now();
+    _syncPositionTimer();
   }
 
   Future<void> toggle({required String sourceId, required String path}) async {
@@ -270,10 +287,58 @@ class AudioController extends ChangeNotifier
     return _recordingService.getAudioDuration(path);
   }
 
+  void _syncPositionTimer() {
+    if (_isDisposed) {
+      return;
+    }
+    if (_state.isPlaying) {
+      _positionTimer ??= Timer.periodic(
+        const Duration(milliseconds: 200),
+        (_) => _tickPosition(),
+      );
+    } else {
+      _positionTimer?.cancel();
+      _positionTimer = null;
+      _lastPositionTick = null;
+    }
+  }
+
+  void _tickPosition() {
+    if (_isDisposed) {
+      return;
+    }
+    if (!_state.isPlaying) {
+      _positionTimer?.cancel();
+      _positionTimer = null;
+      _lastPositionTick = null;
+      return;
+    }
+    final now = DateTime.now();
+    final lastTick = _lastPositionTick ?? now;
+    _lastPositionTick = now;
+    final lastEngine = _lastEngineUpdate;
+    if (lastEngine != null &&
+        now.difference(lastEngine) <= const Duration(milliseconds: 450)) {
+      return;
+    }
+    final delta = now.difference(lastTick);
+    final next = _state.position + delta;
+    final durationMs = _state.duration.inMilliseconds;
+    final clamped = durationMs > 0
+        ? Duration(milliseconds: min(next.inMilliseconds, durationMs))
+        : next;
+    if (clamped == _state.position) {
+      return;
+    }
+    _state = _state.copyWith(position: clamped);
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _isDisposed = true;
     _operationToken++;
+    _positionTimer?.cancel();
     _engineSub?.cancel();
     _engineEventSub?.cancel();
     _engine.dispose();
