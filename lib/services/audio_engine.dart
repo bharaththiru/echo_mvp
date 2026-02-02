@@ -197,13 +197,25 @@ class AudioServiceEngine implements AudioEngine {
     if (latestPlayback == null) {
       return;
     }
+    final queueItems = _handler.queue.valueOrNull;
+    final queueIndex = latestPlayback.queueIndex;
+    MediaItem? resolvedItem = latestItem;
+    if (queueItems != null &&
+        queueIndex != null &&
+        queueIndex >= 0 &&
+        queueIndex < queueItems.length) {
+      final queued = queueItems[queueIndex];
+      if (resolvedItem == null || resolvedItem.id != queued.id) {
+        resolvedItem = queued;
+      }
+    }
     final resolvedSourceId =
-        (latestItem?.extras?['sourceId'] as String?) ??
-        latestItem?.id ??
+        (resolvedItem?.extras?['sourceId'] as String?) ??
+        resolvedItem?.id ??
         _snapshot.sourceId;
     final resolvedPath =
-        (latestItem?.extras?['path'] as String?) ?? _snapshot.path;
-    final resolvedDuration = latestItem?.duration ?? _snapshot.duration;
+        (resolvedItem?.extras?['path'] as String?) ?? _snapshot.path;
+    final resolvedDuration = resolvedItem?.duration ?? _snapshot.duration;
     final phase = phaseOverride ?? _mapPhase(latestPlayback.processingState);
     final next = AudioEngineSnapshot(
       sourceId: resolvedSourceId,

@@ -155,7 +155,9 @@ class AudioController extends ChangeNotifier
       case AudioEnginePhase.loading:
         return AudioPlaybackPhase.loading;
       case AudioEnginePhase.buffering:
-        return AudioPlaybackPhase.buffering;
+        return snapshot.isPlaying
+            ? AudioPlaybackPhase.playing
+            : AudioPlaybackPhase.buffering;
       case AudioEnginePhase.ready:
         return snapshot.isPlaying
             ? AudioPlaybackPhase.playing
