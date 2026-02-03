@@ -13,6 +13,7 @@ class AudioPlaybackState {
   const AudioPlaybackState({
     required this.sourceId,
     required this.path,
+    required this.queueIndex,
     required this.position,
     required this.duration,
     required this.bufferedPosition,
@@ -25,6 +26,7 @@ class AudioPlaybackState {
 
   final String? sourceId;
   final String? path;
+  final int? queueIndex;
   final Duration position;
   final Duration duration;
   final Duration bufferedPosition;
@@ -70,6 +72,7 @@ class AudioPlaybackState {
   AudioPlaybackState copyWith({
     String? sourceId,
     String? path,
+    Object? queueIndex = _unsetQueueIndex,
     Duration? position,
     Duration? duration,
     Duration? bufferedPosition,
@@ -79,12 +82,16 @@ class AudioPlaybackState {
     bool? interrupted,
     Object? errorMessage = _unsetErrorMessage,
   }) {
+    final resolvedQueueIndex = identical(queueIndex, _unsetQueueIndex)
+        ? this.queueIndex
+        : queueIndex as int?;
     final resolvedError = identical(errorMessage, _unsetErrorMessage)
         ? this.errorMessage
         : errorMessage as String?;
     return AudioPlaybackState(
       sourceId: sourceId ?? this.sourceId,
       path: path ?? this.path,
+      queueIndex: resolvedQueueIndex,
       position: position ?? this.position,
       duration: duration ?? this.duration,
       bufferedPosition: bufferedPosition ?? this.bufferedPosition,
@@ -99,6 +106,7 @@ class AudioPlaybackState {
   static const empty = AudioPlaybackState(
     sourceId: null,
     path: null,
+    queueIndex: null,
     position: Duration.zero,
     duration: Duration.zero,
     bufferedPosition: Duration.zero,
@@ -110,4 +118,5 @@ class AudioPlaybackState {
   );
 
   static const _unsetErrorMessage = Object();
+  static const _unsetQueueIndex = Object();
 }

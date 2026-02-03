@@ -48,7 +48,6 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
 
   @override
   void dispose() {
-    _autoplay?.detach(stopPlayback: true, hashtagId: widget.hashtagId);
     super.dispose();
   }
 
@@ -114,11 +113,13 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
 
     if (hashtag == null && appState.hashtagsLoading) {
       return const AppScaffold(
+        showMiniPlayer: false,
         child: Center(child: CircularProgressIndicator()),
       );
     }
     if (hashtag == null) {
       return AppScaffold(
+        showMiniPlayer: false,
         child: Center(
           child: Text('Hashtag not found.', style: theme.textTheme.titleMedium),
         ),
@@ -165,6 +166,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
           : EchoCard(padding: const EdgeInsets.all(24), child: emptyChild);
 
       return AppScaffold(
+        showMiniPlayer: false,
         child: Column(
           children: [
             Padding(
@@ -190,6 +192,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
     }
 
     return AppScaffold(
+      showMiniPlayer: false,
       child: AnimatedBuilder(
         animation: autoplay,
         builder: (context, _) {
@@ -291,6 +294,26 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                     ),
                                     child: Text(
                                       '${currentIndex + 1} of ${state.queue.length}',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: tokens.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: tokens.surface2,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: tokens.borderSubtle,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '${state.queueRemaining} ready',
                                       style: theme.textTheme.bodySmall?.copyWith(
                                         color: tokens.textSecondary,
                                       ),

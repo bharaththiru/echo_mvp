@@ -13,6 +13,7 @@ class AudioEngineSnapshot {
   const AudioEngineSnapshot({
     required this.sourceId,
     required this.path,
+    required this.queueIndex,
     required this.position,
     required this.duration,
     required this.bufferedPosition,
@@ -25,6 +26,7 @@ class AudioEngineSnapshot {
 
   final String? sourceId;
   final String? path;
+  final int? queueIndex;
   final Duration position;
   final Duration duration;
   final Duration bufferedPosition;
@@ -48,6 +50,7 @@ class AudioEngineSnapshot {
   AudioEngineSnapshot copyWith({
     String? sourceId,
     String? path,
+    Object? queueIndex = _unsetQueueIndex,
     Duration? position,
     Duration? duration,
     Duration? bufferedPosition,
@@ -57,12 +60,16 @@ class AudioEngineSnapshot {
     bool? interrupted,
     Object? errorMessage = _unsetErrorMessage,
   }) {
+    final resolvedQueueIndex = identical(queueIndex, _unsetQueueIndex)
+        ? this.queueIndex
+        : queueIndex as int?;
     final resolvedError = identical(errorMessage, _unsetErrorMessage)
         ? this.errorMessage
         : errorMessage as String?;
     return AudioEngineSnapshot(
       sourceId: sourceId ?? this.sourceId,
       path: path ?? this.path,
+      queueIndex: resolvedQueueIndex,
       position: position ?? this.position,
       duration: duration ?? this.duration,
       bufferedPosition: bufferedPosition ?? this.bufferedPosition,
@@ -75,10 +82,12 @@ class AudioEngineSnapshot {
   }
 
   static const _unsetErrorMessage = Object();
+  static const _unsetQueueIndex = Object();
 
   static const empty = AudioEngineSnapshot(
     sourceId: null,
     path: null,
+    queueIndex: null,
     position: Duration.zero,
     duration: Duration.zero,
     bufferedPosition: Duration.zero,
@@ -220,6 +229,7 @@ class AudioServiceEngine implements AudioEngine {
     final next = AudioEngineSnapshot(
       sourceId: resolvedSourceId,
       path: resolvedPath,
+      queueIndex: queueIndex,
       position: latestPlayback.updatePosition,
       duration: resolvedDuration,
       bufferedPosition: latestPlayback.bufferedPosition,
@@ -483,6 +493,7 @@ class NativeAudioEngine implements AudioEngine {
       _snapshot.copyWith(
         sourceId: sourceId,
         path: path,
+        queueIndex: _queue.isEmpty ? null : _queueIndex,
         position: Duration.zero,
         duration: duration ?? _snapshot.duration,
         bufferedPosition: Duration.zero,
@@ -505,6 +516,7 @@ class NativeAudioEngine implements AudioEngine {
       _snapshot.copyWith(
         sourceId: sourceId,
         path: path,
+        queueIndex: _queue.isEmpty ? null : _queueIndex,
         duration: resolvedDuration,
         bufferedPosition: resolvedDuration,
         isPlaying: true,
@@ -538,6 +550,7 @@ class NativeAudioEngine implements AudioEngine {
       _snapshot.copyWith(
         sourceId: sourceId,
         path: path,
+        queueIndex: _queue.isEmpty ? null : _queueIndex,
         isPlaying: true,
         phase: AudioEnginePhase.ready,
         interrupted: false,
@@ -557,6 +570,7 @@ class NativeAudioEngine implements AudioEngine {
     _emit(
       _snapshot.copyWith(
         isPlaying: false,
+        queueIndex: _queue.isEmpty ? null : _queueIndex,
         phase: AudioEnginePhase.ready,
         errorMessage: null,
       ),
@@ -615,6 +629,7 @@ class NativeAudioEngine implements AudioEngine {
             duration: duration,
             bufferedPosition: duration,
             isPlaying: isPlaying,
+            queueIndex: _queue.isEmpty ? null : _queueIndex,
             phase: phase,
             errorMessage: null,
           ),
@@ -645,6 +660,7 @@ class NativeAudioEngine implements AudioEngine {
     _emit(
       _snapshot.copyWith(
         isPlaying: false,
+        queueIndex: _queue.isEmpty ? null : _queueIndex,
         phase: AudioEnginePhase.error,
         errorMessage: message,
       ),

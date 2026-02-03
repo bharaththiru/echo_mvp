@@ -47,7 +47,7 @@ class _ListenTabState extends State<ListenTab> {
     final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding = EchoLayout.horizontalPadding(context);
-    final availableWidth = screenWidth - (horizontalPadding * 2);
+    final availableWidth = screenWidth;
     final cardWidth =
         (availableWidth * 0.75).clamp(180.0, 240.0).toDouble();
     final appState = AppScope.of(context);
@@ -132,24 +132,30 @@ class _ListenTabState extends State<ListenTab> {
                     if (forYourVibe.isNotEmpty) ...[
                       const EchoSectionTitle('Set the tone'),
                       const SizedBox(height: 12),
-                      SizedBox(
-                        height: 200,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemBuilder: (context, index) {
-                            final hashtag = forYourVibe[index];
-                            return _HashtagCard(
-                              hashtag: hashtag,
-                              moodTintEnabled:
-                                  appState.settings.moodTintEnabled,
-                              onTap: () =>
-                                  context.push('/hashtag/${hashtag.id}'),
-                              width: cardWidth,
-                            );
-                          },
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(width: 16),
-                          itemCount: forYourVibe.length,
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: -horizontalPadding,
+                        ),
+                        child: SizedBox(
+                          height: 200,
+                          child: ListView.separated(
+                            padding: EdgeInsets.zero,
+                            scrollDirection: Axis.horizontal,
+                            itemBuilder: (context, index) {
+                              final hashtag = forYourVibe[index];
+                              return _HashtagCard(
+                                hashtag: hashtag,
+                                moodTintEnabled:
+                                    appState.settings.moodTintEnabled,
+                                onTap: () =>
+                                    context.push('/hashtag/${hashtag.id}'),
+                                width: cardWidth,
+                              );
+                            },
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(width: 16),
+                            itemCount: forYourVibe.length,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),

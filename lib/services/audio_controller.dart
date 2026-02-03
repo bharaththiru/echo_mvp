@@ -81,6 +81,7 @@ class AudioController extends ChangeNotifier
     _state = _state.copyWith(
       sourceId: snapshot.sourceId,
       path: snapshot.path,
+      queueIndex: snapshot.queueIndex,
       position: resolvedPosition,
       duration: snapshot.duration,
       bufferedPosition: snapshot.bufferedPosition,
@@ -133,9 +134,12 @@ class AudioController extends ChangeNotifier
   }
 
   Duration _resolveSnapshotPosition(AudioEngineSnapshot snapshot) {
+    final sameSource = _state.sourceId == snapshot.sourceId;
+    final sameQueueIndex = _state.queueIndex == snapshot.queueIndex;
     if (snapshot.isPlaying &&
         _state.isPlaying &&
-        _state.sourceId == snapshot.sourceId &&
+        sameSource &&
+        sameQueueIndex &&
         snapshot.position < _state.position) {
       final diff = _state.position - snapshot.position;
       if (diff > const Duration(milliseconds: 700)) {
@@ -155,9 +159,13 @@ class AudioController extends ChangeNotifier
       case AudioEnginePhase.loading:
         return AudioPlaybackPhase.loading;
       case AudioEnginePhase.buffering:
-        return snapshot.isPlaying
-            ? AudioPlaybackPhase.playing
-            : AudioPlaybackPhase.buffering;
+        if (snapshot.isPlaying) {
+          return AudioPlaybackPhase.playing;
+        }
+        if (_state.isPlaying && snapshot.position > _state.position) {
+          return AudioPlaybackPhase.playing;
+        }
+        return AudioPlaybackPhase.buffering;
       case AudioEnginePhase.ready:
         return snapshot.isPlaying
             ? AudioPlaybackPhase.playing
@@ -180,6 +188,7 @@ class AudioController extends ChangeNotifier
     _state = _state.copyWith(
       sourceId: sourceId,
       path: path,
+      queueIndex: null,
       position: Duration.zero,
       duration: duration ?? _state.duration,
       bufferedPosition: Duration.zero,
@@ -236,6 +245,7 @@ class AudioController extends ChangeNotifier
     _state = _state.copyWith(
       sourceId: item.sourceId,
       path: item.path,
+      queueIndex: resolvedIndex,
       position: startPosition ?? Duration.zero,
       duration: item.duration ?? _state.duration,
       bufferedPosition: Duration.zero,
@@ -335,6 +345,7 @@ class AudioController extends ChangeNotifier
       isPlaying: false,
       position: Duration.zero,
       bufferedPosition: Duration.zero,
+      queueIndex: null,
       phase: AudioPlaybackPhase.idle,
       interrupted: false,
       errorMessage: null,
