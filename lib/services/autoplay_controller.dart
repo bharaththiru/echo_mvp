@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -21,6 +22,8 @@ enum AutoplayPhase {
 }
 
 enum _AdvanceReason { autoplay, userSkip, errorRecovery }
+
+enum _QueueItemStatus { pending, ready, failed }
 
 class AutoplayState {
   const AutoplayState({
@@ -191,6 +194,7 @@ class AutoplayController extends ChangeNotifier {
     required AudioPlaybackController audio,
   }) : _dataSource = dataSource,
        _audio = audio,
+       _playerInstanceId = identityHashCode(audio),
        _userVolume = audio.state.volume,
        _state = AutoplayState.empty.copyWith(
          volume: audio.state.volume,
@@ -201,7 +205,10 @@ class AutoplayController extends ChangeNotifier {
 
   void _log(String message) {
     if (kDebugMode) {
-      debugPrint('[Autoplay] $message');
+      final queueCursor = _playbackQueueIndex < 0 ? '-' : '$_playbackQueueIndex';
+      debugPrint(
+        '[Autoplay s=$_sessionToken p=$_playToken pid=$_playerInstanceId q=$queueCursor/${_playbackQueueIds.length}] $message',
+      );
     }
   }
 
@@ -254,6 +261,7 @@ class AutoplayController extends ChangeNotifier {
 
   final AutoplayDataSource _dataSource;
   final AudioPlaybackController _audio;
+  final int _playerInstanceId;
 
   AutoplayState _state;
   AutoplayState get state => _state;
@@ -264,17 +272,32 @@ class AutoplayController extends ChangeNotifier {
   final Set<String> _suppressedNoteIds = <String>{};
   final Set<String> _suppressedAuthorIds = <String>{};
   final Set<String> _preloadInFlight = <String>{};
+  final Map<String, _QueueItemStatus> _queueItemStatus =
+      <String, _QueueItemStatus>{};
   final Map<String, String> _cachedPaths = <String, String>{};
   final Map<String, VoiceNote> _playbackQueueNotes =
       <String, VoiceNote>{};
+  Future<void> _eventPipeline = Future<void>.value();
+  int _eventSerial = 0;
   Timer? _stallTimer;
   int _stallToken = 0;
   DateTime? _lastQueueRefreshAt;
+  DateTime? _lastPrefetchNoopAt;
+  DateTime? _lastPrefetchLogAt;
+  int _lastLoggedPrefetchRemaining = -1;
+  int _lastLoggedPrefetchTotal = -1;
+  int _lastLoggedPrefetchDesired = -1;
   bool _skipInFlight = false;
   Timer? _messageTimer;
   int _consecutiveFailures = 0;
   int _sessionToken = 0;
   Future<void>? _pendingStop;
+  bool _failureRecoveryInFlight = false;
+  bool _fatalErrorLatched = false;
+  bool _fatalErrorInFlight = false;
+  String? _lastFailureNoteId;
+  DateTime? _lastFailureAt;
+  DateTime? _lastAutoResumeAt;
 
   bool _attached = false;
   String? _activeHashtagId;
@@ -289,24 +312,119 @@ class AutoplayController extends ChangeNotifier {
   int _playbackQueueIndex = -1;
   bool _queueFillInFlight = false;
   bool _isDisposed = false;
-  bool _wrappedQueue = false;
   String? _positionNoteId;
   Duration _lastObservedPosition = Duration.zero;
   int _positionResetCount = 0;
   String? _lastLoggedSourceId;
   int? _lastLoggedQueueIndex;
+  final Random _tortureRandom = Random();
+  bool _tortureModeEnabled = false;
+  double _tortureResolveFailureRate = 0.0;
+  int _tortureResolveMinDelayMs = 0;
+  int _tortureResolveMaxDelayMs = 0;
+  bool _loopEnabled = false;
 
   static const _resolveTimeout = Duration(seconds: 8);
   static const _maxConsecutiveFailures = 3;
   static const _stallTimeout = Duration(seconds: 10);
   static const _queueRefreshCooldown = Duration(seconds: 30);
   static const _queueRefreshThreshold = 2;
+  static const _failureDedupeWindow = Duration(milliseconds: 900);
   static const _positionResetMinPosition = Duration(seconds: 4);
   static const _positionResetThreshold = Duration(seconds: 2);
   static const _maxPositionResetsPerClip = 2;
   static const _queueFillTarget = 4;
   static const _queueRefillThreshold = 2;
+  static const _prefetchNoopCooldown = Duration(milliseconds: 900);
+  static const _prefetchLogCooldown = Duration(seconds: 2);
   static const _recentPlaybackWindow = 3;
+
+  Future<void> _enqueueEvent(
+    Future<void> Function() task, {
+    required String reason,
+  }) {
+    final expectedSession = _sessionToken;
+    final serial = ++_eventSerial;
+    _eventPipeline = _eventPipeline.then((_) async {
+      if (!_isSessionCurrent(expectedSession)) {
+        _log(
+          'ignored stale callback reason=$reason serial=$serial expectedSession=$expectedSession',
+        );
+        return;
+      }
+      try {
+        await task();
+      } catch (error, stackTrace) {
+        _log(
+          'event pipeline failure reason=$reason serial=$serial error=$error',
+        );
+        if (kDebugMode) {
+          debugPrintStack(stackTrace: stackTrace);
+        }
+      }
+    });
+    return _eventPipeline;
+  }
+
+  void configureAutoplayTortureMode({
+    required bool enabled,
+    double resolveFailureRate = 0.10,
+    int resolveMinDelayMs = 25,
+    int resolveMaxDelayMs = 220,
+  }) {
+    _tortureModeEnabled = enabled;
+    _tortureResolveFailureRate = resolveFailureRate.clamp(0.0, 1.0);
+    _tortureResolveMinDelayMs = resolveMinDelayMs.clamp(0, 2000);
+    _tortureResolveMaxDelayMs = resolveMaxDelayMs.clamp(
+      _tortureResolveMinDelayMs,
+      3000,
+    );
+    _log(
+      'torture mode enabled=$_tortureModeEnabled failure=${_tortureResolveFailureRate.toStringAsFixed(2)} delayMs=$_tortureResolveMinDelayMs-$_tortureResolveMaxDelayMs',
+    );
+  }
+
+  int _playableNoteCount() {
+    var count = 0;
+    for (final note in _state.queue) {
+      if (_isSuppressedNote(note) || _failedIds.contains(note.id)) {
+        continue;
+      }
+      count += 1;
+    }
+    return count;
+  }
+
+  int _desiredQueueDepth() {
+    final playable = _playableNoteCount();
+    if (playable <= 0) {
+      return 0;
+    }
+    return playable < _queueFillTarget ? playable : _queueFillTarget;
+  }
+
+  void _logPrefetch({
+    required int remaining,
+    required int desired,
+    required int total,
+    required bool force,
+  }) {
+    final now = DateTime.now();
+    final changed = remaining != _lastLoggedPrefetchRemaining ||
+        desired != _lastLoggedPrefetchDesired ||
+        total != _lastLoggedPrefetchTotal;
+    final cooledDown =
+        _lastPrefetchLogAt == null ||
+        now.difference(_lastPrefetchLogAt!) >= _prefetchLogCooldown;
+    if (!force && !changed && !cooledDown) {
+      return;
+    }
+    _lastPrefetchLogAt = now;
+    _lastLoggedPrefetchRemaining = remaining;
+    _lastLoggedPrefetchDesired = desired;
+    _lastLoggedPrefetchTotal = total;
+    _log('prefetch remaining=$remaining target=$desired total=$total');
+  }
 
   void attach(String hashtagId, {bool forceRefresh = false}) {
     if (_isDisposed) {
@@ -322,7 +440,12 @@ class AutoplayController extends ChangeNotifier {
     if (hashtagChanged) {
       _resetSession(hashtagId: hashtagId, stopPlayback: true);
     }
-    unawaited(_ensureNotesLoaded(force: forceRefresh || hashtagChanged));
+    unawaited(
+      _enqueueEvent(
+        () async => _ensureNotesLoaded(force: forceRefresh || hashtagChanged),
+        reason: 'attachLoad',
+      ),
+    );
   }
 
   Future<void> detach({bool stopPlayback = true, String? hashtagId}) async {
@@ -371,7 +494,12 @@ class AutoplayController extends ChangeNotifier {
     final shouldAdvance =
         (currentId != null && _suppressedNoteIds.contains(currentId)) ||
         (currentAuthor != null && _suppressedAuthorIds.contains(currentAuthor));
-    unawaited(_advanceFromSuppression(shouldAdvance));
+    unawaited(
+      _enqueueEvent(
+        () async => _advanceFromSuppression(shouldAdvance),
+        reason: 'syncSuppressed',
+      ),
+    );
     _refreshFromDataSource(forceRebuild: true);
   }
 
@@ -433,7 +561,12 @@ class AutoplayController extends ChangeNotifier {
     if (_activeHashtagId == null || _isDisposed) {
       return;
     }
-    _refreshFromDataSource();
+    unawaited(
+      _enqueueEvent(
+        () async => _refreshFromDataSource(),
+        reason: 'dataSourceChanged',
+      ),
+    );
   }
 
   void _refreshFromDataSource({bool forceRebuild = false}) {
@@ -478,7 +611,12 @@ class AutoplayController extends ChangeNotifier {
             isMuted: false,
           ),
         );
-        unawaited(_audio.stop());
+        unawaited(
+          _enqueueEvent(
+            () async => _audio.stop(),
+            reason: 'emptyQueueStop',
+          ),
+        );
       }
       return;
     }
@@ -494,7 +632,12 @@ class AutoplayController extends ChangeNotifier {
         (_state.phase == AutoplayPhase.idle ||
             _state.phase == AutoplayPhase.loading);
     if (shouldStart) {
-      unawaited(_startAutoplay());
+      unawaited(
+        _enqueueEvent(
+          () async => _startAutoplay(),
+          reason: 'autoStart',
+        ),
+      );
     }
   }
 
@@ -507,6 +650,17 @@ class AutoplayController extends ChangeNotifier {
       deduped[note.id] = note;
     }
     final queue = deduped.values.toList();
+    final queueIds = queue.map((note) => note.id).toSet();
+    _queueItemStatus.removeWhere((id, _) => !queueIds.contains(id));
+    for (final note in queue) {
+      if (_failedIds.contains(note.id)) {
+        _queueItemStatus[note.id] = _QueueItemStatus.failed;
+      } else if (_cachedPaths.containsKey(note.id)) {
+        _queueItemStatus[note.id] = _QueueItemStatus.ready;
+      } else {
+        _queueItemStatus[note.id] ??= _QueueItemStatus.pending;
+      }
+    }
     final availableIds = deduped.keys.toSet();
     _playedIds.removeWhere((id) => !availableIds.contains(id));
     _failedIds.removeWhere((id) => !availableIds.contains(id));
@@ -558,7 +712,13 @@ class AutoplayController extends ChangeNotifier {
     if (_state.queue.isEmpty) {
       return;
     }
-    final nextIndex = _nextPlayableIndex(fromIndex: -1);
+    var nextIndex = _nextPlayableIndex(fromIndex: -1);
+    if (nextIndex == null) {
+      final replenished = await _tryReplenishQueueAfterExhaustion();
+      if (replenished) {
+        nextIndex = _nextPlayableIndex(fromIndex: -1);
+      }
+    }
     if (nextIndex == null) {
       _setState(_state.copyWith(phase: AutoplayPhase.completed));
       return;
@@ -704,6 +864,18 @@ class AutoplayController extends ChangeNotifier {
     _playedIds.clear();
     _recentlyPlayedIds.clear();
     _failedIds.clear();
+    _queueItemStatus.clear();
+    _failureRecoveryInFlight = false;
+    _fatalErrorLatched = false;
+    _fatalErrorInFlight = false;
+    _lastFailureNoteId = null;
+    _lastFailureAt = null;
+    _lastAutoResumeAt = null;
+    _lastPrefetchNoopAt = null;
+    _lastPrefetchLogAt = null;
+    _lastLoggedPrefetchRemaining = -1;
+    _lastLoggedPrefetchDesired = -1;
+    _lastLoggedPrefetchTotal = -1;
     _playbackQueueIds.clear();
     _playbackQueueIndex = -1;
     _playbackQueueNotes.clear();
@@ -732,6 +904,7 @@ class AutoplayController extends ChangeNotifier {
       'play index=$index note=${note.id} queue=${_state.queue.length} phase=${phaseOverride ?? AutoplayPhase.loading}',
     );
     _cancelStallGuard();
+    _queueItemStatus[note.id] ??= _QueueItemStatus.pending;
     _resetMuteForNote(note.id);
     _setState(
       _state.copyWith(
@@ -757,6 +930,9 @@ class AutoplayController extends ChangeNotifier {
     _playbackQueueIds
       ..clear()
       ..addAll(queueItems.map((item) => item.sourceId));
+    for (final item in queueItems) {
+      _queueItemStatus[item.sourceId] = _QueueItemStatus.ready;
+    }
     _playbackQueueNotes
       ..clear()
       ..addEntries(
@@ -802,18 +978,37 @@ class AutoplayController extends ChangeNotifier {
   Future<String?> _resolvePath(VoiceNote note, {required int token}) async {
     final cached = _cachedPaths[note.id];
     if (cached != null && cached.isNotEmpty) {
+      _queueItemStatus[note.id] = _QueueItemStatus.ready;
       return cached;
     }
     final local = note.localPath;
     if (local != null && local.isNotEmpty) {
       _cachedPaths[note.id] = local;
+      _queueItemStatus[note.id] = _QueueItemStatus.ready;
       return local;
     }
+    if (_tortureModeEnabled) {
+      final delayRange = _tortureResolveMaxDelayMs - _tortureResolveMinDelayMs;
+      final delay = _tortureResolveMinDelayMs +
+          (delayRange <= 0 ? 0 : _tortureRandom.nextInt(delayRange + 1));
+      if (delay > 0) {
+        await Future<void>.delayed(Duration(milliseconds: delay));
+      }
+      if (_tortureRandom.nextDouble() < _tortureResolveFailureRate) {
+        _queueItemStatus[note.id] = _QueueItemStatus.failed;
+        return null;
+      }
+    }
     final path = await _dataSource.ensureLocalAudioPath(note);
-    if (!_isTokenCurrent(token) || path == null || path.isEmpty) {
+    if (!_isTokenCurrent(token)) {
+      return path;
+    }
+    if (path == null || path.isEmpty) {
+      _queueItemStatus[note.id] = _QueueItemStatus.failed;
       return path;
     }
     _cachedPaths[note.id] = path;
+    _queueItemStatus[note.id] = _QueueItemStatus.ready;
     return path;
   }
 
@@ -825,32 +1020,61 @@ class AutoplayController extends ChangeNotifier {
       return const <AudioQueueItem>[];
     }
     final items = <AudioQueueItem>[];
-    final current = _state.queue[startIndex];
-    String? currentPath;
-    try {
-      currentPath =
-          await _resolvePath(current, token: token).timeout(_resolveTimeout);
-    } on TimeoutException {
-      currentPath = null;
+    final desired = _desiredQueueDepth();
+    final visited = <String>{};
+    var cursor = startIndex;
+    var attempts = 0;
+    while (attempts < _state.queue.length &&
+        (desired == 0 ? items.isEmpty : items.length < desired)) {
+      final note = _state.queue[cursor];
+      attempts += 1;
+      if (_isSuppressedNote(note) ||
+          _failedIds.contains(note.id) ||
+          visited.contains(note.id)) {
+        final nextIndex = _nextSequentialIndex(fromIndex: cursor);
+        if (nextIndex == null) {
+          break;
+        }
+        cursor = nextIndex;
+        continue;
+      }
+      visited.add(note.id);
+      String? path;
+      try {
+        path = await _resolvePath(note, token: token).timeout(_resolveTimeout);
+      } on TimeoutException {
+        path = null;
+      }
+      if (!_isTokenCurrent(token)) {
+        return const <AudioQueueItem>[];
+      }
+      if (path == null || path.isEmpty) {
+        _failedIds.add(note.id);
+        _queueItemStatus[note.id] = _QueueItemStatus.failed;
+        if (cursor == startIndex) {
+          _log('resolve failed note=${note.id}');
+          await _handleClipFailure(
+            noteId: note.id,
+            message: 'Clip unavailable. Skipping...',
+          );
+          return const <AudioQueueItem>[];
+        }
+      } else {
+        items.add(
+          AudioQueueItem(
+            sourceId: note.id,
+            path: path,
+            duration: note.duration,
+            title: note.hashtagLabel,
+          ),
+        );
+      }
+      final nextIndex = _nextSequentialIndex(fromIndex: cursor);
+      if (nextIndex == null) {
+        break;
+      }
+      cursor = nextIndex;
     }
-    if (!_isTokenCurrent(token) ||
-        currentPath == null ||
-        currentPath.isEmpty) {
-      _log('resolve failed note=${current.id}');
-      await _handleClipFailure(
-        noteId: current.id,
-        message: 'Clip unavailable. Skipping...',
-      );
-      return const <AudioQueueItem>[];
-    }
-    items.add(
-      AudioQueueItem(
-        sourceId: current.id,
-        path: currentPath,
-        duration: current.duration,
-        title: current.hashtagLabel,
-      ),
-    );
     return items;
   }
 
@@ -921,11 +1145,13 @@ class AutoplayController extends ChangeNotifier {
     if (currentNote != null) {
       _markPlayed(currentNote.id);
     }
-    _wrappedQueue = false;
-    final nextIndex = _nextPlayableIndex(
-      fromIndex: _state.currentIndex,
-      markWrap: true,
-    );
+    var nextIndex = _nextPlayableIndex(fromIndex: _state.currentIndex);
+    if (nextIndex == null) {
+      final replenished = await _tryReplenishQueueAfterExhaustion();
+      if (replenished) {
+        nextIndex = _nextPlayableIndex(fromIndex: _state.currentIndex);
+      }
+    }
     _log('advance reason=$reason nextIndex=$nextIndex');
     if (nextIndex == null) {
       if (_allNotesFailed()) {
@@ -936,10 +1162,6 @@ class AutoplayController extends ChangeNotifier {
       }
       await _finishQueue(message: 'No more clips right now.');
       return;
-    }
-    if (_wrappedQueue) {
-      _showTransientMessage('Reached the end, starting over.');
-      _wrappedQueue = false;
     }
 
     _setState(
@@ -984,56 +1206,92 @@ class AutoplayController extends ChangeNotifier {
     await _playIndex(index, phaseOverride: AutoplayPhase.transitioning);
   }
 
+  Future<bool> _tryReplenishQueueAfterExhaustion() async {
+    final hashtagId = _activeHashtagId;
+    if (hashtagId == null || _isDisposed) {
+      return false;
+    }
+    if (_dataSource.isLoadingNotes(hashtagId)) {
+      return false;
+    }
+    final beforeIds = _state.queue.map((note) => note.id).toSet();
+    await _dataSource.loadNotesForHashtag(hashtagId, force: true);
+    if (_isDisposed || _activeHashtagId != hashtagId) {
+      return false;
+    }
+    final notes = _dataSource.notesForHashtag(hashtagId);
+    if (notes.isEmpty) {
+      return false;
+    }
+    _rebuildQueue(notes);
+    final hasNewPlayable = _state.queue.any(
+      (note) =>
+          !beforeIds.contains(note.id) &&
+          !_failedIds.contains(note.id) &&
+          !_isSuppressedNote(note),
+    );
+    _log('replenish fetched notes=${notes.length} hasNewPlayable=$hasNewPlayable');
+    return hasNewPlayable;
+  }
+
   Future<void> _handleClipFailure({
     required String noteId,
     required String message,
   }) async {
-    _log('clip failure note=$noteId message=$message');
-    _failedIds.add(noteId);
-    _consecutiveFailures += 1;
-    _showTransientMessage(message);
-
-    if (_consecutiveFailures >= _maxConsecutiveFailures || _allNotesFailed()) {
-      await _enterFatalError(
-        'Having trouble loading clips. Check your connection and try again.',
-      );
+    if (_isDisposed || _fatalErrorLatched || _fatalErrorInFlight) {
       return;
     }
+    if (_failureRecoveryInFlight) {
+      _log('clip failure ignored note=$noteId reason=recoveryInFlight');
+      return;
+    }
+    final now = DateTime.now();
+    final recentDuplicate =
+        _lastFailureNoteId == noteId &&
+        _lastFailureAt != null &&
+        now.difference(_lastFailureAt!) < _failureDedupeWindow;
+    if (recentDuplicate || _failedIds.contains(noteId)) {
+      _log('clip failure ignored note=$noteId reason=duplicate');
+      return;
+    }
+    _failureRecoveryInFlight = true;
+    _lastFailureNoteId = noteId;
+    _lastFailureAt = now;
+    _log('clip failure note=$noteId message=$message');
+    try {
+      _failedIds.add(noteId);
+      _queueItemStatus[noteId] = _QueueItemStatus.failed;
+      _consecutiveFailures += 1;
+      _showTransientMessage(message);
 
-    await _advance(_AdvanceReason.errorRecovery, stopCurrent: true);
+      if (_consecutiveFailures >= _maxConsecutiveFailures || _allNotesFailed()) {
+        await _enterFatalError(
+          'Having trouble loading clips. Check your connection and try again.',
+        );
+        return;
+      }
+
+      await _advance(_AdvanceReason.errorRecovery, stopCurrent: true);
+    } finally {
+      _failureRecoveryInFlight = false;
+    }
   }
 
   Future<void> _handleQueueCompleted() async {
     _log('handle queue completed');
-    final currentNote = _state.currentNote;
-    if (currentNote != null) {
-      _markPlayed(currentNote.id);
-    }
     if (_state.queue.isEmpty) {
       await _finishQueue(message: 'No more clips right now.');
       return;
     }
-    if (_allNotesFailed()) {
-      await _enterFatalError(
-        'Having trouble loading clips. Check your connection and try again.',
-      );
-      return;
-    }
     _playbackQueueIds.clear();
     _playbackQueueIndex = -1;
-    final nextIndex = _nextPlayableIndex(fromIndex: -1, markWrap: true);
-    if (nextIndex == null) {
-      await _finishQueue(message: 'No more clips right now.');
-      return;
-    }
-    if (_wrappedQueue) {
-      _showTransientMessage('Reached the end, starting over.');
-      _wrappedQueue = false;
-    }
-    await _playIndex(nextIndex, phaseOverride: AutoplayPhase.loading);
+    await _advance(_AdvanceReason.autoplay);
   }
 
   Future<void> _finishQueue({String? message}) async {
+    if (_fatalErrorLatched || _fatalErrorInFlight) {
+      return;
+    }
     _log('finish queue message=${message ?? ''}');
     _cancelStallGuard();
     try {
@@ -1083,9 +1341,34 @@ class AutoplayController extends ChangeNotifier {
   }
 
   Future<void> _enterFatalError(String message) async {
+    if (_isDisposed || _fatalErrorInFlight || _fatalErrorLatched) {
+      return;
+    }
+    _fatalErrorInFlight = true;
+    _playToken++;
     _log('fatal error message=$message');
     _cancelStallGuard();
-    await _audio.stop();
+    _failureRecoveryInFlight = false;
+    try {
+      await _audio.stop();
+    } catch (_) {
+      // Keep fatal error state even if underlying stop fails.
+    } finally {
+      _pendingStop = null;
+    }
+    if (_isDisposed) {
+      _fatalErrorInFlight = false;
+      return;
+    }
+    _fatalErrorLatched = true;
+    _playbackQueueIds.clear();
+    _playbackQueueIndex = -1;
+    _playbackQueueNotes.clear();
+    _lastLoggedSourceId = null;
+    _lastLoggedQueueIndex = null;
+    _positionNoteId = null;
+    _lastObservedPosition = Duration.zero;
+    _positionResetCount = 0;
     _setState(
       _state.copyWith(
         phase: AutoplayPhase.error,
@@ -1096,6 +1379,7 @@ class AutoplayController extends ChangeNotifier {
         transientMessage: null,
       ),
     );
+    _fatalErrorInFlight = false;
   }
 
   bool _allNotesFailed() {
@@ -1107,7 +1391,7 @@ class AutoplayController extends ChangeNotifier {
 
   int? _nextPlayableIndex({
     required int fromIndex,
-    bool markWrap = false,
+    bool allowLoop = false,
   }) {
     if (_state.queue.isEmpty) {
       return null;
@@ -1124,14 +1408,11 @@ class AutoplayController extends ChangeNotifier {
       }
       return i;
     }
-    if (_allNotesFailed()) {
+    if (_allNotesFailed() || !allowLoop || !_loopEnabled) {
       return null;
     }
-    // Queue exhausted: allow replay in a calm, non-repeating order.
+    // Optional loop mode only; default autoplay does not restart same queue.
     _playedIds.clear();
-    if (markWrap) {
-      _wrappedQueue = true;
-    }
     final lastId = (fromIndex >= 0 && fromIndex < _state.queue.length)
         ? _state.queue[fromIndex].id
         : null;
@@ -1165,7 +1446,12 @@ class AutoplayController extends ChangeNotifier {
   void _preloadNextFrom(int index) {
     final next = _state.upcoming(take: 1).firstOrNull;
     _setState(_state.copyWith(preloadingNoteId: next?.id));
-    unawaited(_fillQueueAhead());
+    unawaited(
+      _enqueueEvent(
+        () async => _fillQueueAhead(),
+        reason: 'preloadNext',
+      ),
+    );
   }
 
   Future<void> _fillQueueAhead() async {
@@ -1175,16 +1461,33 @@ class AutoplayController extends ChangeNotifier {
         _state.queue.isEmpty) {
       return;
     }
-    final remaining = _playbackQueueIds.length - _playbackQueueIndex - 1;
-    if (remaining > _queueRefillThreshold) {
+    if (_fatalErrorLatched || _fatalErrorInFlight) {
       return;
     }
-    _log(
-      'prefetch remaining=$remaining target=$_queueFillTarget total=${_playbackQueueIds.length}',
+    final now = DateTime.now();
+    if (_lastPrefetchNoopAt != null &&
+        now.difference(_lastPrefetchNoopAt!) < _prefetchNoopCooldown) {
+      return;
+    }
+    final remaining = _playbackQueueIds.length - _playbackQueueIndex - 1;
+    final desiredTotal = _desiredQueueDepth();
+    if (desiredTotal <= 0) {
+      return;
+    }
+    if (_playbackQueueIds.length >= desiredTotal &&
+        remaining > _queueRefillThreshold) {
+      return;
+    }
+    _logPrefetch(
+      remaining: remaining,
+      desired: desiredTotal,
+      total: _playbackQueueIds.length,
+      force: false,
     );
     _queueFillInFlight = true;
     final sessionToken = _sessionToken;
     final token = _playToken;
+    var appendedCount = 0;
     try {
       final lastId = _playbackQueueIds.last;
       var cursorIndex =
@@ -1195,7 +1498,7 @@ class AutoplayController extends ChangeNotifier {
       final toAppend = <AudioQueueItem>[];
       final visited = <String>{..._playbackQueueIds};
       var attempts = 0;
-      while (toAppend.length + remaining < _queueFillTarget &&
+      while (_playbackQueueIds.length + toAppend.length < desiredTotal &&
           attempts < _state.queue.length) {
         final nextIndex = _nextSequentialIndex(fromIndex: cursorIndex);
         if (nextIndex == null) {
@@ -1209,6 +1512,7 @@ class AutoplayController extends ChangeNotifier {
         }
         visited.add(note.id);
         if (_cachedPaths.containsKey(note.id)) {
+          _queueItemStatus[note.id] = _QueueItemStatus.ready;
           toAppend.add(
             AudioQueueItem(
               sourceId: note.id,
@@ -1238,6 +1542,8 @@ class AutoplayController extends ChangeNotifier {
           return;
         }
         if (path == null || path.isEmpty) {
+          _failedIds.add(note.id);
+          _queueItemStatus[note.id] = _QueueItemStatus.failed;
           continue;
         }
         toAppend.add(
@@ -1248,6 +1554,7 @@ class AutoplayController extends ChangeNotifier {
             title: note.hashtagLabel,
           ),
         );
+        _queueItemStatus[note.id] = _QueueItemStatus.ready;
         _playbackQueueNotes[note.id] = note;
       }
       if (!_isSessionCurrent(sessionToken) || _isDisposed) {
@@ -1256,10 +1563,18 @@ class AutoplayController extends ChangeNotifier {
       if (toAppend.isNotEmpty) {
         await _audio.appendQueue(toAppend);
         _playbackQueueIds.addAll(toAppend.map((item) => item.sourceId));
-        _log('appended=${toAppend.length} total=${_playbackQueueIds.length}');
+        appendedCount = toAppend.length;
+        _log(
+          'prefetch appended=$appendedCount total=${_playbackQueueIds.length} target=$desiredTotal',
+        );
       }
     } finally {
       _queueFillInFlight = false;
+      if (appendedCount == 0) {
+        _lastPrefetchNoopAt = DateTime.now();
+      } else {
+        _lastPrefetchNoopAt = null;
+      }
       final next = _state.upcoming(take: 1).firstOrNull;
       _setState(_state.copyWith(preloadingNoteId: next?.id));
     }
@@ -1359,11 +1674,20 @@ class AutoplayController extends ChangeNotifier {
     if (_isDisposed || _activeHashtagId == null) {
       return;
     }
+    if (_fatalErrorLatched || _fatalErrorInFlight) {
+      return;
+    }
     final audioState = _audio.state;
     final previousPhase = _state.phase;
     final currentNote = _state.currentNote;
     final activeId = _resolveActiveId(audioState);
     final queueIndex = audioState.queueIndex;
+    if (activeId != null &&
+        _state.queue.every((note) => note.id != activeId) &&
+        !_playbackQueueIds.contains(activeId)) {
+      _log('ignored stale audio update source=$activeId');
+      return;
+    }
 
     if (queueIndex != null &&
         queueIndex >= 0 &&
@@ -1372,7 +1696,12 @@ class AutoplayController extends ChangeNotifier {
       if (_lastLoggedQueueIndex != queueIndex) {
         _log('queue index=$queueIndex');
         _lastLoggedQueueIndex = queueIndex;
-        unawaited(_fillQueueAhead());
+        unawaited(
+          _enqueueEvent(
+            () async => _fillQueueAhead(),
+            reason: 'queueIndexSync',
+          ),
+        );
       }
       final queuedId = _playbackQueueIds[queueIndex];
       if (currentNote == null || currentNote.id != queuedId) {
@@ -1449,7 +1778,12 @@ class AutoplayController extends ChangeNotifier {
         _playbackQueueIndex = _playbackQueueIds.indexOf(activeId);
       }
       if (_playbackQueueIndex != -1) {
-        unawaited(_fillQueueAhead());
+        unawaited(
+          _enqueueEvent(
+            () async => _fillQueueAhead(),
+            reason: 'activeIdSync',
+          ),
+        );
       }
       if (_lastLoggedSourceId != activeId) {
         _log('active clip=$activeId queueIndex=$_playbackQueueIndex');
@@ -1507,7 +1841,12 @@ class AutoplayController extends ChangeNotifier {
         _resumeAfterInterruption = false;
         _resumeNoteId = null;
         _resumePosition = null;
-        unawaited(_resumePlayback(resumePosition));
+        unawaited(
+          _enqueueEvent(
+            () async => _resumePlayback(resumePosition),
+            reason: 'resumeAfterInterruption',
+          ),
+        );
       } else {
         _resumeNoteId = null;
         _resumePosition = null;
@@ -1520,7 +1859,7 @@ class AutoplayController extends ChangeNotifier {
       return;
     }
 
-    final mappedPhase = _mapFromAudio(audioState);
+    var mappedPhase = _mapFromAudio(audioState);
     final suppressPhase =
         (_state.isTransitioning || _state.isPreparing) &&
         (mappedPhase == AutoplayPhase.idle ||
@@ -1534,6 +1873,37 @@ class AutoplayController extends ChangeNotifier {
     if (resolved == null) {
       _cancelStallGuard();
       return;
+    }
+    final isUnexpectedPause =
+        mappedPhase == AutoplayPhase.paused &&
+        !_state.userPaused &&
+        !_state.isTransitioning &&
+        !_state.isPreparing &&
+        audioState.phase == AudioPlaybackPhase.paused;
+    if (isUnexpectedPause) {
+      final duration = audioState.duration;
+      final nearEnd =
+          duration.inMilliseconds > 0 &&
+          audioState.position >= duration - const Duration(milliseconds: 250);
+      if (!nearEnd) {
+        mappedPhase = previousPhase == AutoplayPhase.playing
+            ? AutoplayPhase.buffering
+            : AutoplayPhase.loading;
+        final now = DateTime.now();
+        final canAutoResume =
+            _lastAutoResumeAt == null ||
+            now.difference(_lastAutoResumeAt!) >=
+                const Duration(milliseconds: 900);
+        if (canAutoResume) {
+          _lastAutoResumeAt = now;
+          unawaited(
+            _enqueueEvent(
+              () async => _audio.resume(),
+              reason: 'unexpectedPauseAutoResume',
+            ),
+          );
+        }
+      }
     }
     final isMuted = _isMutedNote(resolved.id);
     if (!isMuted &&
@@ -1571,7 +1941,12 @@ class AutoplayController extends ChangeNotifier {
         !_state.isPreparing &&
         previousPhase != AutoplayPhase.completed) {
       _log('queue completed');
-      unawaited(_handleQueueCompleted());
+      unawaited(
+        _enqueueEvent(
+          () async => _handleQueueCompleted(),
+          reason: 'audioCompleted',
+        ),
+      );
       return;
     }
 
@@ -1581,9 +1956,12 @@ class AutoplayController extends ChangeNotifier {
       final failedId = activeId ?? resolved.id;
       _log('clip error=$failedId');
       unawaited(
-        _handleClipFailure(
-          noteId: failedId,
-          message: 'Clip unavailable. Skipping...',
+        _enqueueEvent(
+          () async => _handleClipFailure(
+            noteId: failedId,
+            message: 'Clip unavailable. Skipping...',
+          ),
+          reason: 'audioError',
         ),
       );
     }
@@ -1620,9 +1998,12 @@ class AutoplayController extends ChangeNotifier {
         unawaited(_audio.seek(resumeAt));
       } else {
         unawaited(
-          _handleClipFailure(
-            noteId: currentNote.id,
-            message: 'Playback kept restarting. Skipping...',
+          _enqueueEvent(
+            () async => _handleClipFailure(
+              noteId: currentNote.id,
+              message: 'Playback kept restarting. Skipping...',
+            ),
+            reason: 'positionResetRecovery',
           ),
         );
       }
@@ -1664,9 +2045,12 @@ class AutoplayController extends ChangeNotifier {
         return;
       }
       unawaited(
-        _handleClipFailure(
-          noteId: noteId,
-          message: 'Connection stalled. Skipping...',
+        _enqueueEvent(
+          () async => _handleClipFailure(
+            noteId: noteId,
+            message: 'Connection stalled. Skipping...',
+          ),
+          reason: 'stallRecovery',
         ),
       );
     });
@@ -1736,6 +2120,7 @@ class AutoplayController extends ChangeNotifier {
     _recentlyPlayedIds.clear();
     _failedIds.clear();
     _preloadInFlight.clear();
+    _queueItemStatus.clear();
     _cachedPaths.clear();
     _playbackQueueIds.clear();
     _playbackQueueIndex = -1;
@@ -1748,7 +2133,17 @@ class AutoplayController extends ChangeNotifier {
     _resumeNoteId = null;
     _mutedNoteId = null;
     _consecutiveFailures = 0;
-    _wrappedQueue = false;
+    _failureRecoveryInFlight = false;
+    _fatalErrorLatched = false;
+    _fatalErrorInFlight = false;
+    _lastFailureNoteId = null;
+    _lastFailureAt = null;
+    _lastAutoResumeAt = null;
+    _lastPrefetchNoopAt = null;
+    _lastPrefetchLogAt = null;
+    _lastLoggedPrefetchRemaining = -1;
+    _lastLoggedPrefetchDesired = -1;
+    _lastLoggedPrefetchTotal = -1;
     _clearTransientMessage();
     _notesSignature = '';
     _pendingStop = stopPlayback ? _audio.stop() : null;

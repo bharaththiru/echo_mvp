@@ -1,3 +1,5 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,6 +8,7 @@ import '../theme/echo_theme.dart';
 import '../models/hashtag.dart';
 import '../models/voice_note.dart';
 import '../services/audio_controller.dart';
+import '../services/autoplay_controller.dart';
 import '../utils/time_format.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
@@ -101,7 +104,21 @@ class _HashtagDetailState extends State<HashtagDetail> {
     final audio = appState.audio;
     final moodTint = appState.settings.moodTintEnabled;
     final horizontal = EchoLayout.contentHorizontalPadding(context);
-    final safeTop = MediaQuery.paddingOf(context).top;
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
+    final autoplayState = appState.autoplay.state;
+    final miniPlayerVisible =
+        autoplayState.queue.isNotEmpty &&
+        autoplayState.currentNote != null &&
+        autoplayState.phase != AutoplayPhase.idle &&
+        autoplayState.phase != AutoplayPhase.completed;
+    final expandedHeight = kToolbarHeight + EchoLayout.space(context, 244);
+    final collapsedHeight = kToolbarHeight + EchoLayout.space(context, 52);
+    final fabBottomOffset = safeBottom + EchoLayout.space(
+      context,
+      miniPlayerVisible ? 126 : 28,
+    );
+    final fabRightOffset = horizontal + EchoLayout.space(context, 7);
+    final listBottomPadding = miniPlayerVisible ? 196.0 : 124.0;
 
     return AppScaffold(
       child: AnimatedBuilder(
@@ -127,104 +144,101 @@ class _HashtagDetailState extends State<HashtagDetail> {
             );
           }
 
-          return NestedScrollView(
-            physics: const BouncingScrollPhysics(),
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              SliverAppBar(
-                pinned: true,
-                leading: IconButton(
-                  tooltip: 'Back',
-                  onPressed: () => context.pop(),
-                  icon: const Icon(Icons.arrow_back),
+          return Stack(
+            children: [
+              CustomScrollView(
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
                 ),
-                backgroundColor: tokens.bg,
-                surfaceTintColor: Colors.transparent,
-                elevation: 0,
-                expandedHeight: 338,
-                collapsedHeight: 72,
-                flexibleSpace: FlexibleSpaceBar(
-                  collapseMode: CollapseMode.pin,
-                  background: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      horizontal,
-                      safeTop + kToolbarHeight + EchoLayout.space(context, 4),
-                      horizontal,
-                      EchoLayout.space(context, 8),
+                slivers: [
+                  SliverAppBar(
+                    pinned: true,
+                    leading: IconButton(
+                      tooltip: 'Back',
+                      onPressed: () => context.pop(),
+                      icon: const Icon(Icons.arrow_back),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _HashtagHeader(
-                          hashtag: hashtag,
-                          moodTintEnabled: moodTint,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          '${notes.length} notes',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: tokens.textSecondary,
-                          ),
-                        ),
-                      ],
+                    backgroundColor: tokens.bg,
+                    surfaceTintColor: Colors.transparent,
+                    elevation: 0,
+                    expandedHeight: expandedHeight,
+                    collapsedHeight: collapsedHeight,
+                    flexibleSpace: _HashtagHeaderFlexibleSpace(
+                      hashtag: hashtag,
+                      moodTintEnabled: moodTint,
+                      noteCount: notes.length,
                     ),
                   ),
+                  SliverPadding(
+                    padding: EchoLayout.listPadding(
+                      context,
+                      top: 2,
+                      bottom: listBottomPadding,
+                      includeBottomSafeArea: true,
+                    ),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          if (index.isOdd) {
+                            return const SizedBox(height: 12);
+                          }
+                          final note = notes[index ~/ 2];
+                          final isPreparing = _loadingNoteId == note.id;
+                          final canBlock =
+                              note.authorId != null &&
+                              note.authorId!.isNotEmpty &&
+                              note.authorId != appState.userId;
+                          return _VoiceNoteCard(
+                            note: note,
+                            isPreparing: isPreparing,
+                            audioState: audio.state,
+                            transcriptsEnabled:
+                                appState.settings.transcriptsEnabled,
+                            canBlock: canBlock,
+                            onPlay: () async {
+                              if (isPreparing) {
+                                return;
+                              }
+                              final messenger = ScaffoldMessenger.of(context);
+                              setState(() => _loadingNoteId = note.id);
+                              final path = await appState.ensureLocalAudioPath(
+                                note,
+                              );
+                              if (!mounted) {
+                                return;
+                              }
+                              setState(() => _loadingNoteId = null);
+                              if (path == null || path.isEmpty) {
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Playback is not available.',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+                              audio.toggle(sourceId: note.id, path: path);
+                            },
+                            onMenuSelected: (action) =>
+                                _handleMenuAction(note, action),
+                          );
+                        },
+                        childCount: notes.isEmpty ? 0 : (notes.length * 2 - 1),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              Positioned(
+                right: fabRightOffset,
+                bottom: fabBottomOffset,
+                child: _AutoplayFab(
+                  onTap: () => context.push('/player/${hashtag.id}'),
+                  heroTag: 'autoplay-fab-${hashtag.id}',
                 ),
               ),
             ],
-            body: ListView.separated(
-              physics: const BouncingScrollPhysics(),
-              padding: EchoLayout.listPadding(
-                context,
-                top: 6,
-                bottom: 8,
-                includeBottomSafeArea: true,
-              ),
-              itemCount: notes.length + 1,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _AutoplayPrimaryAction(
-                    onTap: () => context.push('/player/${hashtag.id}'),
-                  );
-                }
-
-                final note = notes[index - 1];
-                final isPreparing = _loadingNoteId == note.id;
-                final canBlock =
-                    note.authorId != null &&
-                    note.authorId!.isNotEmpty &&
-                    note.authorId != appState.userId;
-                return _VoiceNoteCard(
-                  note: note,
-                  isPreparing: isPreparing,
-                  audioState: audio.state,
-                  transcriptsEnabled: appState.settings.transcriptsEnabled,
-                  canBlock: canBlock,
-                  onPlay: () async {
-                    if (isPreparing) {
-                      return;
-                    }
-                    final messenger = ScaffoldMessenger.of(context);
-                    setState(() => _loadingNoteId = note.id);
-                    final path = await appState.ensureLocalAudioPath(note);
-                    if (!mounted) {
-                      return;
-                    }
-                    setState(() => _loadingNoteId = null);
-                    if (path == null || path.isEmpty) {
-                      messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('Playback is not available.'),
-                        ),
-                      );
-                      return;
-                    }
-                    audio.toggle(sourceId: note.id, path: path);
-                  },
-                  onMenuSelected: (action) => _handleMenuAction(note, action),
-                );
-              },
-            ),
           );
         },
       ),
@@ -232,30 +246,102 @@ class _HashtagDetailState extends State<HashtagDetail> {
   }
 }
 
-class _AutoplayPrimaryAction extends StatelessWidget {
-  const _AutoplayPrimaryAction({required this.onTap});
+class _HashtagHeaderFlexibleSpace extends StatelessWidget {
+  const _HashtagHeaderFlexibleSpace({
+    required this.hashtag,
+    required this.moodTintEnabled,
+    required this.noteCount,
+  });
+
+  final Hashtag hashtag;
+  final bool moodTintEnabled;
+  final int noteCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.echo;
+    final horizontal = EchoLayout.contentHorizontalPadding(context);
+    final safeTop = MediaQuery.paddingOf(context).top;
+    final settings = context
+        .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+    final maxExtent = settings?.maxExtent ?? 1.0;
+    final minExtent = settings?.minExtent ?? 1.0;
+    final currentExtent = settings?.currentExtent ?? maxExtent;
+    final range = (maxExtent - minExtent).abs() < 1 ? 1.0 : (maxExtent - minExtent);
+    final collapseProgress = ((maxExtent - currentExtent) / range).clamp(
+      0.0,
+      1.0,
+    );
+    final easedProgress = Curves.easeOutCubic.transform(collapseProgress);
+    final notesFactor = 1 - Curves.easeOut.transform(easedProgress);
+    final gap = lerpDouble(6, 2, easedProgress) ?? 4;
+
+    return ColoredBox(
+      color: tokens.bg,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          horizontal,
+          safeTop + kToolbarHeight + EchoLayout.space(context, 2),
+          horizontal,
+          0,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _HashtagHeader(
+              hashtag: hashtag,
+              moodTintEnabled: moodTintEnabled,
+              collapseProgress: easedProgress,
+            ),
+            SizedBox(height: gap),
+            ClipRect(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                heightFactor: notesFactor.clamp(0.0, 1.0),
+                child: Text(
+                  '$noteCount notes',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: tokens.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AutoplayFab extends StatelessWidget {
+  const _AutoplayFab({required this.onTap, required this.heroTag});
 
   final VoidCallback onTap;
+  final String heroTag;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.echo;
     return Semantics(
       button: true,
-      child: SizedBox(
-        width: double.infinity,
-        child: FilledButton.icon(
+      label: 'Start autoplay',
+      child: SizedBox.square(
+        dimension: 64,
+        child: FloatingActionButton(
+          heroTag: heroTag,
+          tooltip: 'Start autoplay',
           onPressed: onTap,
-          icon: const Icon(Icons.play_arrow),
-          label: const Text('Start auto-play'),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(52),
-            textStyle: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
+          backgroundColor: tokens.accentPrimary,
+          foregroundColor: tokens.bg,
+          elevation: 0,
+          highlightElevation: 0,
+          shape: CircleBorder(
+            side: BorderSide(
+              color: tokens.bg.withValues(alpha: 0.22),
             ),
-            backgroundColor: tokens.accentPrimary,
-            foregroundColor: tokens.bg,
           ),
+          child: const Icon(Icons.play_arrow_rounded, size: 36),
         ),
       ),
     );
@@ -263,10 +349,15 @@ class _AutoplayPrimaryAction extends StatelessWidget {
 }
 
 class _HashtagHeader extends StatelessWidget {
-  const _HashtagHeader({required this.hashtag, required this.moodTintEnabled});
+  const _HashtagHeader({
+    required this.hashtag,
+    required this.moodTintEnabled,
+    this.collapseProgress = 0,
+  });
 
   final Hashtag hashtag;
   final bool moodTintEnabled;
+  final double collapseProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -279,24 +370,60 @@ class _HashtagHeader extends StatelessWidget {
     final borderColor = moodTintEnabled
         ? tint.withValues(alpha: 0.6)
         : tokens.borderSubtle;
+    final compactEase = Curves.easeOutCubic.transform(collapseProgress);
+    final iconFactor = (1 - Curves.easeOut.transform(compactEase)).clamp(0.0, 1.0);
+    final descriptionFactor = (1 - Curves.easeIn.transform(compactEase)).clamp(
+      0.0,
+      1.0,
+    );
+    final cardPadding = EdgeInsets.lerp(
+      const EdgeInsets.all(22),
+      const EdgeInsets.fromLTRB(18, 12, 18, 12),
+      compactEase,
+    )!;
+    final iconSize = lerpDouble(40, 28, compactEase) ?? 40;
+    final radius = lerpDouble(24, 18, compactEase) ?? 24;
+    final titleStyle = TextStyle.lerp(
+      theme.textTheme.headlineSmall,
+      theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+      compactEase,
+    );
+    final titleGap = lerpDouble(10, 0, compactEase) ?? 6;
+    final descriptionGap = lerpDouble(8, 2, compactEase) ?? 5;
 
     return EchoCard(
-      padding: const EdgeInsets.all(22),
-      radius: 24,
+      padding: cardPadding,
+      radius: radius,
       color: surfaceColor,
       borderColor: borderColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(hashtag.icon, size: 40, color: tokens.accentPrimary),
-          const SizedBox(height: 12),
-          Text(hashtag.name, style: theme.textTheme.headlineSmall),
-          const SizedBox(height: 8),
-          Text(
-            hashtag.description,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: tokens.textSecondary,
-              height: 1.45,
+          ClipRect(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              heightFactor: iconFactor,
+              child: Icon(hashtag.icon, size: iconSize, color: tokens.accentPrimary),
+            ),
+          ),
+          SizedBox(height: titleGap),
+          Text(hashtag.name, style: titleStyle),
+          ClipRect(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              heightFactor: descriptionFactor,
+              child: Padding(
+                padding: EdgeInsets.only(top: descriptionGap),
+                child: Text(
+                  hashtag.description,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: tokens.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
+              ),
             ),
           ),
         ],

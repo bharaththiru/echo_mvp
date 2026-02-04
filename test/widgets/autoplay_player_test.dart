@@ -12,6 +12,7 @@ import 'package:echo/models/voice_note.dart';
 import 'package:echo/screens/autoplay_player.dart';
 import 'package:echo/services/audio_controller.dart';
 import 'package:echo/services/audio_engine.dart';
+import 'package:echo/services/audio_playback_controller.dart';
 import 'package:echo/services/echo_audio_handler.dart';
 
 void main() {
@@ -116,6 +117,7 @@ class FakeAudioEngine implements AudioEngine {
   AudioEngineSnapshot _snapshot = AudioEngineSnapshot.empty;
   final _snapshotController = StreamController<AudioEngineSnapshot>.broadcast();
   final _eventController = StreamController<EchoAudioEvent>.broadcast();
+  final List<AudioQueueItem> _queue = <AudioQueueItem>[];
 
   @override
   AudioEngineSnapshot get snapshot => _snapshot;
@@ -127,6 +129,77 @@ class FakeAudioEngine implements AudioEngine {
   Stream<EchoAudioEvent> get events => _eventController.stream;
 
   @override
+  Future<void> setQueue({
+    required List<AudioQueueItem> queue,
+    int initialIndex = 0,
+    Duration? startPosition,
+  }) async {
+    _queue
+      ..clear()
+      ..addAll(queue);
+    if (_queue.isEmpty) {
+      return;
+    }
+    final resolvedIndex = initialIndex.clamp(0, _queue.length - 1).toInt();
+    final item = _queue[resolvedIndex];
+    _snapshot = AudioEngineSnapshot.empty.copyWith(
+      sourceId: item.sourceId,
+      path: item.path,
+      queueIndex: resolvedIndex,
+      position: startPosition ?? Duration.zero,
+      duration: item.duration ?? const Duration(seconds: 12),
+      bufferedPosition: item.duration ?? const Duration(seconds: 12),
+      phase: AudioEnginePhase.loading,
+      volume: _snapshot.volume,
+      errorMessage: null,
+    );
+    _emit();
+  }
+
+  @override
+  Future<void> appendQueue(List<AudioQueueItem> queue) async {
+    _queue.addAll(queue);
+  }
+
+  @override
+  Future<void> seekToIndex(int index, {Duration? position}) async {
+    if (index < 0 || index >= _queue.length) {
+      return;
+    }
+    final item = _queue[index];
+    _snapshot = _snapshot.copyWith(
+      sourceId: item.sourceId,
+      path: item.path,
+      queueIndex: index,
+      position: position ?? Duration.zero,
+      duration: item.duration ?? const Duration(seconds: 12),
+      bufferedPosition: item.duration ?? const Duration(seconds: 12),
+      isPlaying: true,
+      phase: AudioEnginePhase.ready,
+      errorMessage: null,
+    );
+    _emit();
+  }
+
+  @override
+  Future<void> skipToNext() async {
+    final current = _snapshot.queueIndex;
+    if (current == null) {
+      return;
+    }
+    await seekToIndex(current + 1);
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    final current = _snapshot.queueIndex;
+    if (current == null) {
+      return;
+    }
+    await seekToIndex(current - 1);
+  }
+
+  @override
   Future<void> setSource({
     required String sourceId,
     required String path,
@@ -136,6 +209,7 @@ class FakeAudioEngine implements AudioEngine {
     _snapshot = AudioEngineSnapshot.empty.copyWith(
       sourceId: sourceId,
       path: path,
+      queueIndex: null,
       duration: duration ?? const Duration(seconds: 12),
       bufferedPosition: duration ?? const Duration(seconds: 12),
       phase: AudioEnginePhase.loading,

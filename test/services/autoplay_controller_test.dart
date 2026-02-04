@@ -276,6 +276,41 @@ void main() {
       expect(audio.playHistory, isEmpty);
     });
   });
+
+  test('torture mode can run a long session without restarting every clip', () async {
+    final notes = List<VoiceNote>.generate(220, (index) => note('n$index'));
+    final failing = <String>{
+      for (var i = 0; i < notes.length; i++)
+        if (i % 10 == 0) notes[i].id,
+    };
+    final dataSource = FakeAutoplayDataSource(
+      {hashtagId: notes},
+      failingNotes: failing,
+    );
+    final audio = FakeAudioPlaybackController();
+    final controller = AutoplayController(dataSource: dataSource, audio: audio);
+    controller.configureAutoplayTortureMode(
+      enabled: true,
+      resolveFailureRate: 0,
+      resolveMinDelayMs: 0,
+      resolveMaxDelayMs: 0,
+    );
+
+    controller.attach(hashtagId);
+    await settle(const Duration(milliseconds: 240));
+    expect(audio.playHistory, isNotEmpty);
+
+    var guard = 0;
+    while (audio.playHistory.length < 190 && guard < 600) {
+      audio.advanceQueueOrComplete();
+      await settle(const Duration(milliseconds: 24));
+      guard += 1;
+    }
+
+    expect(audio.playHistory.length, greaterThanOrEqualTo(190));
+    expect(audio.playQueueCalls, lessThan(30));
+    expect(controller.state.phase, isNot(AutoplayPhase.error));
+  });
 }
 
 class FakeAutoplayDataSource extends ChangeNotifier
@@ -341,6 +376,8 @@ class FakeAudioPlaybackController extends ChangeNotifier
   final bool autoPlay;
   AudioPlaybackState _state = AudioPlaybackState.empty;
   final List<String> playHistory = <String>[];
+  final List<AudioQueueItem> queue = <AudioQueueItem>[];
+  int playQueueCalls = 0;
   int resumeCalls = 0;
   double lastVolume = 0.8;
 
@@ -359,6 +396,7 @@ class FakeAudioPlaybackController extends ChangeNotifier
     _state = AudioPlaybackState(
       sourceId: sourceId,
       path: path,
+      queueIndex: null,
       position: Duration.zero,
       duration: resolvedDuration,
       bufferedPosition: autoPlay ? resolvedDuration : Duration.zero,
@@ -371,6 +409,87 @@ class FakeAudioPlaybackController extends ChangeNotifier
       errorMessage: null,
     );
     notifyListeners();
+  }
+
+  @override
+  Future<void> playQueue({
+    required List<AudioQueueItem> queue,
+    int initialIndex = 0,
+    Duration? startPosition,
+  }) async {
+    if (queue.isEmpty) {
+      return;
+    }
+    playQueueCalls += 1;
+    this.queue
+      ..clear()
+      ..addAll(queue);
+    final resolvedIndex = initialIndex.clamp(0, queue.length - 1).toInt();
+    final item = queue[resolvedIndex];
+    playHistory.add(item.sourceId);
+    _state = AudioPlaybackState(
+      sourceId: item.sourceId,
+      path: item.path,
+      queueIndex: resolvedIndex,
+      position: startPosition ?? Duration.zero,
+      duration: item.duration ?? const Duration(seconds: 12),
+      bufferedPosition: autoPlay
+          ? (item.duration ?? const Duration(seconds: 12))
+          : Duration.zero,
+      isPlaying: autoPlay,
+      volume: _state.volume,
+      phase: autoPlay
+          ? AudioPlaybackPhase.playing
+          : AudioPlaybackPhase.loading,
+      interrupted: false,
+      errorMessage: null,
+    );
+    notifyListeners();
+  }
+
+  @override
+  Future<void> appendQueue(List<AudioQueueItem> queue) async {
+    this.queue.addAll(queue);
+  }
+
+  @override
+  Future<void> seekToIndex(int index, {Duration? position}) async {
+    if (queue.isEmpty || index < 0 || index >= queue.length) {
+      return;
+    }
+    final item = queue[index];
+    playHistory.add(item.sourceId);
+    _state = _state.copyWith(
+      sourceId: item.sourceId,
+      path: item.path,
+      queueIndex: index,
+      position: position ?? Duration.zero,
+      duration: item.duration ?? const Duration(seconds: 12),
+      bufferedPosition: item.duration ?? const Duration(seconds: 12),
+      isPlaying: true,
+      phase: AudioPlaybackPhase.playing,
+      interrupted: false,
+      errorMessage: null,
+    );
+    notifyListeners();
+  }
+
+  @override
+  Future<void> skipToNext() async {
+    final current = _state.queueIndex;
+    if (current == null) {
+      return;
+    }
+    await seekToIndex(current + 1);
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    final current = _state.queueIndex;
+    if (current == null) {
+      return;
+    }
+    await seekToIndex(current - 1);
   }
 
   @override
@@ -419,6 +538,29 @@ class FakeAudioPlaybackController extends ChangeNotifier
       phase: AudioPlaybackPhase.completed,
     );
     notifyListeners();
+  }
+
+  void advanceQueueOrComplete() {
+    final current = _state.queueIndex ?? 0;
+    if (current + 1 < queue.length) {
+      final next = queue[current + 1];
+      playHistory.add(next.sourceId);
+      _state = _state.copyWith(
+        sourceId: next.sourceId,
+        path: next.path,
+        queueIndex: current + 1,
+        position: Duration.zero,
+        duration: next.duration ?? const Duration(seconds: 12),
+        bufferedPosition: next.duration ?? const Duration(seconds: 12),
+        isPlaying: true,
+        phase: AudioPlaybackPhase.playing,
+        interrupted: false,
+        errorMessage: null,
+      );
+      notifyListeners();
+      return;
+    }
+    complete();
   }
 
   void interruptBegin() {

@@ -169,6 +169,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _queueMode = false;
     _queueItems.clear();
     queue.add(const <MediaItem>[]);
+    await _player.stop();
     final uri = _resolveUri(path);
     final source = AudioSource.uri(uri);
     await _player.setAudioSource(source, preload: true);
@@ -192,6 +193,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _lastErrorMessage = null;
     _queueMode = true;
     _queueItems.clear();
+    await _player.stop();
     final sources = <AudioSource>[];
     for (final item in items) {
       final media = _buildMediaItem(item);
