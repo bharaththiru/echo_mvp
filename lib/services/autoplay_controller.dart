@@ -1374,6 +1374,34 @@ class AutoplayController extends ChangeNotifier {
         _lastLoggedQueueIndex = queueIndex;
         unawaited(_fillQueueAhead());
       }
+      final queuedId = _playbackQueueIds[queueIndex];
+      if (currentNote == null || currentNote.id != queuedId) {
+        final queuedNote = _playbackQueueNotes[queuedId];
+        final resolvedIndex = queuedNote == null
+            ? _state.queue.indexWhere((note) => note.id == queuedId)
+            : _state.queue.indexWhere((note) => note.id == queuedNote.id);
+        final nextNote = queuedNote ??
+            (resolvedIndex == -1 ? null : _state.queue[resolvedIndex]);
+        if (nextNote != null) {
+          if (currentNote != null) {
+            _markPlayed(currentNote.id);
+          }
+          _setState(
+            _state.copyWith(
+              currentIndex:
+                  resolvedIndex == -1 ? _state.currentIndex : resolvedIndex,
+              currentNote: nextNote,
+              isPreparing: false,
+              isTransitioning: false,
+              isMuted: _isMutedNote(queuedId),
+            ),
+          );
+          _positionNoteId = queuedId;
+          _lastObservedPosition = Duration.zero;
+          _positionResetCount = 0;
+          _log('synced clip from queue index id=$queuedId');
+        }
+      }
     }
 
     if (activeId != null &&

@@ -46,7 +46,16 @@ class _ListenTabState extends State<ListenTab> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final verticalScale = (screenHeight / 844).clamp(0.85, 1.1);
     final horizontalPadding = EchoLayout.horizontalPadding(context);
+    final contentHorizontalPadding =
+        (horizontalPadding * 0.55).clamp(10.0, 14.0).toDouble();
+    final topSpacing = (16 * verticalScale).toDouble();
+    final sectionSpacing = (8 * verticalScale).toDouble();
+    final itemSpacing = (6 * verticalScale).toDouble();
+    final blockSpacing = (12 * verticalScale).toDouble();
+    final bottomSpacing = (10 * verticalScale).toDouble();
     final availableWidth = screenWidth;
     final cardWidth =
         (availableWidth * 0.75).clamp(180.0, 240.0).toDouble();
@@ -73,16 +82,17 @@ class _ListenTabState extends State<ListenTab> {
     return Column(
       children: [
         Padding(
-          padding: EchoLayout.pagePadding(
-            context,
-            top: 32,
-            bottom: 16,
+          padding: EdgeInsets.fromLTRB(
+            contentHorizontalPadding,
+            topSpacing,
+            contentHorizontalPadding,
+            sectionSpacing,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Listen', style: theme.textTheme.displaySmall),
-              const SizedBox(height: 16),
+              SizedBox(height: sectionSpacing),
               EchoInput(
                 controller: _searchController,
                 hintText: 'Search moods, tones',
@@ -118,15 +128,20 @@ class _ListenTabState extends State<ListenTab> {
                 children: [
                   if (_query.isNotEmpty) ...[
                     Padding(
-                      padding: EchoLayout.listPadding(context, top: 0),
+                      padding: EdgeInsets.fromLTRB(
+                        contentHorizontalPadding,
+                        0,
+                        contentHorizontalPadding,
+                        bottomSpacing,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const EchoSectionTitle('Your matches'),
-                          const SizedBox(height: 12),
+                          SizedBox(height: sectionSpacing),
                           ...filtered.map(
                             (hashtag) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
+                              padding: EdgeInsets.only(bottom: itemSpacing),
                               child: _HashtagListTile(
                                 hashtag: hashtag,
                                 onTap: () =>
@@ -140,10 +155,11 @@ class _ListenTabState extends State<ListenTab> {
                   ] else ...[
                     if (forYourVibe.isNotEmpty) ...[
                       Padding(
-                        padding: EchoLayout.listPadding(
-                          context,
-                          top: 0,
-                          bottom: 12,
+                        padding: EdgeInsets.fromLTRB(
+                          contentHorizontalPadding,
+                          0,
+                          contentHorizontalPadding,
+                          sectionSpacing,
                         ),
                         child: const EchoSectionTitle('Set the tone'),
                       ),
@@ -164,23 +180,28 @@ class _ListenTabState extends State<ListenTab> {
                             );
                           },
                           separatorBuilder: (context, index) =>
-                              const SizedBox(width: 16),
+                              SizedBox(width: blockSpacing),
                           itemCount: forYourVibe.length,
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      SizedBox(height: blockSpacing),
                     ],
                     if (popularNow.isNotEmpty) ...[
                       Padding(
-                        padding: EchoLayout.listPadding(context, top: 0),
+                        padding: EdgeInsets.fromLTRB(
+                          contentHorizontalPadding,
+                          0,
+                          contentHorizontalPadding,
+                          bottomSpacing,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const EchoSectionTitle('Slow drift'),
-                            const SizedBox(height: 12),
+                            SizedBox(height: sectionSpacing),
                             ...popularNow.map(
                               (hashtag) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
+                                padding: EdgeInsets.only(bottom: itemSpacing),
                                 child: _HashtagListTile(
                                   hashtag: hashtag,
                                   onTap: () =>
@@ -188,19 +209,24 @@ class _ListenTabState extends State<ListenTab> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            SizedBox(height: sectionSpacing),
                           ],
                         ),
                       ),
                     ],
                     if (newAndNiche.isNotEmpty) ...[
                       Padding(
-                        padding: EchoLayout.listPadding(context, top: 0),
+                        padding: EdgeInsets.fromLTRB(
+                          contentHorizontalPadding,
+                          0,
+                          contentHorizontalPadding,
+                          bottomSpacing,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const EchoSectionTitle('Quiet corners'),
-                            const SizedBox(height: 12),
+                            SizedBox(height: sectionSpacing),
                             _HashtagGrid(
                               hashtags: newAndNiche,
                               onTap: (hashtag) =>
@@ -211,7 +237,7 @@ class _ListenTabState extends State<ListenTab> {
                       ),
                     ],
                   ],
-                  SizedBox(height: EchoLayout.listPadding(context).bottom),
+                  SizedBox(height: bottomSpacing),
                 ],
               );
             },
@@ -240,7 +266,9 @@ class _EmptyState extends StatelessWidget {
     return Center(
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: EchoLayout.horizontalPadding(context),
+          horizontal: (EchoLayout.horizontalPadding(context) * 0.55)
+              .clamp(10.0, 14.0)
+              .toDouble(),
         ),
         child: EchoCard(
           padding: const EdgeInsets.all(22),

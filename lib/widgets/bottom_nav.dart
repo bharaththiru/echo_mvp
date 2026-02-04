@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -12,7 +13,10 @@ class BottomNavShell extends StatelessWidget {
 
   final StatefulNavigationShell navigationShell;
 
-  void _onTap(int index) {
+  void _onTap(BuildContext context, int index) {
+    if (index == 1) {
+      unawaited(AppScope.of(context).autoplay.detach(stopPlayback: true));
+    }
     navigationShell.goBranch(
       index,
       initialLocation: index == navigationShell.currentIndex,
@@ -24,8 +28,9 @@ class BottomNavShell extends StatelessWidget {
     return AppScaffold(
       bottomNavigationBar: BottomNavBar(
         currentIndex: navigationShell.currentIndex,
-        onTap: _onTap,
+        onTap: (index) => _onTap(context, index),
       ),
+      showMiniPlayer: navigationShell.currentIndex != 1,
       child: navigationShell,
     );
   }

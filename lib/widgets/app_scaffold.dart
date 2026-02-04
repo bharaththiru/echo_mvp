@@ -113,14 +113,14 @@ class _MiniPlayer extends StatelessWidget {
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          tokens.surface1.withValues(alpha: 0.92),
-                          tokens.surface2.withValues(alpha: 0.88),
+                          const Color(0xFF071C4A).withValues(alpha: 0.94),
+                          const Color(0xFF0A2A5A).withValues(alpha: 0.9),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(22),
@@ -139,8 +139,8 @@ class _MiniPlayer extends StatelessWidget {
                         Row(
                           children: [
                             Container(
-                              height: 40,
-                              width: 40,
+                              height: 36,
+                              width: 36,
                               decoration: BoxDecoration(
                                 color: tokens.surface3,
                                 borderRadius: BorderRadius.circular(14),
@@ -151,10 +151,10 @@ class _MiniPlayer extends StatelessWidget {
                               child: Icon(
                                 hashtag?.icon ?? Icons.headphones,
                                 color: tokens.accentPrimary,
-                                size: 22,
+                                size: 20,
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,6 +211,11 @@ class _MiniPlayer extends StatelessWidget {
                                     ? Icons.volume_off
                                     : Icons.volume_up,
                               ),
+                              iconSize: 20,
+                              constraints: const BoxConstraints.tightFor(
+                                width: 34,
+                                height: 34,
+                              ),
                             ),
                             IconButton(
                               onPressed: () => autoplay.togglePlayPause(),
@@ -219,10 +224,15 @@ class _MiniPlayer extends StatelessWidget {
                                     ? Icons.pause
                                     : Icons.play_arrow,
                               ),
+                              iconSize: 20,
+                              constraints: const BoxConstraints.tightFor(
+                                width: 34,
+                                height: 34,
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         LayoutBuilder(
                           builder: (context, constraints) {
                             final dotSize = 7.0;
@@ -232,7 +242,7 @@ class _MiniPlayer extends StatelessWidget {
                               alignment: Alignment.centerLeft,
                               children: [
                                 Container(
-                                  height: 5,
+                                  height: 4,
                                   decoration: BoxDecoration(
                                     color: tokens.surface3,
                                     borderRadius: BorderRadius.circular(6),
@@ -241,7 +251,7 @@ class _MiniPlayer extends StatelessWidget {
                                 FractionallySizedBox(
                                   widthFactor: progress,
                                   child: Container(
-                                    height: 5,
+                                    height: 4,
                                     decoration: BoxDecoration(
                                       color: tokens.accentPrimary,
                                       borderRadius: BorderRadius.circular(6),
@@ -271,7 +281,7 @@ class _MiniPlayer extends StatelessWidget {
                             );
                           },
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
