@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import '../app/app_scope.dart';
 import '../services/autoplay_controller.dart';
 import '../theme/echo_theme.dart';
-import '../utils/time_format.dart';
 import '../utils/responsive.dart';
 
 class AppScaffold extends StatelessWidget {
@@ -84,7 +83,7 @@ class _MiniPlayer extends StatelessWidget {
                 .toDouble();
         final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
         final safeBottom = MediaQuery.paddingOf(context).bottom;
-        final bottomPadding = max(12.0, safeBottom);
+        final bottomPadding = max(10.0, safeBottom);
         final statusText = state.isBuffering
             ? 'Buffering'
             : state.isPlaying
@@ -109,11 +108,11 @@ class _MiniPlayer extends StatelessWidget {
                 context.push('/player/$hashtagId');
               },
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(18),
                 child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 7),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
@@ -123,13 +122,13 @@ class _MiniPlayer extends StatelessWidget {
                           const Color(0xFF0A2A5A).withValues(alpha: 0.9),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(22),
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: tokens.borderSubtle),
                       boxShadow: [
                         BoxShadow(
-                          color: tokens.shadow.withValues(alpha: 0.35),
-                          blurRadius: 24,
-                          offset: const Offset(0, 12),
+                          color: tokens.shadow.withValues(alpha: 0.3),
+                          blurRadius: 18,
+                          offset: const Offset(0, 10),
                         ),
                       ],
                     ),
@@ -138,63 +137,25 @@ class _MiniPlayer extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Container(
-                              height: 36,
-                              width: 36,
-                              decoration: BoxDecoration(
-                                color: tokens.surface3,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: tokens.borderSubtle,
-                                ),
-                              ),
-                              child: Icon(
-                                hashtag?.icon ?? Icons.headphones,
-                                color: tokens.accentPrimary,
-                                size: 20,
-                              ),
+                            _MiniPulseDot(
+                              color: tokens.accentSecondary,
+                              reduceMotion: appState.settings.reduceMotion,
+                              isActive: state.isPlaying,
                             ),
-                            const SizedBox(width: 10),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    children: [
-                                      _MiniPulseDot(
-                                        color: tokens.accentSecondary,
-                                        reduceMotion:
-                                            appState.settings.reduceMotion,
-                                        isActive: state.isPlaying,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        statusText,
-                                        style:
-                                            theme.textTheme.labelMedium?.copyWith(
-                                          color: tokens.textSecondary,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      if (state.queueRemaining > 0)
-                                        Text(
-                                          '${state.queueRemaining} ready',
-                                          style: theme.textTheme.labelSmall
-                                              ?.copyWith(
-                                                color: tokens.textTertiary,
-                                              ),
-                                        ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
                                   Text(
                                     hashtag?.name ?? 'Station',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.titleSmall,
                                   ),
+                                  const SizedBox(height: 1),
                                   Text(
-                                    note.transcriptPreview ?? 'Voice note',
+                                    note.transcriptPreview ?? statusText,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.bodySmall?.copyWith(
@@ -205,19 +166,23 @@ class _MiniPlayer extends StatelessWidget {
                               ),
                             ),
                             IconButton(
+                              tooltip: state.isMuted
+                                  ? 'Unmute current note'
+                                  : 'Mute current note',
                               onPressed: () => autoplay.toggleMute(),
                               icon: Icon(
                                 state.isMuted
                                     ? Icons.volume_off
                                     : Icons.volume_up,
                               ),
-                              iconSize: 20,
+                              iconSize: 19,
                               constraints: const BoxConstraints.tightFor(
-                                width: 34,
-                                height: 34,
+                                width: 40,
+                                height: 40,
                               ),
                             ),
                             IconButton(
+                              tooltip: state.isPlaying ? 'Pause' : 'Play',
                               onPressed: () => autoplay.togglePlayPause(),
                               icon: Icon(
                                 state.isPlaying
@@ -226,23 +191,23 @@ class _MiniPlayer extends StatelessWidget {
                               ),
                               iconSize: 20,
                               constraints: const BoxConstraints.tightFor(
-                                width: 34,
-                                height: 34,
+                                width: 40,
+                                height: 40,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         LayoutBuilder(
                           builder: (context, constraints) {
-                            final dotSize = 7.0;
+                            const dotSize = 7.0;
                             final trackWidth = constraints.maxWidth;
                             final left = (trackWidth - dotSize) * progress;
                             return Stack(
                               alignment: Alignment.centerLeft,
                               children: [
                                 Container(
-                                  height: 4,
+                                  height: 3,
                                   decoration: BoxDecoration(
                                     color: tokens.surface3,
                                     borderRadius: BorderRadius.circular(6),
@@ -251,7 +216,7 @@ class _MiniPlayer extends StatelessWidget {
                                 FractionallySizedBox(
                                   widthFactor: progress,
                                   child: Container(
-                                    height: 4,
+                                    height: 3,
                                     decoration: BoxDecoration(
                                       color: tokens.accentPrimary,
                                       borderRadius: BorderRadius.circular(6),
@@ -280,24 +245,6 @@ class _MiniPlayer extends StatelessWidget {
                               ],
                             );
                           },
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              formatDuration(state.position),
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: tokens.textTertiary,
-                              ),
-                            ),
-                            Text(
-                              formatDuration(duration),
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: tokens.textTertiary,
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ),

@@ -198,12 +198,16 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _queueItems.add(media);
       sources.add(AudioSource.uri(_resolveUri(item.path), tag: media));
     }
-    _playlist = ConcatenatingAudioSource(children: sources);
+    _playlist = ConcatenatingAudioSource(
+      useLazyPreparation: false,
+      children: sources,
+    );
     queue.add(List<MediaItem>.from(_queueItems));
     await _player.setAudioSource(
       _playlist!,
       initialIndex: initialIndex,
       initialPosition: startPosition,
+      preload: true,
     );
     if (initialIndex >= 0 && initialIndex < _queueItems.length) {
       mediaItem.add(_queueItems[initialIndex]);

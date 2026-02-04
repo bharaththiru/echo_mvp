@@ -28,6 +28,10 @@ class AudioController extends ChangeNotifier
   bool _isDisposed = false;
   DateTime? _lastEngineUpdate;
   DateTime? _lastPositionTick;
+  DateTime? _lastProgressAt;
+  String? _lastProgressSourceId;
+  int? _lastProgressQueueIndex;
+  Duration _lastProgressPosition = Duration.zero;
   Timer? _positionTimer;
 
   StreamSubscription<AudioEngineSnapshot>? _engineSub;
@@ -78,6 +82,7 @@ class AudioController extends ChangeNotifier
     _lastPositionTick = _lastEngineUpdate;
     final nextPhase = _mapPhase(snapshot);
     final resolvedPosition = _resolveSnapshotPosition(snapshot);
+    _trackProgress(snapshot, resolvedPosition);
     _state = _state.copyWith(
       sourceId: snapshot.sourceId,
       path: snapshot.path,
@@ -93,6 +98,43 @@ class AudioController extends ChangeNotifier
     );
     notifyListeners();
     _syncPositionTimer();
+  }
+
+  void _trackProgress(
+    AudioEngineSnapshot snapshot,
+    Duration resolvedPosition,
+  ) {
+    final sourceId = snapshot.sourceId;
+    final queueIndex = snapshot.queueIndex;
+    final sameStream = sourceId != null &&
+        sourceId == _lastProgressSourceId &&
+        queueIndex == _lastProgressQueueIndex;
+    if (!sameStream) {
+      _lastProgressSourceId = sourceId;
+      _lastProgressQueueIndex = queueIndex;
+      _lastProgressPosition = resolvedPosition;
+      _lastProgressAt = null;
+      return;
+    }
+    if (resolvedPosition > _lastProgressPosition) {
+      _lastProgressPosition = resolvedPosition;
+      _lastProgressAt = DateTime.now();
+    }
+  }
+
+  bool _hasRecentProgress(AudioEngineSnapshot snapshot) {
+    final sourceId = snapshot.sourceId;
+    if (sourceId == null || sourceId != _lastProgressSourceId) {
+      return false;
+    }
+    if (snapshot.queueIndex != _lastProgressQueueIndex) {
+      return false;
+    }
+    final last = _lastProgressAt;
+    if (last == null) {
+      return false;
+    }
+    return DateTime.now().difference(last) <= const Duration(seconds: 1);
   }
 
   void _handleEngineEvent(EchoAudioEvent event) {
@@ -157,12 +199,25 @@ class AudioController extends ChangeNotifier
       case AudioEnginePhase.idle:
         return AudioPlaybackPhase.idle;
       case AudioEnginePhase.loading:
+        if (snapshot.isPlaying || _hasRecentProgress(snapshot)) {
+          return AudioPlaybackPhase.playing;
+        }
         return AudioPlaybackPhase.loading;
       case AudioEnginePhase.buffering:
         if (snapshot.isPlaying) {
           return AudioPlaybackPhase.playing;
         }
+        if (_hasRecentProgress(snapshot)) {
+          return AudioPlaybackPhase.playing;
+        }
         if (_state.isPlaying && snapshot.position > _state.position) {
+          return AudioPlaybackPhase.playing;
+        }
+        if (_state.isPlaying &&
+            _state.sourceId == snapshot.sourceId &&
+            _state.queueIndex == snapshot.queueIndex &&
+            snapshot.bufferedPosition >
+                snapshot.position + const Duration(milliseconds: 350)) {
           return AudioPlaybackPhase.playing;
         }
         return AudioPlaybackPhase.buffering;
