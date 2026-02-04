@@ -132,45 +132,28 @@ class _HashtagDetailState extends State<HashtagDetail> {
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
               SliverAppBar(
                 pinned: true,
-                automaticallyImplyLeading: false,
+                leading: IconButton(
+                  tooltip: 'Back',
+                  onPressed: () => context.pop(),
+                  icon: const Icon(Icons.arrow_back),
+                ),
                 backgroundColor: tokens.bg,
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
                 expandedHeight: 338,
                 collapsedHeight: 72,
-                titleSpacing: horizontal,
-                title: Text(
-                  hashtag.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium,
-                ),
-                actions: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: _AutoplayChip(
-                      onTap: () => context.push('/player/${hashtag.id}'),
-                    ),
-                  ),
-                ],
                 flexibleSpace: FlexibleSpaceBar(
                   collapseMode: CollapseMode.pin,
                   background: Padding(
                     padding: EdgeInsets.fromLTRB(
                       horizontal,
-                      safeTop + EchoLayout.space(context, 4),
+                      safeTop + kToolbarHeight + EchoLayout.space(context, 4),
                       horizontal,
                       EchoLayout.space(context, 8),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        TextButton.icon(
-                          onPressed: () => context.pop(),
-                          icon: const Icon(Icons.arrow_back),
-                          label: const Text('Back'),
-                        ),
-                        const SizedBox(height: 8),
                         _HashtagHeader(
                           hashtag: hashtag,
                           moodTintEnabled: moodTint,
@@ -196,10 +179,16 @@ class _HashtagDetailState extends State<HashtagDetail> {
                 bottom: 8,
                 includeBottomSafeArea: true,
               ),
-              itemCount: notes.length,
+              itemCount: notes.length + 1,
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                final note = notes[index];
+                if (index == 0) {
+                  return _AutoplayPrimaryAction(
+                    onTap: () => context.push('/player/${hashtag.id}'),
+                  );
+                }
+
+                final note = notes[index - 1];
                 final isPreparing = _loadingNoteId == note.id;
                 final canBlock =
                     note.authorId != null &&
@@ -243,26 +232,31 @@ class _HashtagDetailState extends State<HashtagDetail> {
   }
 }
 
-class _AutoplayChip extends StatelessWidget {
-  const _AutoplayChip({required this.onTap});
+class _AutoplayPrimaryAction extends StatelessWidget {
+  const _AutoplayPrimaryAction({required this.onTap});
 
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.echo;
-    return FilledButton.tonalIcon(
-      onPressed: onTap,
-      icon: const Icon(Icons.play_arrow, size: 18),
-      label: const Text('Auto-play'),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 36),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        textStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.w700,
+    return Semantics(
+      button: true,
+      child: SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: onTap,
+          icon: const Icon(Icons.play_arrow),
+          label: const Text('Start auto-play'),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(52),
+            textStyle: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+            backgroundColor: tokens.accentPrimary,
+            foregroundColor: tokens.bg,
+          ),
         ),
-        backgroundColor: tokens.accentPrimary.withValues(alpha: 0.16),
-        foregroundColor: tokens.accentPrimary,
       ),
     );
   }
