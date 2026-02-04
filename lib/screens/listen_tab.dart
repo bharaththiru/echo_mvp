@@ -114,77 +114,104 @@ class _ListenTabState extends State<ListenTab> {
               }
 
               return ListView(
-                padding: EchoLayout.listPadding(context),
+                padding: EdgeInsets.zero,
                 children: [
                   if (_query.isNotEmpty) ...[
-                    const EchoSectionTitle('Your matches'),
-                    const SizedBox(height: 12),
-                    ...filtered.map(
-                      (hashtag) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _HashtagListTile(
-                          hashtag: hashtag,
-                          onTap: () => context.push('/hashtag/${hashtag.id}'),
-                        ),
+                    Padding(
+                      padding: EchoLayout.listPadding(context, top: 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const EchoSectionTitle('Your matches'),
+                          const SizedBox(height: 12),
+                          ...filtered.map(
+                            (hashtag) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _HashtagListTile(
+                                hashtag: hashtag,
+                                onTap: () =>
+                                    context.push('/hashtag/${hashtag.id}'),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ] else ...[
                     if (forYourVibe.isNotEmpty) ...[
-                      const EchoSectionTitle('Set the tone'),
-                      const SizedBox(height: 12),
                       Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: -horizontalPadding,
+                        padding: EchoLayout.listPadding(
+                          context,
+                          top: 0,
+                          bottom: 12,
                         ),
-                        child: SizedBox(
-                          height: 200,
-                          child: ListView.separated(
-                            padding: EdgeInsets.zero,
-                            scrollDirection: Axis.horizontal,
-                            itemBuilder: (context, index) {
-                              final hashtag = forYourVibe[index];
-                              return _HashtagCard(
-                                hashtag: hashtag,
-                                moodTintEnabled:
-                                    appState.settings.moodTintEnabled,
-                                onTap: () =>
-                                    context.push('/hashtag/${hashtag.id}'),
-                                width: cardWidth,
-                              );
-                            },
-                            separatorBuilder: (context, index) =>
-                                const SizedBox(width: 16),
-                            itemCount: forYourVibe.length,
-                          ),
+                        child: const EchoSectionTitle('Set the tone'),
+                      ),
+                      SizedBox(
+                        height: 200,
+                        child: ListView.separated(
+                          padding: EdgeInsets.zero,
+                          scrollDirection: Axis.horizontal,
+                          itemBuilder: (context, index) {
+                            final hashtag = forYourVibe[index];
+                            return _HashtagCard(
+                              hashtag: hashtag,
+                              moodTintEnabled:
+                                  appState.settings.moodTintEnabled,
+                              onTap: () =>
+                                  context.push('/hashtag/${hashtag.id}'),
+                              width: cardWidth,
+                            );
+                          },
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(width: 16),
+                          itemCount: forYourVibe.length,
                         ),
                       ),
                       const SizedBox(height: 24),
                     ],
                     if (popularNow.isNotEmpty) ...[
-                      const EchoSectionTitle('Slow drift'),
-                      const SizedBox(height: 12),
-                      ...popularNow.map(
-                        (hashtag) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _HashtagListTile(
-                            hashtag: hashtag,
-                            onTap: () => context.push('/hashtag/${hashtag.id}'),
-                          ),
+                      Padding(
+                        padding: EchoLayout.listPadding(context, top: 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const EchoSectionTitle('Slow drift'),
+                            const SizedBox(height: 12),
+                            ...popularNow.map(
+                              (hashtag) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _HashtagListTile(
+                                  hashtag: hashtag,
+                                  onTap: () =>
+                                      context.push('/hashtag/${hashtag.id}'),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
                     ],
                     if (newAndNiche.isNotEmpty) ...[
-                      const EchoSectionTitle('Quiet corners'),
-                      const SizedBox(height: 12),
-                      _HashtagGrid(
-                        hashtags: newAndNiche,
-                        onTap: (hashtag) =>
-                            context.push('/hashtag/${hashtag.id}'),
+                      Padding(
+                        padding: EchoLayout.listPadding(context, top: 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const EchoSectionTitle('Quiet corners'),
+                            const SizedBox(height: 12),
+                            _HashtagGrid(
+                              hashtags: newAndNiche,
+                              onTap: (hashtag) =>
+                                  context.push('/hashtag/${hashtag.id}'),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ],
-                  const SizedBox(height: 12),
+                  SizedBox(height: EchoLayout.listPadding(context).bottom),
                 ],
               );
             },

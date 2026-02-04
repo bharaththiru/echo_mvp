@@ -25,7 +25,6 @@ class AppScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxWidth = EchoLayout.maxContentWidth(context);
     final tokens = context.echo;
     final brightness = Theme.of(context).brightness;
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -37,19 +36,11 @@ class AppScaffold extends StatelessWidget {
         resizeToAvoidBottomInset: true,
         bottomNavigationBar: bottomNavigationBar,
         body: SafeArea(
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: SizedBox(width: double.infinity, child: child),
-                  ),
-                  if (showMiniPlayer) const _MiniPlayer(),
-                ],
-              ),
-            ),
+          child: Stack(
+            children: [
+              SizedBox(width: double.infinity, child: child),
+              if (showMiniPlayer) const _MiniPlayer(),
+            ],
           ),
         ),
       ),
