@@ -43,8 +43,8 @@ class _InboxTabState extends State<InboxTab> {
         Padding(
           padding: EchoLayout.pagePadding(
             context,
-            top: 32,
-            bottom: 16,
+            top: 8,
+            bottom: 6,
           ),
           child: Align(
             alignment: Alignment.centerLeft,
@@ -79,9 +79,9 @@ class _InboxTabState extends State<InboxTab> {
                     ),
                   ),
                 ),
-              const SizedBox(height: 20),
+              SizedBox(height: EchoLayout.space(context, 12)),
               const EchoSectionTitle('Your posts'),
-              const SizedBox(height: 12),
+              SizedBox(height: EchoLayout.space(context, 8)),
               if (isLoading && myPosts.isEmpty)
                 const Center(child: CircularProgressIndicator())
               else if (loadError != null && myPosts.isEmpty)
@@ -104,7 +104,9 @@ class _InboxTabState extends State<InboxTab> {
                 ...myPosts.map((post) {
                   final isPreparing = _loadingNoteId == post.id;
                   return EchoCard(
-                    margin: const EdgeInsets.only(bottom: 12),
+                    margin: EdgeInsets.only(
+                      bottom: EchoLayout.space(context, 8),
+                    ),
                     padding: const EdgeInsets.all(16),
                     radius: 22,
                     child: Column(
@@ -230,7 +232,7 @@ class _EmptyState extends StatelessWidget {
     return Center(
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: EchoLayout.horizontalPadding(context),
+          horizontal: EchoLayout.contentHorizontalPadding(context),
         ),
         child: EchoCard(
           padding: const EdgeInsets.all(22),

@@ -1,0 +1,27 @@
+[
+  {
+    "name": "#Comedy",
+    "description": "Quick laughs and light moments.",
+    "is_active": true
+  },
+  {
+    "name": "#NewMom",
+    "description": "New mom stories, tips, and support.",
+    "is_active": true
+  },
+  {
+    "name": "#ShowerThoughts",
+    "description": "Small ideas that stick with you.",
+    "is_active": true
+  },
+  {
+    "name": "#DailyDicipline",
+    "description": "Daily discipline check-ins.",
+    "is_active": true
+  },
+  {
+    "name": "#Exhale",
+    "description": "Slow down, breathe out, reset.",
+    "is_active": true
+  }
+]

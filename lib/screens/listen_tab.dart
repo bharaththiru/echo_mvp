@@ -46,16 +46,15 @@ class _ListenTabState extends State<ListenTab> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final verticalScale = (screenHeight / 844).clamp(0.85, 1.1);
-    final horizontalPadding = EchoLayout.horizontalPadding(context);
-    final contentHorizontalPadding =
-        (horizontalPadding * 0.55).clamp(10.0, 14.0).toDouble();
-    final topSpacing = (16 * verticalScale).toDouble();
-    final sectionSpacing = (8 * verticalScale).toDouble();
-    final itemSpacing = (6 * verticalScale).toDouble();
-    final blockSpacing = (12 * verticalScale).toDouble();
-    final bottomSpacing = (10 * verticalScale).toDouble();
+    final contentHorizontalPadding = EchoLayout.contentHorizontalPadding(
+      context,
+    );
+    final topSpacing = EchoLayout.space(context, 8);
+    final sectionSpacing = EchoLayout.space(context, 8);
+    final itemSpacing = EchoLayout.space(context, 6);
+    final blockSpacing = EchoLayout.space(context, 12);
+    final bottomSpacing = EchoLayout.space(context, 10);
+    final safeTopInset = MediaQuery.paddingOf(context).top;
     final availableWidth = screenWidth;
     final cardWidth =
         (availableWidth * 0.75).clamp(180.0, 240.0).toDouble();
@@ -84,7 +83,7 @@ class _ListenTabState extends State<ListenTab> {
         Padding(
           padding: EdgeInsets.fromLTRB(
             contentHorizontalPadding,
-            topSpacing,
+            safeTopInset + topSpacing,
             contentHorizontalPadding,
             sectionSpacing,
           ),
@@ -266,9 +265,7 @@ class _EmptyState extends StatelessWidget {
     return Center(
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: (EchoLayout.horizontalPadding(context) * 0.55)
-              .clamp(10.0, 14.0)
-              .toDouble(),
+          horizontal: EchoLayout.contentHorizontalPadding(context),
         ),
         child: EchoCard(
           padding: const EdgeInsets.all(22),

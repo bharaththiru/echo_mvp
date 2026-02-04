@@ -100,117 +100,169 @@ class _HashtagDetailState extends State<HashtagDetail> {
     final loadError = appState.notesError(hashtag.id);
     final audio = appState.audio;
     final moodTint = appState.settings.moodTintEnabled;
+    final horizontal = EchoLayout.contentHorizontalPadding(context);
+    final safeTop = MediaQuery.paddingOf(context).top;
 
     return AppScaffold(
-      child: Column(
-        children: [
-          Padding(
-            padding: EchoLayout.pagePadding(
-              context,
-              top: 24,
-              bottom: 16,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextButton.icon(
-                  onPressed: () => context.pop(),
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Back'),
-                ),
-                const SizedBox(height: 12),
-                _HashtagHeader(hashtag: hashtag, moodTintEnabled: moodTint),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => context.push('/player/${hashtag.id}'),
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Auto-play'),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '${notes.length} notes',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: tokens.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: AnimatedBuilder(
-              animation: audio,
-              builder: (context, _) {
-                if (isLoading && notes.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (loadError != null && notes.isEmpty) {
-                  return _EmptyState(
-                    title: 'Unable to load notes',
-                    subtitle: loadError,
-                    onRetry: () =>
-                        appState.loadNotesForHashtag(hashtag.id, force: true),
-                  );
-                }
-                if (notes.isEmpty) {
-                  return _EmptyState(
-                    title: 'No notes yet',
-                    subtitle: 'Be the first to post in ${hashtag.name}.',
-                    onRetry: () =>
-                        appState.loadNotesForHashtag(hashtag.id, force: true),
-                  );
-                }
+      child: AnimatedBuilder(
+        animation: audio,
+        builder: (context, _) {
+          if (isLoading && notes.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (loadError != null && notes.isEmpty) {
+            return _EmptyState(
+              title: 'Unable to load notes',
+              subtitle: loadError,
+              onRetry: () =>
+                  appState.loadNotesForHashtag(hashtag.id, force: true),
+            );
+          }
+          if (notes.isEmpty) {
+            return _EmptyState(
+              title: 'No notes yet',
+              subtitle: 'Be the first to post in ${hashtag.name}.',
+              onRetry: () =>
+                  appState.loadNotesForHashtag(hashtag.id, force: true),
+            );
+          }
 
-                return ListView.separated(
-                  padding: EchoLayout.listPadding(context),
-                  itemCount: notes.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final note = notes[index];
-                    final isPreparing = _loadingNoteId == note.id;
-                    final canBlock =
-                        note.authorId != null &&
-                        note.authorId!.isNotEmpty &&
-                        note.authorId != appState.userId;
-                    return _VoiceNoteCard(
-                      note: note,
-                      isPreparing: isPreparing,
-                      audioState: audio.state,
-                      transcriptsEnabled: appState.settings.transcriptsEnabled,
-                      canBlock: canBlock,
-                      onPlay: () async {
-                        if (isPreparing) {
-                          return;
-                        }
-                        final messenger = ScaffoldMessenger.of(context);
-                        setState(() => _loadingNoteId = note.id);
-                        final path = await appState.ensureLocalAudioPath(note);
-                        if (!mounted) {
-                          return;
-                        }
-                        setState(() => _loadingNoteId = null);
-                        if (path == null || path.isEmpty) {
-                          messenger.showSnackBar(
-                            const SnackBar(
-                              content: Text('Playback is not available.'),
-                            ),
-                          );
-                          return;
-                        }
-                        audio.toggle(sourceId: note.id, path: path);
-                      },
-                      onMenuSelected: (action) =>
-                          _handleMenuAction(note, action),
-                    );
+          return NestedScrollView(
+            physics: const BouncingScrollPhysics(),
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              SliverAppBar(
+                pinned: true,
+                automaticallyImplyLeading: false,
+                backgroundColor: tokens.bg,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                expandedHeight: 338,
+                collapsedHeight: 72,
+                titleSpacing: horizontal,
+                title: Text(
+                  hashtag.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium,
+                ),
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: _AutoplayChip(
+                      onTap: () => context.push('/player/${hashtag.id}'),
+                    ),
+                  ),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  collapseMode: CollapseMode.pin,
+                  background: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontal,
+                      safeTop + EchoLayout.space(context, 4),
+                      horizontal,
+                      EchoLayout.space(context, 8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => context.pop(),
+                          icon: const Icon(Icons.arrow_back),
+                          label: const Text('Back'),
+                        ),
+                        const SizedBox(height: 8),
+                        _HashtagHeader(
+                          hashtag: hashtag,
+                          moodTintEnabled: moodTint,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '${notes.length} notes',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: tokens.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            body: ListView.separated(
+              physics: const BouncingScrollPhysics(),
+              padding: EchoLayout.listPadding(
+                context,
+                top: 6,
+                bottom: 8,
+                includeBottomSafeArea: true,
+              ),
+              itemCount: notes.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final note = notes[index];
+                final isPreparing = _loadingNoteId == note.id;
+                final canBlock =
+                    note.authorId != null &&
+                    note.authorId!.isNotEmpty &&
+                    note.authorId != appState.userId;
+                return _VoiceNoteCard(
+                  note: note,
+                  isPreparing: isPreparing,
+                  audioState: audio.state,
+                  transcriptsEnabled: appState.settings.transcriptsEnabled,
+                  canBlock: canBlock,
+                  onPlay: () async {
+                    if (isPreparing) {
+                      return;
+                    }
+                    final messenger = ScaffoldMessenger.of(context);
+                    setState(() => _loadingNoteId = note.id);
+                    final path = await appState.ensureLocalAudioPath(note);
+                    if (!mounted) {
+                      return;
+                    }
+                    setState(() => _loadingNoteId = null);
+                    if (path == null || path.isEmpty) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Playback is not available.'),
+                        ),
+                      );
+                      return;
+                    }
+                    audio.toggle(sourceId: note.id, path: path);
                   },
+                  onMenuSelected: (action) => _handleMenuAction(note, action),
                 );
               },
             ),
-          ),
-        ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AutoplayChip extends StatelessWidget {
+  const _AutoplayChip({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.echo;
+    return FilledButton.tonalIcon(
+      onPressed: onTap,
+      icon: const Icon(Icons.play_arrow, size: 18),
+      label: const Text('Auto-play'),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 36),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        textStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+        backgroundColor: tokens.accentPrimary.withValues(alpha: 0.16),
+        foregroundColor: tokens.accentPrimary,
       ),
     );
   }
@@ -442,7 +494,7 @@ class _EmptyState extends StatelessWidget {
     return Center(
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: EchoLayout.horizontalPadding(context),
+          horizontal: EchoLayout.contentHorizontalPadding(context),
         ),
         child: EchoCard(
           padding: const EdgeInsets.all(22),

@@ -194,8 +194,9 @@ class _AuthScreenState extends State<AuthScreen> {
       child: SingleChildScrollView(
         padding: EchoLayout.pagePadding(
           context,
-          top: 32,
-          bottom: 32,
+          top: 8,
+          bottom: 8,
+          includeBottomSafeArea: true,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

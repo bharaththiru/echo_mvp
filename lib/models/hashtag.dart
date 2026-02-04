@@ -21,10 +21,11 @@ class Hashtag {
 
   factory Hashtag.fromRow(Map<String, dynamic> row) {
     final id = row['id'] as String;
-    final style = resolveHashtagStyle(id);
+    final name = row['name'] as String? ?? '#$id';
+    final style = resolveHashtagStyle(id, name: name);
     return Hashtag(
       id: id,
-      name: row['name'] as String? ?? '#$id',
+      name: name,
       description: row['description'] as String? ?? '',
       icon: style.icon,
       gradient: style.gradient,

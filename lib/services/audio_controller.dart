@@ -184,7 +184,12 @@ class AudioController extends ChangeNotifier
         sameQueueIndex &&
         snapshot.position < _state.position) {
       final diff = _state.position - snapshot.position;
-      if (diff > const Duration(milliseconds: 700)) {
+      final nearTrackEnd =
+          _state.duration.inMilliseconds > 0 &&
+          (_state.duration - _state.position) <= const Duration(seconds: 2);
+      final looksLikeTrackReset =
+          nearTrackEnd && snapshot.position <= const Duration(seconds: 2);
+      if (diff > const Duration(milliseconds: 700) && !looksLikeTrackReset) {
         return _state.position;
       }
     }

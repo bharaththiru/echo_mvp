@@ -102,7 +102,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final overlayStyle = theme.brightness == Brightness.dark
         ? SystemUiOverlayStyle.light
         : SystemUiOverlayStyle.dark;
-    final horizontalPadding = EchoLayout.horizontalPadding(context);
+    final horizontalPadding = EchoLayout.contentHorizontalPadding(context);
     final showSkip = _currentIndex < _pages.length - 1;
     final buttonLabel = _currentIndex == _pages.length - 1
         ? 'Choose a hashtag'
@@ -120,9 +120,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   horizontalPadding,
-                  16,
+                  EchoLayout.space(context, 8),
                   horizontalPadding,
-                  8,
+                  EchoLayout.space(context, 6),
                 ),
                 child: Row(
                   children: [
@@ -200,9 +200,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   horizontalPadding,
-                  8,
+                  EchoLayout.space(context, 6),
                   horizontalPadding,
-                  16,
+                  EchoLayout.space(context, 8),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

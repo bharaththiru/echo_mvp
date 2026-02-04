@@ -34,13 +34,11 @@ class AppScaffold extends StatelessWidget {
         backgroundColor: tokens.bg,
         resizeToAvoidBottomInset: true,
         bottomNavigationBar: bottomNavigationBar,
-        body: SafeArea(
-          child: Stack(
-            children: [
-              SizedBox(width: double.infinity, child: child),
-              if (showMiniPlayer) const _MiniPlayer(),
-            ],
-          ),
+        body: Stack(
+          children: [
+            SizedBox(width: double.infinity, child: child),
+            if (showMiniPlayer) const _MiniPlayer(),
+          ],
         ),
       ),
     );
@@ -82,8 +80,7 @@ class _MiniPlayer extends StatelessWidget {
                 .clamp(0.0, 1.0)
                 .toDouble();
         final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-        final safeBottom = MediaQuery.paddingOf(context).bottom;
-        final bottomPadding = max(10.0, safeBottom);
+        final bottomPadding = EchoLayout.space(context, 8);
         final statusText = state.isBuffering
             ? 'Buffering'
             : state.isPlaying
@@ -98,7 +95,7 @@ class _MiniPlayer extends StatelessWidget {
           bottom: max(bottomInset, bottomPadding),
           child: Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: EchoLayout.horizontalPadding(context),
+              horizontal: EchoLayout.contentHorizontalPadding(context),
             ),
             child: GestureDetector(
               onTap: () {

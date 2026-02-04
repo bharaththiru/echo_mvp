@@ -189,8 +189,8 @@ class _PostOptionsState extends State<PostOptions> {
           Padding(
             padding: EchoLayout.pagePadding(
               context,
-              top: 24,
-              bottom: 16,
+              top: 8,
+              bottom: 6,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,7 +215,7 @@ class _PostOptionsState extends State<PostOptions> {
           ),
           Expanded(
             child: ListView(
-              padding: EchoLayout.listPadding(context),
+              padding: EchoLayout.listPadding(context, bottom: 8),
               children: [
                 if (pendingDraft != null)
                   EchoCard(
@@ -407,7 +407,12 @@ class _PostOptionsState extends State<PostOptions> {
             ),
           ),
           Padding(
-            padding: EchoLayout.listPadding(context),
+            padding: EchoLayout.listPadding(
+              context,
+              top: 8,
+              bottom: 8,
+              includeBottomSafeArea: true,
+            ),
             child: EchoPrimaryButton(
               label: 'Post',
               isLoading: posting,

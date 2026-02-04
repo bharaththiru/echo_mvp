@@ -333,8 +333,8 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
             Padding(
               padding: EchoLayout.pagePadding(
                 context,
-                top: 32,
-                bottom: 16,
+                top: 8,
+                bottom: 6,
               ),
               child: Align(
                 alignment: Alignment.centerLeft,
@@ -519,7 +519,7 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
             ),
             if (_hasRecording)
               Padding(
-                padding: EchoLayout.listPadding(context),
+                padding: EchoLayout.listPadding(context, bottom: 8),
                 child: Column(
                   children: [
                     SizedBox(

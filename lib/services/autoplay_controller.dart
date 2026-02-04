@@ -1386,6 +1386,10 @@ class AutoplayController extends ChangeNotifier {
           if (currentNote != null) {
             _markPlayed(currentNote.id);
           }
+          _resetMuteForNote(queuedId);
+          if (!_isMutedNote(queuedId) && _audio.state.volume != _userVolume) {
+            unawaited(_audio.setVolume(_userVolume));
+          }
           _setState(
             _state.copyWith(
               currentIndex:
@@ -1399,6 +1403,10 @@ class AutoplayController extends ChangeNotifier {
           _positionNoteId = queuedId;
           _lastObservedPosition = Duration.zero;
           _positionResetCount = 0;
+          if (resolvedIndex != -1) {
+            _maybeRefreshQueue(resolvedIndex);
+            _preloadNextFrom(resolvedIndex);
+          }
           _log('synced clip from queue index id=$queuedId');
         }
       }

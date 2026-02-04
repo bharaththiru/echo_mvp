@@ -172,8 +172,8 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
             Padding(
               padding: EchoLayout.pagePadding(
                 context,
-                top: 24,
-                bottom: 16,
+                top: 8,
+                bottom: 6,
               ),
               child: Row(
                 children: [
@@ -245,8 +245,8 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
               Padding(
                 padding: EchoLayout.pagePadding(
                   context,
-                  top: 24,
-                  bottom: 16,
+                  top: 8,
+                  bottom: 6,
                 ),
                 child: Row(
                   children: [
@@ -260,7 +260,11 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
               ),
               Expanded(
                 child: ListView(
-                  padding: EchoLayout.listPadding(context),
+                  padding: EchoLayout.listPadding(
+                    context,
+                    bottom: 8,
+                    includeBottomSafeArea: true,
+                  ),
                   children: [
                     EchoCard(
                       padding: const EdgeInsets.all(24),

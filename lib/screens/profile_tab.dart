@@ -27,8 +27,8 @@ class ProfileTab extends StatelessWidget {
         Padding(
           padding: EchoLayout.pagePadding(
             context,
-            top: 32,
-            bottom: 16,
+            top: 8,
+            bottom: 6,
           ),
           child: Row(
             children: [
@@ -95,7 +95,7 @@ class ProfileTab extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: EchoLayout.space(context, 14)),
               Row(
                 children: [
                   Icon(Icons.bookmark, color: tokens.textSecondary),
@@ -132,9 +132,9 @@ class ProfileTab extends StatelessWidget {
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: EchoLayout.space(context, 14)),
               const EchoSectionTitle('My posts'),
-              const SizedBox(height: 12),
+              SizedBox(height: EchoLayout.space(context, 8)),
               if (myPosts.isEmpty)
                 EchoCard(
                   padding: const EdgeInsets.all(18),
@@ -148,7 +148,9 @@ class ProfileTab extends StatelessWidget {
               else
                 ...myPosts.map((post) {
                   return EchoCard(
-                    margin: const EdgeInsets.only(bottom: 12),
+                    margin: EdgeInsets.only(
+                      bottom: EchoLayout.space(context, 8),
+                    ),
                     padding: const EdgeInsets.all(14),
                     radius: 20,
                     child: Row(
@@ -211,9 +213,9 @@ class ProfileTab extends StatelessWidget {
                     ),
                   );
                 }),
-              const SizedBox(height: 24),
+              SizedBox(height: EchoLayout.space(context, 14)),
               const EchoSectionTitle('Preferences'),
-              const SizedBox(height: 12),
+              SizedBox(height: EchoLayout.space(context, 8)),
               _PreferenceTile(
                 title: 'Listening preferences',
                 onTap: () => context.push('/settings'),

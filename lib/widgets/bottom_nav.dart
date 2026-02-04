@@ -64,7 +64,7 @@ class BottomNavBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(EchoRadii.nav),
@@ -83,7 +83,7 @@ class BottomNavBar extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 10,
+                  vertical: 7,
                 ),
                 decoration: BoxDecoration(
                   color: tokens.surface1.withValues(alpha: 0.9),
@@ -106,7 +106,7 @@ class BottomNavBar extends StatelessWidget {
                         child: AnimatedContainer(
                           duration: duration,
                           curve: Curves.easeOutCubic,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 7),
                           decoration: BoxDecoration(
                             color: backgroundColor,
                             borderRadius: BorderRadius.circular(20),
@@ -121,8 +121,8 @@ class BottomNavBar extends StatelessWidget {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(item.icon, size: 22, color: foregroundColor),
-                              const SizedBox(height: 4),
+                              Icon(item.icon, size: 20, color: foregroundColor),
+                              const SizedBox(height: 3),
                               Text(
                                 item.label,
                                 style: theme.textTheme.labelSmall?.copyWith(

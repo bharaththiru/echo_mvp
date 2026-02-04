@@ -26,8 +26,8 @@ class SettingsScreen extends StatelessWidget {
               Padding(
                 padding: EchoLayout.pagePadding(
                   context,
-                  top: 24,
-                  bottom: 16,
+                  top: 8,
+                  bottom: 6,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -37,14 +37,14 @@ class SettingsScreen extends StatelessWidget {
                       icon: const Icon(Icons.arrow_back),
                       label: const Text('Back'),
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: EchoLayout.space(context, 8)),
                     Text('Settings', style: theme.textTheme.displaySmall),
                   ],
                 ),
               ),
               Expanded(
                 child: ListView(
-                  padding: EchoLayout.listPadding(context),
+                  padding: EchoLayout.listPadding(context, bottom: 8),
                   children: [
                     const EchoSectionTitle('Appearance'),
                     const SizedBox(height: 12),
