@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:rxdart/rxdart.dart';
 
 import 'audio_engine.dart';
 import 'audio_playback_controller.dart';
@@ -70,7 +71,13 @@ class AudioController extends ChangeNotifier
   }
 
   void _bindEngine() {
-    _engineSub = _engine.snapshots.listen(_handleEngineSnapshot);
+    _engineSub = _engine.snapshots
+        .throttleTime(
+          const Duration(milliseconds: 100),
+          leading: true,
+          trailing: true,
+        )
+        .listen(_handleEngineSnapshot);
     _engineEventSub = _engine.events.listen(_handleEngineEvent);
   }
 

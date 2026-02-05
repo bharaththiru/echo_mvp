@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../models/voice_note.dart';
 import 'autoplay_data_source.dart';
@@ -289,6 +290,10 @@ class AutoplayController extends ChangeNotifier {
   int _lastLoggedPrefetchDesired = -1;
   bool _skipInFlight = false;
   Timer? _messageTimer;
+  Timer? _transitionCueTimer;
+  int _transitionCueToken = 0;
+  String? _transitionCueNoteId;
+  bool _transitionCueFired = false;
   int _consecutiveFailures = 0;
   int _sessionToken = 0;
   Future<void>? _pendingStop;
@@ -855,6 +860,7 @@ class AutoplayController extends ChangeNotifier {
   Future<void> restart() async {
     _playToken++;
     _cancelStallGuard();
+    _cancelTransitionCue();
     _resumeAfterInterruption = false;
     _resumePosition = null;
     _resumeNoteId = null;
@@ -897,6 +903,7 @@ class AutoplayController extends ChangeNotifier {
     }
     final token = ++_playToken;
     final note = _state.queue[index];
+    _resetTransitionCue(note.id);
     if (_activeHashtagId == null || note.hashtagId != _activeHashtagId) {
       return;
     }
@@ -1262,7 +1269,6 @@ class AutoplayController extends ChangeNotifier {
       _failedIds.add(noteId);
       _queueItemStatus[noteId] = _QueueItemStatus.failed;
       _consecutiveFailures += 1;
-      _showTransientMessage(message);
 
       if (_consecutiveFailures >= _maxConsecutiveFailures || _allNotesFailed()) {
         await _enterFatalError(
@@ -1716,6 +1722,7 @@ class AutoplayController extends ChangeNotifier {
             _markPlayed(currentNote.id);
           }
           _resetMuteForNote(queuedId);
+          _resetTransitionCue(queuedId);
           if (!_isMutedNote(queuedId) && _audio.state.volume != _userVolume) {
             unawaited(_audio.setVolume(_userVolume));
           }
@@ -1754,6 +1761,7 @@ class AutoplayController extends ChangeNotifier {
           _markPlayed(currentNote.id);
         }
         _resetMuteForNote(activeId);
+        _resetTransitionCue(activeId);
         if (!_isMutedNote(activeId) && _audio.state.volume != _userVolume) {
           unawaited(_audio.setVolume(_userVolume));
         }
@@ -1916,6 +1924,7 @@ class AutoplayController extends ChangeNotifier {
       _log('phase $previousPhase -> $mappedPhase');
     }
     _updateStallGuard(mappedPhase, resolved.id);
+    _scheduleTransitionCue(audioState, resolved);
     final statusText = mappedPhase == AutoplayPhase.buffering
         ? audioState.statusText
         : null;
@@ -2061,6 +2070,81 @@ class AutoplayController extends ChangeNotifier {
     _stallTimer = null;
   }
 
+  void _resetTransitionCue(String noteId) {
+    _transitionCueNoteId = noteId;
+    _transitionCueFired = false;
+    _transitionCueToken += 1;
+    _transitionCueTimer?.cancel();
+    _transitionCueTimer = null;
+  }
+
+  void _cancelTransitionCue() {
+    _transitionCueToken += 1;
+    _transitionCueFired = false;
+    _transitionCueNoteId = null;
+    _transitionCueTimer?.cancel();
+    _transitionCueTimer = null;
+  }
+
+  void _scheduleTransitionCue(
+    AudioPlaybackState audioState,
+    VoiceNote note,
+  ) {
+    if (_state.userPaused ||
+        _state.isPreparing ||
+        _state.isTransitioning ||
+        audioState.phase != AudioPlaybackPhase.playing) {
+      _transitionCueTimer?.cancel();
+      _transitionCueTimer = null;
+      return;
+    }
+    if (_transitionCueNoteId != note.id) {
+      _resetTransitionCue(note.id);
+    }
+    if (_transitionCueFired) {
+      return;
+    }
+    final duration = audioState.duration;
+    if (duration.inMilliseconds <= 0) {
+      return;
+    }
+    final remaining = duration - audioState.position;
+    const lead = Duration(milliseconds: 200);
+    if (remaining <= lead) {
+      _fireTransitionCue(note.id);
+      return;
+    }
+    if (_transitionCueTimer != null) {
+      return;
+    }
+    final delay = remaining - lead;
+    final expectedToken = ++_transitionCueToken;
+    final expectedPlayToken = _playToken;
+    _transitionCueTimer = Timer(delay, () {
+      if (_isDisposed) {
+        return;
+      }
+      if (expectedToken != _transitionCueToken ||
+          expectedPlayToken != _playToken) {
+        return;
+      }
+      if (_state.currentNote?.id != note.id) {
+        return;
+      }
+      _fireTransitionCue(note.id);
+    });
+  }
+
+  void _fireTransitionCue(String noteId) {
+    if (_transitionCueFired || _transitionCueNoteId != noteId) {
+      return;
+    }
+    _transitionCueFired = true;
+    _transitionCueTimer?.cancel();
+    _transitionCueTimer = null;
+    unawaited(HapticFeedback.heavyImpact().catchError((_) {}));
+  }
+
   void _showTransientMessage(String message) {
     _messageTimer?.cancel();
     _setState(_state.copyWith(transientMessage: message));
@@ -2128,6 +2212,7 @@ class AutoplayController extends ChangeNotifier {
     _lastLoggedSourceId = null;
     _lastLoggedQueueIndex = null;
     _cancelStallGuard();
+    _cancelTransitionCue();
     _resumeAfterInterruption = false;
     _resumePosition = null;
     _resumeNoteId = null;
@@ -2197,6 +2282,7 @@ class AutoplayController extends ChangeNotifier {
     _isDisposed = true;
     _playToken++;
     _cancelStallGuard();
+    _cancelTransitionCue();
     _clearTransientMessage();
     if (_attached) {
       _dataSource.removeListener(_handleDataSourceChanged);

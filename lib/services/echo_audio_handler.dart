@@ -16,13 +16,35 @@ class EchoAudioEvent {
 }
 
 class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
-  EchoAudioHandler({AudioPlayer? player}) : _player = player ?? AudioPlayer() {
+  EchoAudioHandler({AudioPlayer? player})
+    : _player =
+          player ??
+          AudioPlayer(
+            useLazyPreparation: false,
+            audioLoadConfiguration: const AudioLoadConfiguration(
+              androidLoadControl: AndroidLoadControl(
+                minBufferDuration: Duration(seconds: 3),
+                maxBufferDuration: Duration(seconds: 15),
+                bufferForPlaybackDuration: Duration(milliseconds: 500),
+                bufferForPlaybackAfterRebufferDuration:
+                    Duration(milliseconds: 800),
+                prioritizeTimeOverSizeThresholds: true,
+                backBufferDuration: Duration(seconds: 2),
+              ),
+              darwinLoadControl: DarwinLoadControl(
+                automaticallyWaitsToMinimizeStalling: false,
+                preferredForwardBufferDuration: Duration(seconds: 6),
+              ),
+            ),
+          ) {
     _init();
   }
 
   final AudioPlayer _player;
   ConcatenatingAudioSource? _playlist;
   final List<MediaItem> _queueItems = <MediaItem>[];
+  final Map<String, LockCachingAudioSource> _cacheSources =
+      <String, LockCachingAudioSource>{};
   bool _queueMode = false;
   StreamSubscription<int?>? _indexSub;
   StreamSubscription<SequenceState?>? _sequenceSub;
@@ -140,6 +162,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       }
       mediaItem.add(_queueItems[index]);
       _broadcastState();
+      _releaseCacheBefore(index);
     });
     _sequenceSub = _player.sequenceStateStream.listen((state) {
       final tag = state?.currentSource?.tag;
@@ -168,19 +191,21 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _lastErrorMessage = null;
     _queueMode = false;
     _queueItems.clear();
+    await _clearAllCaches();
     queue.add(const <MediaItem>[]);
     await _player.stop();
     final uri = _resolveUri(path);
-    final source = AudioSource.uri(uri);
+    final media = MediaItem(
+      id: sourceId,
+      title: title ?? 'Echo clip',
+      duration: duration,
+      extras: {'path': path, 'sourceId': sourceId},
+    );
+    final source = _buildAudioSource(sourceId, uri, tag: media);
     await _player.setAudioSource(source, preload: true);
     final resolvedDuration = duration ?? _player.duration;
     mediaItem.add(
-      MediaItem(
-        id: sourceId,
-        title: title ?? 'Echo clip',
-        duration: resolvedDuration,
-        extras: {'path': path, 'sourceId': sourceId},
-      ),
+      media.copyWith(duration: resolvedDuration),
     );
     _broadcastState();
   }
@@ -193,12 +218,19 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _lastErrorMessage = null;
     _queueMode = true;
     _queueItems.clear();
+    await _clearAllCaches();
     await _player.stop();
     final sources = <AudioSource>[];
     for (final item in items) {
       final media = _buildMediaItem(item);
       _queueItems.add(media);
-      sources.add(AudioSource.uri(_resolveUri(item.path), tag: media));
+      sources.add(
+        _buildAudioSource(
+          item.sourceId,
+          _resolveUri(item.path),
+          tag: media,
+        ),
+      );
     }
     _playlist = ConcatenatingAudioSource(
       useLazyPreparation: false,
@@ -226,7 +258,13 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     for (final item in items) {
       final media = _buildMediaItem(item);
       _queueItems.add(media);
-      sources.add(AudioSource.uri(_resolveUri(item.path), tag: media));
+      sources.add(
+        _buildAudioSource(
+          item.sourceId,
+          _resolveUri(item.path),
+          tag: media,
+        ),
+      );
     }
     await _playlist!.addAll(sources);
     queue.add(List<MediaItem>.from(_queueItems));
@@ -248,6 +286,57 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       return uri;
     }
     return Uri.file(path);
+  }
+
+  AudioSource _buildAudioSource(String sourceId, Uri uri, {MediaItem? tag}) {
+    if (!_isRemoteUri(uri) || kIsWeb) {
+      return AudioSource.uri(uri, tag: tag);
+    }
+    final source = LockCachingAudioSource(uri, tag: tag);
+    _cacheSources[sourceId] = source;
+    return source;
+  }
+
+  bool _isRemoteUri(Uri uri) {
+    final scheme = uri.scheme.toLowerCase();
+    return scheme == 'http' || scheme == 'https';
+  }
+
+  void _releaseCacheBefore(int currentIndex) {
+    if (_queueItems.isEmpty) {
+      return;
+    }
+    for (var i = 0; i < currentIndex; i++) {
+      final id = _queueItems[i].id;
+      _clearCacheFor(id);
+    }
+  }
+
+  Future<void> _clearCacheFor(String sourceId) async {
+    final source = _cacheSources.remove(sourceId);
+    if (source == null) {
+      return;
+    }
+    try {
+      await source.clearCache();
+    } catch (_) {
+      // Ignore cache clear failures; playback should continue.
+    }
+  }
+
+  Future<void> _clearAllCaches() async {
+    if (_cacheSources.isEmpty) {
+      return;
+    }
+    final sources = List<LockCachingAudioSource>.from(_cacheSources.values);
+    _cacheSources.clear();
+    for (final source in sources) {
+      try {
+        await source.clearCache();
+      } catch (_) {
+        // Ignore cache clear failures.
+      }
+    }
   }
 
   @override
@@ -379,6 +468,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await _devicesChangedSub?.cancel();
     await _indexSub?.cancel();
     await _sequenceSub?.cancel();
+    await _clearAllCaches();
     await _eventController.close();
     await _player.dispose();
   }
