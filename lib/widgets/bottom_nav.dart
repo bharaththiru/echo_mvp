@@ -50,6 +50,7 @@ class BottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
+    final brightness = theme.brightness;
     final reduceMotion = AppScope.of(context).settings.reduceMotion;
     final duration = reduceMotion
         ? Duration.zero
@@ -86,7 +87,13 @@ class BottomNavBar extends StatelessWidget {
                   vertical: 7,
                 ),
                 decoration: BoxDecoration(
-                  color: tokens.surface1.withValues(alpha: 0.9),
+                  gradient: EchoGradients.tonal(
+                    base: tokens.surface1.withValues(alpha: 0.92),
+                    depth: EchoGradients.depthFor(tokens, brightness)
+                        .withValues(alpha: 0.92),
+                    top: 0.02,
+                    bottom: 0.12,
+                  ),
                   borderRadius: BorderRadius.circular(EchoRadii.nav),
                   border: Border.all(color: tokens.borderSubtle),
                 ),

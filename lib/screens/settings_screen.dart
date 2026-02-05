@@ -23,7 +23,7 @@ class SettingsScreen extends StatelessWidget {
           final settings = appState.settings;
           return Column(
             children: [
-              Padding(
+              EchoHeaderShell(
                 padding: EchoLayout.pagePadding(
                   context,
                   top: 8,

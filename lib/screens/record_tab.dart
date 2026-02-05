@@ -9,6 +9,7 @@ import '../app/app_scope.dart';
 import '../theme/echo_theme.dart';
 import '../services/audio_controller.dart';
 import '../utils/responsive.dart';
+import '../widgets/echo_components.dart';
 
 class RecordTab extends StatefulWidget {
   const RecordTab({super.key});
@@ -330,7 +331,7 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
 
         return Column(
           children: [
-            Padding(
+            EchoHeaderShell(
               padding: EchoLayout.pagePadding(
                 context,
                 top: 8,

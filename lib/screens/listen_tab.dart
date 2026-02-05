@@ -80,7 +80,7 @@ class _ListenTabState extends State<ListenTab> {
 
     return Column(
       children: [
-        Padding(
+        EchoHeaderShell(
           padding: EdgeInsets.fromLTRB(
             contentHorizontalPadding,
             safeTopInset + topSpacing,

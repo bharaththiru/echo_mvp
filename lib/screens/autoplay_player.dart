@@ -169,7 +169,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
         showMiniPlayer: false,
         child: Column(
           children: [
-            Padding(
+            EchoHeaderShell(
               padding: EchoLayout.pagePadding(
                 context,
                 top: 8,
@@ -217,6 +217,14 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
           final cardBorder = moodTint
               ? tint.withValues(alpha: 0.62)
               : tokens.borderSubtle;
+          final depth = EchoGradients.depthFor(tokens, theme.brightness);
+          final cardDepth = Color.lerp(cardColor, depth, 0.35) ?? depth;
+          final cardGradient = EchoGradients.tonal(
+            base: cardColor,
+            depth: cardDepth,
+            top: 0.03,
+            bottom: 0.14,
+          );
 
           final duration = state.duration.inMilliseconds > 0
               ? state.duration
@@ -242,7 +250,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
 
           return Column(
             children: [
-              Padding(
+              EchoHeaderShell(
                 padding: EchoLayout.pagePadding(
                   context,
                   top: 8,
@@ -266,10 +274,10 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                     includeBottomSafeArea: true,
                   ),
                   children: [
-                    EchoCard(
+                    EchoGradientCard(
                       padding: const EdgeInsets.all(24),
                       radius: 28,
-                      color: cardColor,
+                      gradient: cardGradient,
                       borderColor: cardBorder,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

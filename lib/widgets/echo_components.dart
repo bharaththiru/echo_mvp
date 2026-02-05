@@ -48,6 +48,73 @@ class EchoCard extends StatelessWidget {
   }
 }
 
+class EchoGradientCard extends StatelessWidget {
+  const EchoGradientCard({
+    super.key,
+    required this.child,
+    required this.gradient,
+    this.padding = const EdgeInsets.all(20),
+    this.margin,
+    this.onTap,
+    this.borderColor,
+    this.radius,
+  });
+
+  final Widget child;
+  final Gradient gradient;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? margin;
+  final VoidCallback? onTap;
+  final Color? borderColor;
+  final double? radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.echo;
+    final resolvedRadius = radius ?? EchoRadii.card;
+    final resolvedBorder = borderColor ?? tokens.borderSubtle;
+    final content = Padding(padding: padding, child: child);
+
+    final ink = Ink(
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(resolvedRadius),
+        border: Border.all(color: resolvedBorder),
+      ),
+      child: content,
+    );
+
+    final material = Material(
+      color: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(resolvedRadius),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: onTap == null ? ink : InkWell(onTap: onTap, child: ink),
+    );
+
+    if (margin == null) {
+      return material;
+    }
+    return Container(margin: margin, child: material);
+  }
+}
+
+class EchoHeaderShell extends StatelessWidget {
+  const EchoHeaderShell({super.key, required this.child, this.padding});
+
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: padding ?? EdgeInsets.zero,
+      child: child,
+    );
+  }
+}
+
 class EchoPrimaryButton extends StatelessWidget {
   const EchoPrimaryButton({
     super.key,

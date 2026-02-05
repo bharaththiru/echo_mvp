@@ -277,8 +277,10 @@ class _HashtagHeaderFlexibleSpace extends StatelessWidget {
     final notesFactor = 1 - Curves.easeOut.transform(easedProgress);
     final gap = lerpDouble(6, 2, easedProgress) ?? 4;
 
-    return ColoredBox(
-      color: tokens.bg,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: EchoGradients.shell(tokens, theme.brightness),
+      ),
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           horizontal,
@@ -370,6 +372,14 @@ class _HashtagHeader extends StatelessWidget {
     final borderColor = moodTintEnabled
         ? tint.withValues(alpha: 0.6)
         : tokens.borderSubtle;
+    final depth = EchoGradients.depthFor(tokens, theme.brightness);
+    final headerDepth = Color.lerp(surfaceColor, depth, 0.35) ?? depth;
+    final headerGradient = EchoGradients.tonal(
+      base: surfaceColor,
+      depth: headerDepth,
+      top: 0.03,
+      bottom: 0.14,
+    );
     final compactEase = Curves.easeOutCubic.transform(collapseProgress);
     final iconFactor = (1 - Curves.easeOut.transform(compactEase)).clamp(0.0, 1.0);
     final descriptionFactor = (1 - Curves.easeIn.transform(compactEase)).clamp(
@@ -391,10 +401,10 @@ class _HashtagHeader extends StatelessWidget {
     final titleGap = lerpDouble(10, 0, compactEase) ?? 6;
     final descriptionGap = lerpDouble(8, 2, compactEase) ?? 5;
 
-    return EchoCard(
+    return EchoGradientCard(
       padding: cardPadding,
       radius: radius,
-      color: surfaceColor,
+      gradient: headerGradient,
       borderColor: borderColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

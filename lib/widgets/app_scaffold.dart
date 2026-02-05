@@ -30,15 +30,20 @@ class AppScaffold extends StatelessWidget {
       value: brightness == Brightness.dark
           ? SystemUiOverlayStyle.light
           : SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: tokens.bg,
-        resizeToAvoidBottomInset: true,
-        bottomNavigationBar: bottomNavigationBar,
-        body: Stack(
-          children: [
-            SizedBox(width: double.infinity, child: child),
-            if (showMiniPlayer) const _MiniPlayer(),
-          ],
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: EchoGradients.appBackground(tokens, brightness),
+        ),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          resizeToAvoidBottomInset: true,
+          bottomNavigationBar: bottomNavigationBar,
+          body: Stack(
+            children: [
+              SizedBox(width: double.infinity, child: child),
+              if (showMiniPlayer) const _MiniPlayer(),
+            ],
+          ),
         ),
       ),
     );

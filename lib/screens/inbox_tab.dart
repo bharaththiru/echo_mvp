@@ -40,7 +40,7 @@ class _InboxTabState extends State<InboxTab> {
 
     return Column(
       children: [
-        Padding(
+        EchoHeaderShell(
           padding: EchoLayout.pagePadding(
             context,
             top: 8,

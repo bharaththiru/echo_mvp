@@ -24,7 +24,7 @@ class ProfileTab extends StatelessWidget {
 
     return Column(
       children: [
-        Padding(
+        EchoHeaderShell(
           padding: EchoLayout.pagePadding(
             context,
             top: 8,

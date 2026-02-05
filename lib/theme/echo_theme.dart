@@ -523,3 +523,60 @@ TextTheme _textTheme(EchoSemantic tokens) {
 extension EchoThemeX on BuildContext {
   EchoSemantic get echo => Theme.of(this).extension<EchoSemantic>()!;
 }
+
+class EchoGradients {
+  static LinearGradient tonal({
+    required Color base,
+    required Color depth,
+    double top = 0.03,
+    double bottom = 0.12,
+    Alignment begin = Alignment.topLeft,
+    Alignment end = Alignment.bottomRight,
+  }) {
+    final topColor = Color.lerp(base, depth, top)!;
+    final bottomColor = Color.lerp(base, depth, bottom)!;
+    return LinearGradient(
+      begin: begin,
+      end: end,
+      colors: [topColor, bottomColor],
+    );
+  }
+
+  static Color depthFor(EchoSemantic tokens, Brightness brightness) {
+    return brightness == Brightness.dark ? tokens.bg : tokens.surface2;
+  }
+
+  static LinearGradient shell(EchoSemantic tokens, Brightness brightness) {
+    final base = brightness == Brightness.dark
+        ? Color.lerp(tokens.bg, tokens.surface1, 0.08)!
+        : tokens.bg;
+    final depth = depthFor(tokens, brightness);
+    return tonal(base: base, depth: depth, top: 0.04, bottom: 0.16);
+  }
+
+  static LinearGradient appBackground(
+    EchoSemantic tokens,
+    Brightness brightness,
+  ) {
+    if (brightness == Brightness.dark) {
+      final topColor = Color.lerp(tokens.bg, Colors.black, 0.35)!;
+      final midColor = tokens.bg;
+      final bottomColor = Color.lerp(tokens.bg, Colors.black, 0.35)!;
+      return LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [topColor, midColor, bottomColor],
+        stops: const [0.0, 0.5, 1.0],
+      );
+    }
+    final topColor = Color.lerp(tokens.bg, tokens.surface2, 0.35)!;
+    final midColor = tokens.bg;
+    final bottomColor = Color.lerp(tokens.bg, tokens.surface2, 0.35)!;
+    return LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [topColor, midColor, bottomColor],
+      stops: const [0.0, 0.5, 1.0],
+    );
+  }
+}
