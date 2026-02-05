@@ -117,7 +117,7 @@ class _InboxTabState extends State<InboxTab> {
                             Text(
                               post.hashtagLabel,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: tokens.accentPrimary,
+                                color: tokens.textSecondary,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -177,19 +177,24 @@ class _InboxTabState extends State<InboxTab> {
                                   ? SizedBox(
                                       height: 18,
                                       width: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                          tokens.bg,
-                                        ),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor:
+                                          AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
                                       ),
-                                    )
-                                  : const Icon(Icons.play_arrow),
-                              style: IconButton.styleFrom(
-                                backgroundColor: tokens.accentPrimary,
-                                foregroundColor: tokens.bg,
+                                    ),
+                                  )
+                                : const Icon(Icons.play_arrow),
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                            ).copyWith(
+                              elevation: WidgetStateProperty.all(1),
+                              shadowColor: WidgetStateProperty.all(
+                                Colors.white.withValues(alpha: 0.18),
                               ),
+                            ),
                             ),
                             const SizedBox(width: 12),
                             Text(

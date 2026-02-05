@@ -271,6 +271,13 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
     }
   }
 
+  String _formatTime(Duration duration) {
+    final totalSeconds = duration.inSeconds;
+    final minutes = (totalSeconds ~/ 60).toString();
+    final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
   void _reRecord() {
     final appState = AppScope.of(context);
     appState.audio.stop();
@@ -325,9 +332,18 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
         final audioState = appState.audio.state;
         final isPlaying =
             audioState.sourceId == 'recording_preview' && audioState.isPlaying;
-        final ringColor = _isRecording
-            ? tokens.accentSecondary
-            : tokens.accentPrimary;
+        final ringColor = Colors.white.withValues(alpha: 0.5);
+        final isPreviewing = _hasRecording && isPlaying;
+        final ringProgress = _isRecording
+            ? 1 - (_remainingSeconds / _maxSeconds)
+            : isPreviewing
+            ? (audioState.duration.inMilliseconds == 0
+                    ? 0
+                    : (audioState.position.inMilliseconds /
+                            audioState.duration.inMilliseconds)
+                        .clamp(0.0, 1.0))
+                .toDouble()
+            : 0.0;
 
         return Column(
           children: [
@@ -368,15 +384,38 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                             height: ringSize,
                             width: ringSize,
                             child: CircularProgressIndicator(
-                              value: _isRecording
-                                  ? 1 - (_remainingSeconds / _maxSeconds)
-                                  : 0,
+                              value: ringProgress,
                               strokeWidth: 8,
                               strokeCap: StrokeCap.round,
-                              backgroundColor: tokens.surface3,
-                              valueColor: AlwaysStoppedAnimation(ringColor),
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.12,
+                              ),
+                              valueColor: AlwaysStoppedAnimation(
+                                (_isRecording || isPreviewing)
+                                    ? Colors.white
+                                    : ringColor,
+                              ),
                             ),
                           ),
+                          if (_isRecording || isPreviewing)
+                            IgnorePointer(
+                              child: Container(
+                                height: ringSize,
+                                width: ringSize,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.18,
+                                      ),
+                                      blurRadius: 20,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           SizedBox(
                             height: innerSize,
                             width: innerSize,
@@ -384,22 +423,12 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                               style: ElevatedButton.styleFrom(
                                 shape: const CircleBorder(),
                                 padding: EdgeInsets.zero,
-                                backgroundColor: tokens.accentPrimary,
-                                foregroundColor: tokens.bg,
-                                shadowColor: _isRecording
-                                    ? tokens.accentSecondary.withValues(
-                                        alpha: 0.55,
-                                      )
-                                    : tokens.shadow,
-                                elevation: _isRecording ? 4 : 2,
-                                side: _isRecording
-                                    ? BorderSide(
-                                        color: tokens.accentSecondary.withValues(
-                                          alpha: 0.6,
-                                        ),
-                                        width: 1.2,
-                                      )
-                                    : null,
+                                backgroundColor: Colors.black,
+                                foregroundColor: Colors.white,
+                                shadowColor: Colors.white.withValues(
+                                  alpha: 0.18,
+                                ),
+                                elevation: _isRecording ? 2 : 1.5,
                               ),
                               onPressed: _isRecording
                                   ? _stopRecording
@@ -440,16 +469,41 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                                       );
                                     }
                                   : _startRecording,
-                              child: Icon(
-                                _isRecording
-                                    ? Icons.close
-                                    : _hasRecording
-                                    ? (isPlaying
-                                        ? Icons.pause
-                                        : Icons.play_arrow)
-                                    : Icons.mic,
-                                size: iconSize,
-                                color: theme.colorScheme.onPrimary,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (_hasRecording)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 6),
+                                      child: Text(
+                                        _formatTime(
+                                          isPreviewing
+                                              ? audioState.duration
+                                              : Duration(
+                                                  seconds: _remainingSeconds,
+                                                ),
+                                        ),
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.85,
+                                          ),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  Icon(
+                                    _isRecording
+                                        ? Icons.close
+                                        : _hasRecording
+                                        ? (isPlaying
+                                            ? Icons.pause
+                                            : Icons.play_arrow)
+                                        : Icons.mic,
+                                    size: iconSize,
+                                    color: Colors.white,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -492,26 +546,41 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                       ],
                       SizedBox(height: verticalGap),
                       if (_isRecording)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: _waveHeights
-                              .map(
-                                (height) => AnimatedContainer(
-                                  duration: reduceMotion
-                                      ? Duration.zero
-                                      : const Duration(milliseconds: 180),
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 3,
+                        SizedBox(
+                          height: waveBase + waveAmplitude,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: _waveHeights
+                                .map(
+                                  (height) => AnimatedContainer(
+                                    duration: reduceMotion
+                                        ? Duration.zero
+                                        : const Duration(milliseconds: 180),
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 3,
+                                    ),
+                                    width: 6,
+                                    height: waveBase + waveAmplitude * height,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.75,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.2,
+                                          ),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  width: 6,
-                                  height: waveBase + waveAmplitude * height,
-                                  decoration: BoxDecoration(
-                                    color: ringColor.withValues(alpha: 0.92),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                              )
-                              .toList(),
+                                )
+                                .toList(),
+                          ),
                         ),
                     ],
                   );
@@ -520,19 +589,24 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
             ),
             if (_hasRecording)
               Padding(
-                padding: EchoLayout.listPadding(context, bottom: 8),
+                padding: EdgeInsets.fromLTRB(
+                  EchoLayout.contentHorizontalPadding(context),
+                  EchoLayout.space(context, 6),
+                  EchoLayout.contentHorizontalPadding(context),
+                  EchoLayout.space(context, 18),
+                ),
                 child: Column(
                   children: [
-                    SizedBox(
-                      width: double.infinity,
+                    FractionallySizedBox(
+                      widthFactor: 0.5,
                       child: ElevatedButton(
                         onPressed: _continue,
                         child: const Text('Continue'),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
+                    FractionallySizedBox(
+                      widthFactor: 0.5,
                       child: OutlinedButton.icon(
                         onPressed: _reRecord,
                         icon: const Icon(Icons.replay),

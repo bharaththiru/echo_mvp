@@ -13,6 +13,7 @@ import '../utils/time_format.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/echo_components.dart';
+import '../widgets/listenable_selector.dart';
 import '../widgets/report_reason_sheet.dart';
 
 class HashtagDetail extends StatefulWidget {
@@ -101,29 +102,32 @@ class _HashtagDetailState extends State<HashtagDetail> {
     final notes = appState.notesForHashtag(hashtag.id);
     final isLoading = appState.isLoadingNotes(hashtag.id);
     final loadError = appState.notesError(hashtag.id);
-    final audio = appState.audio;
-    final moodTint = appState.settings.moodTintEnabled;
     final horizontal = EchoLayout.contentHorizontalPadding(context);
     final safeBottom = MediaQuery.paddingOf(context).bottom;
-    final autoplayState = appState.autoplay.state;
-    final miniPlayerVisible =
-        autoplayState.queue.isNotEmpty &&
-        autoplayState.currentNote != null &&
-        autoplayState.phase != AutoplayPhase.idle &&
-        autoplayState.phase != AutoplayPhase.completed;
     final expandedHeight = kToolbarHeight + EchoLayout.space(context, 244);
     final collapsedHeight = kToolbarHeight + EchoLayout.space(context, 52);
-    final fabBottomOffset = safeBottom + EchoLayout.space(
-      context,
-      miniPlayerVisible ? 126 : 28,
-    );
     final fabRightOffset = horizontal + EchoLayout.space(context, 7);
-    final listBottomPadding = miniPlayerVisible ? 196.0 : 124.0;
+    final autoplay = appState.autoplay;
+    final audio = appState.audio;
 
     return AppScaffold(
-      child: AnimatedBuilder(
-        animation: audio,
-        builder: (context, _) {
+      child: ListenableSelector<bool>(
+        listenable: autoplay,
+        selector: () {
+          final state = autoplay.state;
+          return state.queue.isNotEmpty &&
+              state.currentNote != null &&
+              state.phase != AutoplayPhase.idle &&
+              state.phase != AutoplayPhase.completed;
+        },
+        shouldRebuild: (previous, next) => previous != next,
+        builder: (context, miniPlayerVisible) {
+          final fabBottomOffset = safeBottom + EchoLayout.space(
+            context,
+            miniPlayerVisible ? 126 : 28,
+          );
+          final listBottomPadding = miniPlayerVisible ? 196.0 : 124.0;
+
           if (isLoading && notes.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -165,7 +169,6 @@ class _HashtagDetailState extends State<HashtagDetail> {
                     collapsedHeight: collapsedHeight,
                     flexibleSpace: _HashtagHeaderFlexibleSpace(
                       hashtag: hashtag,
-                      moodTintEnabled: moodTint,
                       noteCount: notes.length,
                     ),
                   ),
@@ -191,7 +194,7 @@ class _HashtagDetailState extends State<HashtagDetail> {
                           return _VoiceNoteCard(
                             note: note,
                             isPreparing: isPreparing,
-                            audioState: audio.state,
+                            audio: audio,
                             transcriptsEnabled:
                                 appState.settings.transcriptsEnabled,
                             canBlock: canBlock,
@@ -249,12 +252,10 @@ class _HashtagDetailState extends State<HashtagDetail> {
 class _HashtagHeaderFlexibleSpace extends StatelessWidget {
   const _HashtagHeaderFlexibleSpace({
     required this.hashtag,
-    required this.moodTintEnabled,
     required this.noteCount,
   });
 
   final Hashtag hashtag;
-  final bool moodTintEnabled;
   final int noteCount;
 
   @override
@@ -293,7 +294,6 @@ class _HashtagHeaderFlexibleSpace extends StatelessWidget {
           children: [
             _HashtagHeader(
               hashtag: hashtag,
-              moodTintEnabled: moodTintEnabled,
               collapseProgress: easedProgress,
             ),
             SizedBox(height: gap),
@@ -328,22 +328,29 @@ class _AutoplayFab extends StatelessWidget {
     return Semantics(
       button: true,
       label: 'Start autoplay',
-      child: SizedBox.square(
-        dimension: 64,
-        child: FloatingActionButton(
-          heroTag: heroTag,
-          tooltip: 'Start autoplay',
-          onPressed: onTap,
-          backgroundColor: tokens.accentPrimary,
-          foregroundColor: tokens.bg,
-          elevation: 0,
-          highlightElevation: 0,
-          shape: CircleBorder(
-            side: BorderSide(
-              color: tokens.bg.withValues(alpha: 0.22),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.18),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
+          ],
+        ),
+        child: SizedBox.square(
+          dimension: 64,
+          child: FloatingActionButton(
+            heroTag: heroTag,
+            tooltip: 'Start autoplay',
+            onPressed: onTap,
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            highlightElevation: 0,
+            child: const Icon(Icons.play_arrow_rounded, size: 36),
           ),
-          child: const Icon(Icons.play_arrow_rounded, size: 36),
         ),
       ),
     );
@@ -353,32 +360,19 @@ class _AutoplayFab extends StatelessWidget {
 class _HashtagHeader extends StatelessWidget {
   const _HashtagHeader({
     required this.hashtag,
-    required this.moodTintEnabled,
     this.collapseProgress = 0,
   });
 
   final Hashtag hashtag;
-  final bool moodTintEnabled;
   final double collapseProgress;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
-    final tint = hashtag.gradient.first;
-    final surfaceColor = moodTintEnabled
-        ? Color.lerp(tokens.surface1, tint, 0.6) ?? tokens.surface1
-        : tokens.surface1;
-    final borderColor = moodTintEnabled
-        ? tint.withValues(alpha: 0.6)
-        : tokens.borderSubtle;
-    final depth = EchoGradients.depthFor(tokens, theme.brightness);
-    final headerDepth = Color.lerp(surfaceColor, depth, 0.35) ?? depth;
-    final headerGradient = EchoGradients.tonal(
-      base: surfaceColor,
-      depth: headerDepth,
-      top: 0.03,
-      bottom: 0.14,
+    final headerGradient = EchoGradients.hashtagCard(
+      tokens,
+      theme.brightness,
     );
     final compactEase = Curves.easeOutCubic.transform(collapseProgress);
     final iconFactor = (1 - Curves.easeOut.transform(compactEase)).clamp(0.0, 1.0);
@@ -404,8 +398,8 @@ class _HashtagHeader extends StatelessWidget {
     return EchoGradientCard(
       padding: cardPadding,
       radius: radius,
+      glow: true,
       gradient: headerGradient,
-      borderColor: borderColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -446,7 +440,7 @@ class _VoiceNoteCard extends StatelessWidget {
   const _VoiceNoteCard({
     required this.note,
     required this.isPreparing,
-    required this.audioState,
+    required this.audio,
     required this.transcriptsEnabled,
     required this.canBlock,
     required this.onPlay,
@@ -455,7 +449,7 @@ class _VoiceNoteCard extends StatelessWidget {
 
   final VoiceNote note;
   final bool isPreparing;
-  final AudioPlaybackState audioState;
+  final AudioController audio;
   final bool transcriptsEnabled;
   final bool canBlock;
   final VoidCallback onPlay;
@@ -465,146 +459,229 @@ class _VoiceNoteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
-    final isActive = audioState.sourceId == note.id;
-    final isPlaying = isActive && audioState.isPlaying;
-    final progress = isActive ? audioState.progress : 0.0;
     final timestamp = formatRelativeTime(note.createdAt);
 
-    return EchoCard(
-      padding: const EdgeInsets.all(18),
-      radius: 24,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return ListenableSelector<_NotePlaybackSnapshot>(
+      listenable: audio,
+      selector: () {
+        final state = audio.state;
+        if (state.sourceId != note.id) {
+          return _NotePlaybackSnapshot.inactive(note.duration);
+        }
+        final duration = state.duration.inMilliseconds > 0
+            ? state.duration
+            : note.duration;
+        final ratio = duration.inMilliseconds == 0
+            ? 0.0
+            : (state.position.inMilliseconds / duration.inMilliseconds)
+                .clamp(0.0, 1.0)
+                .toDouble();
+        return _NotePlaybackSnapshot(
+          isActive: true,
+          isPlaying: state.isPlaying,
+          progress: ratio,
+          position: state.position,
+          duration: duration,
+        );
+      },
+      shouldRebuild: (previous, next) => previous != next,
+      builder: (context, playback) {
+        return EchoCard(
+          padding: const EdgeInsets.all(18),
+          radius: 24,
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Anonymous - $timestamp',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: tokens.textSecondary,
-                      ),
-                    ),
-                    if (transcriptsEnabled &&
-                        note.transcriptPreview != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        note.transcriptPreview!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: tokens.textSecondary.withValues(
-                            alpha: 0.92,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Anonymous - $timestamp',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: tokens.textSecondary,
                           ),
-                          height: 1.4,
                         ),
+                        if (transcriptsEnabled &&
+                            note.transcriptPreview != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            note.transcriptPreview!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: tokens.textSecondary.withValues(
+                                alpha: 0.92,
+                              ),
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    color: tokens.surface1,
+                    onSelected: onMenuSelected,
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: 'save', child: Text('Save')),
+                      const PopupMenuItem(
+                        value: 'share',
+                        child: Text('Share link'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'hide',
+                        child: Text('Hide clip'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'report',
+                        child: Text('Report & hide'),
+                      ),
+                      PopupMenuItem(
+                        value: 'block',
+                        enabled: canBlock,
+                        child: const Text('Block user'),
                       ),
                     ],
-                  ],
-                ),
+                  ),
+                ],
               ),
-              PopupMenuButton<String>(
-                color: tokens.surface1,
-                onSelected: onMenuSelected,
-                itemBuilder: (context) => [
-                  const PopupMenuItem(value: 'save', child: Text('Save')),
-                  const PopupMenuItem(
-                    value: 'share',
-                    child: Text('Share link'),
-                  ),
-                  const PopupMenuItem(value: 'hide', child: Text('Hide clip')),
-                  const PopupMenuItem(
-                    value: 'report',
-                    child: Text('Report & hide'),
-                  ),
-                  PopupMenuItem(
-                    value: 'block',
-                    enabled: canBlock,
-                    child: const Text('Block user'),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                    IconButton.filled(
+                      onPressed: onPlay,
+                      icon: isPreparing
+                          ? SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : Icon(
+                              playback.isPlaying
+                                  ? Icons.pause
+                                  : Icons.play_arrow,
+                            ),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.all(16),
+                    ).copyWith(
+                      elevation: WidgetStateProperty.all(1),
+                      shadowColor: WidgetStateProperty.all(
+                        Colors.white.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value:
+                                playback.progress.isNaN
+                                    ? 0
+                                    : playback.progress.clamp(0, 1),
+                            minHeight: 6,
+                            backgroundColor: tokens.surface3,
+                            valueColor: AlwaysStoppedAnimation(
+                              tokens.accentPrimary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              formatDuration(
+                                playback.isActive
+                                    ? playback.position
+                                    : Duration.zero,
+                              ),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: tokens.textSecondary,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: tokens.surface2,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                formatDuration(playback.duration),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: tokens.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              IconButton.filled(
-                onPressed: onPlay,
-                icon: isPreparing
-                    ? SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            tokens.bg,
-                          ),
-                        ),
-                      )
-                    : Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-                style: IconButton.styleFrom(
-                  backgroundColor: tokens.accentPrimary,
-                  foregroundColor: tokens.bg,
-                  padding: const EdgeInsets.all(16),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: progress.isNaN ? 0 : progress.clamp(0, 1),
-                        minHeight: 6,
-                        backgroundColor: tokens.surface3,
-                        valueColor: AlwaysStoppedAnimation(
-                          tokens.accentPrimary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          formatDuration(
-                            isActive ? audioState.position : Duration.zero,
-                          ),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: tokens.textSecondary,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: tokens.surface2,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            formatDuration(note.duration),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: tokens.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
+}
+
+class _NotePlaybackSnapshot {
+  const _NotePlaybackSnapshot({
+    required this.isActive,
+    required this.isPlaying,
+    required this.progress,
+    required this.position,
+    required this.duration,
+  });
+
+  const _NotePlaybackSnapshot.inactive(Duration duration)
+    : isActive = false,
+      isPlaying = false,
+      progress = 0.0,
+      position = Duration.zero,
+      duration = duration;
+
+  final bool isActive;
+  final bool isPlaying;
+  final double progress;
+  final Duration position;
+  final Duration duration;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _NotePlaybackSnapshot &&
+        other.isActive == isActive &&
+        other.isPlaying == isPlaying &&
+        other.progress == progress &&
+        other.position == position &&
+        other.duration == duration;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        isActive,
+        isPlaying,
+        progress,
+        position,
+        duration,
+      );
 }
 
 class _EmptyState extends StatelessWidget {

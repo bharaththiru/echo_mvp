@@ -57,9 +57,6 @@ class ProfileTab extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: tokens.accentPrimary,
-                        border: Border.all(
-                          color: tokens.accentPrimary.withValues(alpha: 0.45),
-                        ),
                       ),
                       child: Icon(
                         Icons.person,
@@ -121,7 +118,6 @@ class ProfileTab extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: tokens.surface2,
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: tokens.borderSubtle),
                     ),
                     child: Text(
                       tag,
@@ -160,16 +156,18 @@ class ProfileTab extends StatelessWidget {
                           width: 36,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: tokens.accentPrimary.withValues(alpha: 0.16),
-                            border: Border.all(
-                              color: tokens.accentPrimary.withValues(
-                                alpha: 0.35,
+                            color: Colors.black,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.white.withValues(alpha: 0.18),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
                               ),
-                            ),
+                            ],
                           ),
                           child: Icon(
                             Icons.play_arrow,
-                            color: tokens.accentPrimary,
+                            color: Colors.white,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -182,7 +180,7 @@ class ProfileTab extends StatelessWidget {
                                   Text(
                                     post.hashtagLabel,
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: tokens.accentPrimary,
+                                      color: tokens.textSecondary,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),

@@ -11,6 +11,7 @@ import '../utils/time_format.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/echo_components.dart';
+import '../widgets/listenable_selector.dart';
 import '../widgets/report_reason_sheet.dart';
 
 class AutoplayPlayer extends StatefulWidget {
@@ -107,7 +108,6 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
     final tokens = context.echo;
     final appState = AppScope.of(context);
     final autoplay = _autoplay ?? appState.autoplay;
-    final moodTint = appState.settings.moodTintEnabled;
     final reduceMotion = appState.settings.reduceMotion;
     final hashtag = appState.hashtagById(widget.hashtagId);
 
@@ -193,10 +193,11 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
 
     return AppScaffold(
       showMiniPlayer: false,
-      child: AnimatedBuilder(
-        animation: autoplay,
-        builder: (context, _) {
-          final state = autoplay.state;
+      child: ListenableSelector<AutoplayState>(
+        listenable: autoplay,
+        selector: () => autoplay.state,
+        shouldRebuild: _autoplayShouldRebuild,
+        builder: (context, state) {
           if (state.queue.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -210,31 +211,11 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
             (item) => item.id == note.id,
           );
           final currentIndex = noteIndex < 0 ? index : noteIndex;
-          final tint = hashtag.gradient.first;
-          final cardColor = moodTint
-              ? Color.lerp(tokens.surface1, tint, 0.62) ?? tokens.surface1
-              : tokens.surface1;
-          final cardBorder = moodTint
-              ? tint.withValues(alpha: 0.62)
-              : tokens.borderSubtle;
-          final depth = EchoGradients.depthFor(tokens, theme.brightness);
-          final cardDepth = Color.lerp(cardColor, depth, 0.35) ?? depth;
-          final cardGradient = EchoGradients.tonal(
-            base: cardColor,
-            depth: cardDepth,
-            top: 0.03,
-            bottom: 0.14,
+          final cardGradient = EchoGradients.hashtagCard(
+            tokens,
+            theme.brightness,
           );
 
-          final duration = state.duration.inMilliseconds > 0
-              ? state.duration
-              : note.duration;
-          final progress = duration.inMilliseconds == 0
-              ? 0.0
-              : (state.position.inMilliseconds / duration.inMilliseconds).clamp(
-                  0,
-                  1,
-                );
           final isPreparing = state.isPreparing || state.isTransitioning;
           final statusLabel = _statusLabel(state) ?? 'Ready';
           final showSpinner =
@@ -277,8 +258,8 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                     EchoGradientCard(
                       padding: const EdgeInsets.all(24),
                       radius: 28,
+                      glow: true,
                       gradient: cardGradient,
-                      borderColor: cardBorder,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -300,9 +281,6 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                     decoration: BoxDecoration(
                                       color: tokens.surface2,
                                       borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: tokens.borderSubtle,
-                                      ),
                                     ),
                                     child: Text(
                                       '${currentIndex + 1} of ${state.queue.length}',
@@ -320,9 +298,6 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                     decoration: BoxDecoration(
                                       color: tokens.surface2,
                                       borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: tokens.borderSubtle,
-                                      ),
                                     ),
                                     child: Text(
                                       '${state.queueRemaining} ready',
@@ -384,32 +359,13 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          _NowListeningBar(
+                          _AutoplayProgress(
+                            autoplay: autoplay,
+                            fallbackDuration: note.duration,
                             label: statusLabel,
                             showSpinner: showSpinner,
-                            progress: (progress.isNaN ? 0.0 : progress)
-                                .clamp(0.0, 1.0)
-                                .toDouble(),
                             reduceMotion: reduceMotion,
                             isError: isError,
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                formatDuration(state.position),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: tokens.textSecondary,
-                                ),
-                              ),
-                              Text(
-                                formatDuration(duration),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: tokens.textSecondary,
-                                ),
-                              ),
-                            ],
                           ),
                         ],
                       ),
@@ -422,7 +378,6 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                           padding: const EdgeInsets.all(16),
                           radius: 18,
                           color: tokens.surface2,
-                          borderColor: tokens.borderSubtle,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -465,6 +420,12 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                             style: ElevatedButton.styleFrom(
                               shape: const CircleBorder(),
                               padding: EdgeInsets.zero,
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                              elevation: 1.5,
+                              shadowColor: Colors.white.withValues(
+                                alpha: 0.18,
+                              ),
                             ),
                             onPressed: isPreparing
                                 ? null
@@ -476,7 +437,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       valueColor: AlwaysStoppedAnimation<Color>(
-                                        tokens.bg,
+                                        Colors.white,
                                       ),
                                     ),
                                   )
@@ -531,7 +492,6 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                       padding: const EdgeInsets.all(16),
                       radius: 18,
                       color: tokens.surface2,
-                      borderColor: tokens.borderSubtle,
                       child: Row(
                         children: [
                           Expanded(
@@ -586,9 +546,6 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                 decoration: BoxDecoration(
                                   color: tokens.surface2,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: tokens.borderSubtle,
-                                  ),
                                 ),
                                 child: Center(
                                   child: Text(
@@ -638,7 +595,6 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                       padding: const EdgeInsets.all(16),
                       radius: 16,
                       color: tokens.surface2,
-                      borderColor: tokens.border,
                       child: Text(
                         'Message slot (disabled in MVP)',
                         textAlign: TextAlign.center,
@@ -682,12 +638,11 @@ class _NowListeningBar extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          decoration: BoxDecoration(
-            color: tokens.surface1.withValues(alpha: 0.9),
-            border: Border.all(color: tokens.borderSubtle),
-          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            decoration: BoxDecoration(
+              color: tokens.surface1.withValues(alpha: 0.9),
+            ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -700,7 +655,7 @@ class _NowListeningBar extends StatelessWidget {
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          tokens.accentSecondary,
+                          tokens.accentPrimary,
                         ),
                       ),
                     ),
@@ -743,7 +698,7 @@ class _NowListeningBar extends StatelessWidget {
                       Positioned(
                         left: left,
                         child: _PulseDot(
-                          color: tokens.accentSecondary,
+                          color: tokens.accentPrimary,
                           reduceMotion: reduceMotion,
                         ),
                       ),
@@ -835,6 +790,145 @@ class _PulseDotState extends State<_PulseDot>
       },
     );
   }
+}
+
+bool _autoplayShouldRebuild(AutoplayState previous, AutoplayState next) {
+  if (previous.currentNote?.id != next.currentNote?.id) {
+    return true;
+  }
+  if (previous.currentIndex != next.currentIndex) {
+    return true;
+  }
+  if (previous.queue.length != next.queue.length) {
+    return true;
+  }
+  if (previous.queueRemaining != next.queueRemaining) {
+    return true;
+  }
+  if (previous.phase != next.phase) {
+    return true;
+  }
+  if (previous.isPreparing != next.isPreparing ||
+      previous.isTransitioning != next.isTransitioning) {
+    return true;
+  }
+  if (previous.isLoadingNotes != next.isLoadingNotes) {
+    return true;
+  }
+  if (previous.loadError != next.loadError) {
+    return true;
+  }
+  if (previous.errorMessage != next.errorMessage) {
+    return true;
+  }
+  if (previous.statusText != next.statusText) {
+    return true;
+  }
+  if (previous.transientMessage != next.transientMessage) {
+    return true;
+  }
+  if (previous.handsFree != next.handsFree) {
+    return true;
+  }
+  if (previous.userPaused != next.userPaused) {
+    return true;
+  }
+  if (previous.isMuted != next.isMuted) {
+    return true;
+  }
+  return false;
+}
+
+class _AutoplayProgress extends StatelessWidget {
+  const _AutoplayProgress({
+    required this.autoplay,
+    required this.fallbackDuration,
+    required this.label,
+    required this.showSpinner,
+    required this.reduceMotion,
+    required this.isError,
+  });
+
+  final AutoplayController autoplay;
+  final Duration fallbackDuration;
+  final String label;
+  final bool showSpinner;
+  final bool reduceMotion;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.echo;
+    return ListenableSelector<_ProgressSnapshot>(
+      listenable: autoplay,
+      selector: () {
+        final state = autoplay.state;
+        final duration = state.duration.inMilliseconds > 0
+            ? state.duration
+            : fallbackDuration;
+        return _ProgressSnapshot(
+          position: state.position,
+          duration: duration,
+        );
+      },
+      shouldRebuild: (previous, next) => previous != next,
+      builder: (context, progress) {
+        final duration = progress.duration;
+        final ratio = duration.inMilliseconds == 0
+            ? 0.0
+            : (progress.position.inMilliseconds / duration.inMilliseconds)
+                .clamp(0.0, 1.0)
+                .toDouble();
+        return Column(
+          children: [
+            _NowListeningBar(
+              label: label,
+              showSpinner: showSpinner,
+              progress: ratio,
+              reduceMotion: reduceMotion,
+              isError: isError,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  formatDuration(progress.position),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: tokens.textSecondary,
+                  ),
+                ),
+                Text(
+                  formatDuration(duration),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: tokens.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ProgressSnapshot {
+  const _ProgressSnapshot({required this.position, required this.duration});
+
+  final Duration position;
+  final Duration duration;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _ProgressSnapshot &&
+        other.position == position &&
+        other.duration == duration;
+  }
+
+  @override
+  int get hashCode => Object.hash(position, duration);
 }
 
 String? _statusLabel(AutoplayState state) {

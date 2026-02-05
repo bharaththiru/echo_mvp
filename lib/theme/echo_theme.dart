@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 
 class EchoColors {
   static const deepNavy = Color(0xFF071952);
-  static const deepTeal = Color(0xFF0B666A);
-  static const teal = Color(0xFF35A29F);
-  static const mint = Color(0xFF97FEED);
+  static const deepTeal = Color(0xFF1F3B3E);
+  static const teal = Color(0xFF2A4F52);
+  static const mint = Color(0xFF3A6063);
+  static const bgBaseNearBlack = Color(0xFF050B16);
+  static const bgGlowNavy = Color(0xFF0B1733);
+  static const bgEdgeNearBlack = Color(0xFF03060B);
 
-  static const textPrimary = Color(0xFFEAF2FF);
-  static const textSecondary = Color(0xFFA8B3C7);
-  static const textTertiary = Color(0xFF6F7A92);
+  static const textPrimary = Color(0xFFF2F4F7);
+  static const textSecondary = Color(0xFFA3ACBC);
+  static const textTertiary = Color(0xFF6D7687);
 
   static const danger = Color(0xFFB56D6D);
 }
@@ -26,6 +29,9 @@ class EchoRadii {
 class EchoSemantic extends ThemeExtension<EchoSemantic> {
   const EchoSemantic({
     required this.bg,
+    required this.bgBaseNearBlack,
+    required this.bgGlowNavy,
+    required this.bgEdgeNearBlack,
     required this.surface1,
     required this.surface2,
     required this.surface3,
@@ -44,6 +50,9 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
   });
 
   final Color bg;
+  final Color bgBaseNearBlack;
+  final Color bgGlowNavy;
+  final Color bgEdgeNearBlack;
   final Color surface1;
   final Color surface2;
   final Color surface3;
@@ -63,34 +72,42 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
   factory EchoSemantic.fromBrightness(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     if (isDark) {
+      const bgBaseNearBlack = EchoColors.bgBaseNearBlack;
+      const bgGlowNavy = EchoColors.bgGlowNavy;
       final surface1 =
-          Color.lerp(EchoColors.deepNavy, Colors.white, 0.06)!;
+          Color.lerp(bgBaseNearBlack, Colors.white, 0.07)!;
       final surface2 =
-          Color.lerp(EchoColors.deepNavy, EchoColors.deepTeal, 0.28)!;
+          Color.lerp(bgBaseNearBlack, EchoColors.deepTeal, 0.24)!;
       final surface3 =
-          Color.lerp(EchoColors.deepNavy, Colors.white, 0.1)!;
+          Color.lerp(bgGlowNavy, Colors.white, 0.08)!;
       return EchoSemantic(
-        bg: EchoColors.deepNavy,
+        bg: bgBaseNearBlack,
+        bgBaseNearBlack: bgBaseNearBlack,
+        bgGlowNavy: bgGlowNavy,
+        bgEdgeNearBlack: EchoColors.bgEdgeNearBlack,
         surface1: surface1,
         surface2: surface2,
         surface3: surface3,
-        border: EchoColors.deepTeal.withValues(alpha: 0.55),
-        borderSubtle: EchoColors.deepTeal.withValues(alpha: 0.28),
+        border: EchoColors.deepTeal,
+        borderSubtle: EchoColors.deepTeal,
         textPrimary: EchoColors.textPrimary,
         textSecondary: EchoColors.textSecondary,
         textTertiary: EchoColors.textTertiary,
         accentPrimary: EchoColors.teal,
         accentSecondary: EchoColors.mint,
-        accentMuted: EchoColors.teal.withValues(alpha: 0.18),
+        accentMuted: const Color(0x1F2A4F52),
         danger: EchoColors.danger,
         dangerMuted: EchoColors.danger.withValues(alpha: 0.7),
-        overlay: EchoColors.deepNavy.withValues(alpha: 0.9),
+        overlay: bgBaseNearBlack.withValues(alpha: 0.9),
         shadow: Colors.black.withValues(alpha: 0.35),
       );
     }
 
     return const EchoSemantic(
       bg: Color(0xFFF4F7FF),
+      bgBaseNearBlack: Color(0xFFF4F7FF),
+      bgGlowNavy: Color(0xFFEAF1FA),
+      bgEdgeNearBlack: Color(0xFFF1F5FB),
       surface1: Color(0xFFFFFFFF),
       surface2: Color(0xFFEAF1FA),
       surface3: Color(0xFFF1F5FB),
@@ -101,7 +118,7 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
       textTertiary: Color(0xFF7A8BA3),
       accentPrimary: EchoColors.teal,
       accentSecondary: EchoColors.mint,
-      accentMuted: Color(0x1F35A29F),
+      accentMuted: Color(0x1F2A4F52),
       danger: EchoColors.danger,
       dangerMuted: Color(0xB3B56D6D),
       overlay: Color(0xE6FFFFFF),
@@ -112,6 +129,9 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
   @override
   EchoSemantic copyWith({
     Color? bg,
+    Color? bgBaseNearBlack,
+    Color? bgGlowNavy,
+    Color? bgEdgeNearBlack,
     Color? surface1,
     Color? surface2,
     Color? surface3,
@@ -130,6 +150,9 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
   }) {
     return EchoSemantic(
       bg: bg ?? this.bg,
+      bgBaseNearBlack: bgBaseNearBlack ?? this.bgBaseNearBlack,
+      bgGlowNavy: bgGlowNavy ?? this.bgGlowNavy,
+      bgEdgeNearBlack: bgEdgeNearBlack ?? this.bgEdgeNearBlack,
       surface1: surface1 ?? this.surface1,
       surface2: surface2 ?? this.surface2,
       surface3: surface3 ?? this.surface3,
@@ -155,6 +178,11 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
     }
     return EchoSemantic(
       bg: Color.lerp(bg, other.bg, t)!,
+      bgBaseNearBlack:
+          Color.lerp(bgBaseNearBlack, other.bgBaseNearBlack, t)!,
+      bgGlowNavy: Color.lerp(bgGlowNavy, other.bgGlowNavy, t)!,
+      bgEdgeNearBlack:
+          Color.lerp(bgEdgeNearBlack, other.bgEdgeNearBlack, t)!,
       surface1: Color.lerp(surface1, other.surface1, t)!,
       surface2: Color.lerp(surface2, other.surface2, t)!,
       surface3: Color.lerp(surface3, other.surface3, t)!,
@@ -197,8 +225,8 @@ ThemeData buildEchoTheme(Brightness brightness) {
     onSurface: tokens.textPrimary,
     surfaceContainerHighest: tokens.surface2,
     onSurfaceVariant: tokens.textSecondary,
-    outline: tokens.border,
-    outlineVariant: tokens.borderSubtle,
+    outline: Colors.transparent,
+    outlineVariant: Colors.transparent,
     shadow: Colors.black,
     scrim: Colors.black,
     inverseSurface: tokens.textPrimary,
@@ -231,17 +259,16 @@ ThemeData buildEchoTheme(Brightness brightness) {
       color: tokens.surface1,
       shadowColor: tokens.shadow,
       surfaceTintColor: Colors.transparent,
-      elevation: 3,
+      elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(EchoRadii.card),
-        side: BorderSide(color: tokens.borderSubtle),
       ),
     ),
-    dividerTheme: DividerThemeData(
-      color: tokens.borderSubtle,
-      thickness: 1,
-      space: 1,
+    dividerTheme: const DividerThemeData(
+      color: Colors.transparent,
+      thickness: 0,
+      space: 0,
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
@@ -252,7 +279,6 @@ ThemeData buildEchoTheme(Brightness brightness) {
       actionTextColor: tokens.accentPrimary,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: tokens.borderSubtle),
       ),
       elevation: 6,
     ),
@@ -296,24 +322,25 @@ ThemeData buildEchoTheme(Brightness brightness) {
       ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(EchoRadii.input),
-        borderSide: BorderSide(color: tokens.borderSubtle),
+        borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(EchoRadii.input),
-        borderSide: BorderSide(color: tokens.borderSubtle),
+        borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(EchoRadii.input),
-        borderSide: BorderSide(color: tokens.accentSecondary, width: 1.2),
+        borderSide: BorderSide.none,
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: tokens.accentPrimary,
-        foregroundColor: tokens.bg,
-        disabledBackgroundColor: tokens.accentPrimary.withValues(alpha: 0.45),
-        disabledForegroundColor: tokens.bg.withValues(alpha: 0.7),
-        elevation: 0,
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: Colors.black.withValues(alpha: 0.55),
+        disabledForegroundColor: Colors.white.withValues(alpha: 0.6),
+        elevation: 1.5,
+        shadowColor: Colors.white.withValues(alpha: 0.18),
         minimumSize: const Size.fromHeight(54),
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
         shape: RoundedRectangleBorder(
@@ -327,11 +354,12 @@ ThemeData buildEchoTheme(Brightness brightness) {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: tokens.textPrimary,
-        disabledForegroundColor: tokens.textPrimary.withValues(alpha: 0.5),
+        foregroundColor: Colors.white,
+        disabledForegroundColor: Colors.white.withValues(alpha: 0.6),
+        backgroundColor: Colors.black,
         minimumSize: const Size.fromHeight(52),
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-        side: BorderSide(color: tokens.border),
+        side: BorderSide.none,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(EchoRadii.button),
         ),
@@ -339,20 +367,58 @@ ThemeData buildEchoTheme(Brightness brightness) {
           fontWeight: FontWeight.w600,
           letterSpacing: -0.1,
         ),
+      ).copyWith(
+        elevation: WidgetStateProperty.all(1),
+        shadowColor: WidgetStateProperty.all(
+          Colors.white.withValues(alpha: 0.18),
+        ),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: tokens.textSecondary,
-        disabledForegroundColor: tokens.textSecondary.withValues(alpha: 0.55),
+        foregroundColor: Colors.white,
+        disabledForegroundColor: Colors.white.withValues(alpha: 0.6),
+        backgroundColor: Colors.black,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         textStyle: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+      ).copyWith(
+        elevation: WidgetStateProperty.all(1),
+        shadowColor: WidgetStateProperty.all(
+          Colors.white.withValues(alpha: 0.18),
+        ),
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
-      style: IconButton.styleFrom(
-        foregroundColor: tokens.textPrimary,
+      style: ButtonStyle(
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return Colors.white.withValues(alpha: 0.6);
+          }
+          return Colors.white;
+        }),
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return Colors.black.withValues(alpha: 0.55);
+          }
+          return Colors.black;
+        }),
+        elevation: WidgetStateProperty.all(1),
+        shadowColor: WidgetStateProperty.all(
+          Colors.white.withValues(alpha: 0.18),
+        ),
       ),
+    ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: Colors.black,
+      foregroundColor: Colors.white,
+      elevation: 1.5,
+      highlightElevation: 2,
+      focusElevation: 1.5,
+      hoverElevation: 1.5,
+      disabledElevation: 0,
+      splashColor: Colors.transparent,
+      focusColor: Colors.transparent,
+      hoverColor: Colors.transparent,
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((states) {
@@ -369,9 +435,7 @@ ThemeData buildEchoTheme(Brightness brightness) {
         }
         return tokens.surface3;
       }),
-      trackOutlineColor: WidgetStateProperty.all(
-        tokens.border.withValues(alpha: 0.7),
-      ),
+      trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
     ),
     sliderTheme: SliderThemeData(
       activeTrackColor: tokens.accentPrimary,
@@ -394,32 +458,36 @@ ThemeData buildEchoTheme(Brightness brightness) {
         color: tokens.bg,
         fontWeight: FontWeight.w700,
       ),
-      side: BorderSide(color: tokens.borderSubtle),
+      side: BorderSide.none,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(EchoRadii.pill),
       ),
     ),
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
       backgroundColor: tokens.surface1.withValues(alpha: 0.9),
-      selectedItemColor: tokens.accentPrimary,
-      unselectedItemColor: tokens.textTertiary,
+      selectedItemColor: Colors.white,
+      unselectedItemColor: Colors.white.withValues(alpha: 0.6),
       elevation: 0,
       type: BottomNavigationBarType.fixed,
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: tokens.surface1.withValues(alpha: 0.9),
-      indicatorColor: tokens.accentPrimary.withValues(alpha: 0.16),
+      indicatorColor: Colors.black.withValues(alpha: 0.16),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final isSelected = states.contains(WidgetState.selected);
         return textTheme.labelSmall?.copyWith(
-          color: isSelected ? tokens.accentPrimary : tokens.textTertiary,
+          color: isSelected
+              ? Colors.white
+              : Colors.white.withValues(alpha: 0.6),
           fontWeight: FontWeight.w600,
         );
       }),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final isSelected = states.contains(WidgetState.selected);
         return IconThemeData(
-          color: isSelected ? tokens.accentPrimary : tokens.textTertiary,
+          color: isSelected
+              ? Colors.white
+              : Colors.white.withValues(alpha: 0.6),
           size: 22,
         );
       }),
@@ -429,15 +497,15 @@ ThemeData buildEchoTheme(Brightness brightness) {
       textColor: tokens.textPrimary,
     ),
     textSelectionTheme: TextSelectionThemeData(
-      cursorColor: tokens.accentSecondary,
+      cursorColor: tokens.accentPrimary,
       selectionColor: tokens.accentPrimary.withValues(alpha: 0.25),
-      selectionHandleColor: tokens.accentSecondary,
+      selectionHandleColor: tokens.accentPrimary,
     ),
     splashFactory: InkRipple.splashFactory,
-    highlightColor: tokens.accentPrimary.withValues(alpha: 0.08),
-    hoverColor: tokens.accentPrimary.withValues(alpha: 0.04),
-    focusColor: tokens.accentSecondary.withValues(alpha: 0.14),
-    dividerColor: tokens.borderSubtle,
+    highlightColor: Colors.white.withValues(alpha: 0.08),
+    hoverColor: Colors.white.withValues(alpha: 0.04),
+    focusColor: Colors.white.withValues(alpha: 0.14),
+    dividerColor: Colors.transparent,
   );
 }
 
@@ -559,14 +627,15 @@ class EchoGradients {
     Brightness brightness,
   ) {
     if (brightness == Brightness.dark) {
-      final topColor = Color.lerp(tokens.bg, Colors.black, 0.35)!;
-      final midColor = tokens.bg;
-      final bottomColor = Color.lerp(tokens.bg, Colors.black, 0.35)!;
+      final topColor = tokens.bgEdgeNearBlack;
+      final midColor = tokens.bgGlowNavy;
+      final baseColor = tokens.bgBaseNearBlack;
+      final bottomColor = tokens.bgEdgeNearBlack;
       return LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [topColor, midColor, bottomColor],
-        stops: const [0.0, 0.5, 1.0],
+        colors: [topColor, baseColor, midColor, baseColor, bottomColor],
+        stops: const [0.0, 0.28, 0.5, 0.72, 1.0],
       );
     }
     final topColor = Color.lerp(tokens.bg, tokens.surface2, 0.35)!;
@@ -577,6 +646,30 @@ class EchoGradients {
       end: Alignment.bottomCenter,
       colors: [topColor, midColor, bottomColor],
       stops: const [0.0, 0.5, 1.0],
+    );
+  }
+
+  static LinearGradient hashtagCard(
+    EchoSemantic tokens,
+    Brightness brightness,
+  ) {
+    if (brightness == Brightness.dark) {
+      final edge = Color.lerp(tokens.bgGlowNavy, tokens.bgBaseNearBlack, 0.22)!;
+      final center = Color.lerp(tokens.bgBaseNearBlack, tokens.bgEdgeNearBlack, 0.65)!;
+      return LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [edge, center, edge],
+        stops: const [0.0, 0.52, 1.0],
+      );
+    }
+    final edge = Color.lerp(tokens.bgGlowNavy, tokens.bg, 0.25)!;
+    final center = Color.lerp(tokens.bg, tokens.bgEdgeNearBlack, 0.5)!;
+    return LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [edge, center, edge],
+      stops: const [0.0, 0.52, 1.0],
     );
   }
 }

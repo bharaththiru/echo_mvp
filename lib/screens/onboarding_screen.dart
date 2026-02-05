@@ -223,8 +223,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           onPressed: () =>
                               _onPrimaryCta(appState, reduceMotion),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: tokens.accentPrimary,
-                            foregroundColor: tokens.bg,
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white,
+                            elevation: 1.5,
+                            shadowColor: Colors.white.withValues(alpha: 0.18),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18),
                             ),
@@ -293,7 +295,6 @@ class _OnboardingCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: tokens.surface1,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: tokens.borderSubtle),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {

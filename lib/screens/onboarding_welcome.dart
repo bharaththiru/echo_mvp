@@ -30,9 +30,6 @@ class OnboardingWelcome extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: tokens.accentPrimary,
-                border: Border.all(
-                  color: tokens.accentPrimary.withValues(alpha: 0.45),
-                ),
               ),
               child: Icon(
                 Icons.graphic_eq,

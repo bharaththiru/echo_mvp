@@ -217,16 +217,10 @@ class _ThemeOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tokens = context.echo;
     final backgroundColor = isSelected
-        ? tokens.accentPrimary.withValues(alpha: 0.18)
-        : tokens.surface1;
-    final borderColor = isSelected
-        ? tokens.accentPrimary.withValues(alpha: 0.48)
-        : tokens.borderSubtle;
-    final foregroundColor = isSelected
-        ? tokens.accentPrimary
-        : tokens.textSecondary;
+        ? Colors.black
+        : Colors.black.withValues(alpha: 0.6);
+    final foregroundColor = Colors.white;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -234,7 +228,13 @@ class _ThemeOption extends StatelessWidget {
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.18),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -243,9 +243,9 @@ class _ThemeOption extends StatelessWidget {
             Text(
               label,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: isSelected
-                    ? tokens.textPrimary
-                    : tokens.textSecondary,
+                color: Colors.white.withValues(
+                  alpha: isSelected ? 1.0 : 0.7,
+                ),
                 fontWeight: FontWeight.w600,
               ),
             ),

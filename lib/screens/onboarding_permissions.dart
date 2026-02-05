@@ -147,7 +147,6 @@ class _PermissionCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: tokens.surface2,
                   shape: BoxShape.circle,
-                  border: Border.all(color: tokens.borderSubtle),
                 ),
                 child: Icon(icon, color: tokens.accentPrimary),
               ),

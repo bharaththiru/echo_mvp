@@ -30,7 +30,6 @@ class EchoCard extends StatelessWidget {
     final resolvedColor = color ?? tokens.surface1;
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(resolvedRadius),
-      side: BorderSide(color: borderColor ?? tokens.borderSubtle),
     );
     final content = Padding(padding: padding, child: child);
 
@@ -53,6 +52,7 @@ class EchoGradientCard extends StatelessWidget {
     super.key,
     required this.child,
     required this.gradient,
+    this.glow = false,
     this.padding = const EdgeInsets.all(20),
     this.margin,
     this.onTap,
@@ -62,24 +62,30 @@ class EchoGradientCard extends StatelessWidget {
 
   final Widget child;
   final Gradient gradient;
+  final bool glow;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
   final VoidCallback? onTap;
   final Color? borderColor;
   final double? radius;
 
+  static const List<BoxShadow> _glowShadow = [
+    BoxShadow(
+      color: Color(0x14FFFFFF),
+      blurRadius: 18,
+      offset: Offset(0, 8),
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final tokens = context.echo;
     final resolvedRadius = radius ?? EchoRadii.card;
-    final resolvedBorder = borderColor ?? tokens.borderSubtle;
     final content = Padding(padding: padding, child: child);
 
     final ink = Ink(
       decoration: BoxDecoration(
         gradient: gradient,
         borderRadius: BorderRadius.circular(resolvedRadius),
-        border: Border.all(color: resolvedBorder),
       ),
       child: content,
     );
@@ -93,10 +99,20 @@ class EchoGradientCard extends StatelessWidget {
       child: onTap == null ? ink : InkWell(onTap: onTap, child: ink),
     );
 
+    final decorated = glow
+        ? DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(resolvedRadius),
+              boxShadow: _glowShadow,
+            ),
+            child: material,
+          )
+        : material;
+
     if (margin == null) {
-      return material;
+      return decorated;
     }
-    return Container(margin: margin, child: material);
+    return Container(margin: margin, child: decorated);
   }
 }
 
@@ -148,7 +164,7 @@ class EchoPrimaryButton extends StatelessWidget {
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      theme.colorScheme.onPrimary,
+                      Colors.white,
                     ),
                   ),
                 )
@@ -282,10 +298,6 @@ class EchoDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.echo;
-    return Container(
-      height: height,
-      color: tokens.borderSubtle,
-    );
+    return SizedBox(height: height);
   }
 }

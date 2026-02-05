@@ -92,14 +92,14 @@ class _OnboardingInterestsState extends State<OnboardingInterests> {
                   children: tags.map((tag) {
                     final isSelected = _selected.contains(tag);
                     final backgroundColor = isSelected
-                        ? tokens.accentPrimary
+                        ? Color.lerp(
+                              tokens.surface1,
+                              tokens.accentSecondary,
+                              0.12,
+                            ) ??
+                            tokens.surface1
                         : tokens.surface1.withValues(alpha: 0.85);
-                    final borderColor = isSelected
-                        ? tokens.accentPrimary.withValues(alpha: 0.75)
-                        : tokens.borderSubtle;
-                    final textColor = isSelected
-                        ? tokens.bg
-                        : tokens.textPrimary;
+                    final textColor = tokens.textPrimary;
                     return GestureDetector(
                       onTap: () => _toggle(tag),
                       child: AnimatedContainer(
@@ -113,7 +113,6 @@ class _OnboardingInterestsState extends State<OnboardingInterests> {
                         decoration: BoxDecoration(
                           color: backgroundColor,
                           borderRadius: BorderRadius.circular(30),
-                          border: Border.all(color: borderColor, width: 1.5),
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(

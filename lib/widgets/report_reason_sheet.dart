@@ -55,7 +55,6 @@ Future<String?> showReportReasonSheet(BuildContext context) {
                     return ListTile(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
-                        side: BorderSide(color: tokens.borderSubtle),
                       ),
                       tileColor: tokens.surface2,
                       title: Text(option.label),

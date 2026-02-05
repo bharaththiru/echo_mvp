@@ -95,18 +95,17 @@ class BottomNavBar extends StatelessWidget {
                     bottom: 0.12,
                   ),
                   borderRadius: BorderRadius.circular(EchoRadii.nav),
-                  border: Border.all(color: tokens.borderSubtle),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: items.map((item) {
                     final isActive = currentIndex == item.index;
                     final backgroundColor = isActive
-                        ? tokens.accentPrimary.withValues(alpha: 0.16)
+                        ? Colors.black.withValues(alpha: 0.16)
                         : Colors.transparent;
                     final foregroundColor = isActive
-                        ? tokens.accentPrimary
-                        : tokens.textTertiary;
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.6);
                     return Expanded(
                       child: GestureDetector(
                         onTap: () => onTap(item.index),
@@ -114,17 +113,10 @@ class BottomNavBar extends StatelessWidget {
                           duration: duration,
                           curve: Curves.easeOutCubic,
                           padding: const EdgeInsets.symmetric(vertical: 7),
-                          decoration: BoxDecoration(
-                            color: backgroundColor,
-                            borderRadius: BorderRadius.circular(20),
-                            border: isActive
-                                ? Border.all(
-                                    color: tokens.accentPrimary.withValues(
-                                      alpha: 0.28,
-                                    ),
-                                  )
-                                : null,
-                          ),
+                        decoration: BoxDecoration(
+                          color: backgroundColor,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [

@@ -9,6 +9,7 @@ import '../app/app_scope.dart';
 import '../services/autoplay_controller.dart';
 import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
+import 'listenable_selector.dart';
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -60,10 +61,11 @@ class _MiniPlayer extends StatelessWidget {
     final tokens = context.echo;
     final theme = Theme.of(context);
 
-    return AnimatedBuilder(
-      animation: autoplay,
-      builder: (context, _) {
-        final state = autoplay.state;
+    return ListenableSelector<AutoplayState>(
+      listenable: autoplay,
+      selector: () => autoplay.state,
+      shouldRebuild: _miniPlayerShouldRebuild,
+      builder: (context, state) {
         if (state.queue.isEmpty || state.currentNote == null) {
           return const SizedBox.shrink();
         }
@@ -75,15 +77,8 @@ class _MiniPlayer extends StatelessWidget {
             state.queue[
                 state.currentIndex.clamp(0, state.queue.length - 1)];
         final hashtagId = state.hashtagId;
-        final hashtag = hashtagId == null ? null : appState.hashtagById(hashtagId);
-        final duration = state.duration.inMilliseconds > 0
-            ? state.duration
-            : note.duration;
-        final progress = duration.inMilliseconds == 0
-            ? 0.0
-            : (state.position.inMilliseconds / duration.inMilliseconds)
-                .clamp(0.0, 1.0)
-                .toDouble();
+        final hashtag =
+            hashtagId == null ? null : appState.hashtagById(hashtagId);
         final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
         final bottomPadding = EchoLayout.space(context, 8);
         final statusText = state.isBuffering
@@ -116,20 +111,18 @@ class _MiniPlayer extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.fromLTRB(10, 8, 10, 7),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          const Color(0xFF071C4A).withValues(alpha: 0.94),
-                          const Color(0xFF0A2A5A).withValues(alpha: 0.9),
-                        ],
-                      ),
+                      color: Colors.black,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: tokens.borderSubtle),
                       boxShadow: [
                         BoxShadow(
-                          color: tokens.shadow.withValues(alpha: 0.3),
-                          blurRadius: 18,
+                          color: Colors.white.withValues(alpha: 0.16),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                        BoxShadow(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          blurRadius: 28,
+                          spreadRadius: 2,
                           offset: const Offset(0, 10),
                         ),
                       ],
@@ -140,7 +133,7 @@ class _MiniPlayer extends StatelessWidget {
                         Row(
                           children: [
                             _MiniPulseDot(
-                              color: tokens.accentSecondary,
+                              color: Colors.white,
                               reduceMotion: appState.settings.reduceMotion,
                               isActive: state.isPlaying,
                             ),
@@ -153,7 +146,9 @@ class _MiniPlayer extends StatelessWidget {
                                     hashtag?.name ?? 'Station',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleSmall,
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      color: Colors.white,
+                                    ),
                                   ),
                                   const SizedBox(height: 1),
                                   Text(
@@ -161,7 +156,9 @@ class _MiniPlayer extends StatelessWidget {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: tokens.textSecondary,
+                                      color: Colors.white.withValues(
+                                        alpha: 0.7,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -200,53 +197,9 @@ class _MiniPlayer extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            const dotSize = 7.0;
-                            final trackWidth = constraints.maxWidth;
-                            final left = (trackWidth - dotSize) * progress;
-                            return Stack(
-                              alignment: Alignment.centerLeft,
-                              children: [
-                                Container(
-                                  height: 3,
-                                  decoration: BoxDecoration(
-                                    color: tokens.surface3,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                ),
-                                FractionallySizedBox(
-                                  widthFactor: progress,
-                                  child: Container(
-                                    height: 3,
-                                    decoration: BoxDecoration(
-                                      color: tokens.accentPrimary,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  left: left,
-                                  child: Container(
-                                    height: dotSize,
-                                    width: dotSize,
-                                    decoration: BoxDecoration(
-                                      color: tokens.accentSecondary,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: tokens.accentSecondary
-                                              .withValues(alpha: 0.5),
-                                          blurRadius: 8,
-                                          spreadRadius: 1,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
+                        _MiniPlayerProgress(
+                          autoplay: autoplay,
+                          fallbackDuration: note.duration,
                         ),
                       ],
                     ),
@@ -342,4 +295,130 @@ class _MiniPulseDotState extends State<_MiniPulseDot>
       },
     );
   }
+}
+
+bool _miniPlayerShouldRebuild(AutoplayState previous, AutoplayState next) {
+  if (previous.currentNote?.id != next.currentNote?.id) {
+    return true;
+  }
+  if (previous.currentIndex != next.currentIndex) {
+    return true;
+  }
+  if (previous.queue.length != next.queue.length) {
+    return true;
+  }
+  if (previous.phase != next.phase) {
+    return true;
+  }
+  if (previous.isPreparing != next.isPreparing ||
+      previous.isTransitioning != next.isTransitioning) {
+    return true;
+  }
+  if (previous.isMuted != next.isMuted) {
+    return true;
+  }
+  return false;
+}
+
+class _MiniPlayerProgress extends StatelessWidget {
+  const _MiniPlayerProgress({
+    required this.autoplay,
+    required this.fallbackDuration,
+  });
+
+  final AutoplayController autoplay;
+  final Duration fallbackDuration;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.echo;
+    return ListenableSelector<_MiniProgressSnapshot>(
+      listenable: autoplay,
+      selector: () {
+        final state = autoplay.state;
+        final duration = state.duration.inMilliseconds > 0
+            ? state.duration
+            : fallbackDuration;
+        final ratio = duration.inMilliseconds == 0
+            ? 0.0
+            : (state.position.inMilliseconds / duration.inMilliseconds)
+                .clamp(0.0, 1.0)
+                .toDouble();
+        return _MiniProgressSnapshot(ratio);
+      },
+      shouldRebuild: (previous, next) => previous != next,
+      builder: (context, snapshot) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final trackColor = tokens.bgGlowNavy;
+            final progressColor = Colors.white;
+            const dotSize = 7.0;
+            final trackWidth = constraints.maxWidth;
+            final left = (trackWidth - dotSize) * snapshot.progress;
+            return Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                Container(
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: trackColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                FractionallySizedBox(
+                  widthFactor: snapshot.progress,
+                  child: Container(
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: progressColor,
+                      borderRadius: BorderRadius.circular(6),
+                      boxShadow: [
+                        BoxShadow(
+                          color: progressColor.withValues(alpha: 0.35),
+                          blurRadius: 10,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: left,
+                  child: Container(
+                    height: dotSize,
+                    width: dotSize,
+                    decoration: BoxDecoration(
+                      color: progressColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: progressColor.withValues(alpha: 0.45),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _MiniProgressSnapshot {
+  const _MiniProgressSnapshot(this.progress);
+
+  final double progress;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _MiniProgressSnapshot && other.progress == progress;
+  }
+
+  @override
+  int get hashCode => progress.hashCode;
 }

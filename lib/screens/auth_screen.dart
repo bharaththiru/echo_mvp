@@ -268,7 +268,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Expanded(child: Divider(color: tokens.borderSubtle)),
+                        const Expanded(child: SizedBox(height: 1)),
                         const SizedBox(width: 12),
                         Text(
                           'or',
@@ -278,7 +278,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Expanded(child: Divider(color: tokens.borderSubtle)),
+                        const Expanded(child: SizedBox(height: 1)),
                       ],
                     ),
                     const SizedBox(height: 16),

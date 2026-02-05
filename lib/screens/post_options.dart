@@ -222,7 +222,6 @@ class _PostOptionsState extends State<PostOptions> {
                     padding: const EdgeInsets.all(16),
                     radius: 18,
                     color: tokens.surface2,
-                    borderColor: tokens.borderSubtle,
                     child: Text(
                       'Pending upload detected. You can retry posting this clip.',
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -274,14 +273,14 @@ class _PostOptionsState extends State<PostOptions> {
                     children: filteredHashtags.map((tag) {
                       final isSelected = _selectedHashtag?.name == tag;
                       final backgroundColor = isSelected
-                          ? tokens.accentPrimary
+                          ? Color.lerp(
+                                tokens.surface1,
+                                tokens.accentSecondary,
+                                0.12,
+                              ) ??
+                              tokens.surface1
                           : tokens.surface1.withValues(alpha: 0.9);
-                      final borderColor = isSelected
-                          ? tokens.accentPrimary.withValues(alpha: 0.75)
-                          : tokens.borderSubtle;
-                      final textColor = isSelected
-                          ? tokens.bg
-                          : tokens.textPrimary;
+                      final textColor = tokens.textPrimary;
                       return GestureDetector(
                         onTap: () {
                           final selected = hashtags.firstWhere(
@@ -297,7 +296,6 @@ class _PostOptionsState extends State<PostOptions> {
                           decoration: BoxDecoration(
                             color: backgroundColor,
                             borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: borderColor),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
