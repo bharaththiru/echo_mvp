@@ -40,7 +40,7 @@ void main() {
       name: '#focus',
       description: 'Quiet concentration',
       icon: Icons.self_improvement,
-      gradient: [EchoColors.deepTeal, EchoColors.teal],
+      color: EchoColors.clearing,
       noteCount: 2,
     );
   }

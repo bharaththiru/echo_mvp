@@ -99,6 +99,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         appState.settings.reduceMotion;
     final theme = Theme.of(context);
     final tokens = context.echo;
+    final buttonFill = tokens.accentPrimary;
+    final onButtonFill = EchoColorUtils.onColor(buttonFill);
     final overlayStyle = theme.brightness == Brightness.dark
         ? SystemUiOverlayStyle.light
         : SystemUiOverlayStyle.dark;
@@ -139,7 +141,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       TextButton(
                         onPressed: () => _completeOnboarding(appState),
                         style: TextButton.styleFrom(
-                          foregroundColor: tokens.textSecondary,
                           textStyle: theme.textTheme.bodySmall?.copyWith(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -223,10 +224,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           onPressed: () =>
                               _onPrimaryCta(appState, reduceMotion),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.black,
-                            foregroundColor: Colors.white,
-                            elevation: 1.5,
-                            shadowColor: Colors.white.withValues(alpha: 0.18),
+                            backgroundColor: buttonFill,
+                            foregroundColor: onButtonFill,
+                            elevation: 0,
+                            shadowColor: Colors.transparent,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18),
                             ),

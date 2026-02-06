@@ -14,6 +14,8 @@ class ProfileTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
+    final buttonFill = tokens.accentPrimary;
+    final onButtonFill = EchoColorUtils.onColor(buttonFill);
     final appState = AppScope.of(context);
     final isAuthenticated = appState.isAuthenticated;
     final skipAuth = appState.skipAuth;
@@ -56,11 +58,11 @@ class ProfileTab extends StatelessWidget {
                       width: 80,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: tokens.accentPrimary,
+                        color: tokens.surface2,
                       ),
                       child: Icon(
                         Icons.person,
-                        color: tokens.bg,
+                        color: tokens.textSecondary,
                         size: 36,
                       ),
                     ),
@@ -156,18 +158,11 @@ class ProfileTab extends StatelessWidget {
                           width: 36,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.black,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.white.withValues(alpha: 0.18),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
+                            color: buttonFill,
                           ),
                           child: Icon(
                             Icons.play_arrow,
-                            color: Colors.white,
+                            color: onButtonFill,
                           ),
                         ),
                         const SizedBox(width: 12),

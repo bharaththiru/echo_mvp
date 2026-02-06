@@ -13,6 +13,7 @@ class EchoCard extends StatelessWidget {
     this.color,
     this.borderColor,
     this.radius,
+    this.overlayColor,
   });
 
   final Widget child;
@@ -22,6 +23,7 @@ class EchoCard extends StatelessWidget {
   final Color? color;
   final Color? borderColor;
   final double? radius;
+  final Color? overlayColor;
 
   @override
   Widget build(BuildContext context) {
@@ -36,8 +38,18 @@ class EchoCard extends StatelessWidget {
     final material = Material(
       color: resolvedColor,
       shape: shape,
+      elevation: 1,
+      shadowColor: tokens.shadow,
       clipBehavior: Clip.antiAlias,
-      child: onTap == null ? content : InkWell(onTap: onTap, child: content),
+      child: onTap == null
+          ? content
+          : InkWell(
+              onTap: onTap,
+              overlayColor: overlayColor == null
+                  ? null
+                  : WidgetStateProperty.all(overlayColor),
+              child: content,
+            ),
     );
 
     if (margin == null) {
@@ -58,6 +70,7 @@ class EchoGradientCard extends StatelessWidget {
     this.onTap,
     this.borderColor,
     this.radius,
+    this.overlayColor,
   });
 
   final Widget child;
@@ -68,10 +81,11 @@ class EchoGradientCard extends StatelessWidget {
   final VoidCallback? onTap;
   final Color? borderColor;
   final double? radius;
+  final Color? overlayColor;
 
   static const List<BoxShadow> _glowShadow = [
     BoxShadow(
-      color: Color(0x14FFFFFF),
+      color: Color(0x14000000),
       blurRadius: 18,
       offset: Offset(0, 8),
     ),
@@ -96,7 +110,15 @@ class EchoGradientCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(resolvedRadius),
       ),
       clipBehavior: Clip.antiAlias,
-      child: onTap == null ? ink : InkWell(onTap: onTap, child: ink),
+      child: onTap == null
+          ? ink
+          : InkWell(
+              onTap: onTap,
+              overlayColor: overlayColor == null
+                  ? null
+                  : WidgetStateProperty.all(overlayColor),
+              child: ink,
+            ),
     );
 
     final decorated = glow
@@ -147,7 +169,11 @@ class EchoPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final tokens = context.echo;
+    final buttonFill = tokens.accentPrimary;
+    final loadingForeground = EchoColorUtils.onColor(
+      buttonFill.withValues(alpha: 0.45),
+    ).withValues(alpha: 0.55);
     final height = EchoLayout.buttonHeight(context);
     return Semantics(
       button: true,
@@ -163,9 +189,8 @@ class EchoPrimaryButton extends StatelessWidget {
                   width: 18,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Colors.white,
-                    ),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(loadingForeground),
                   ),
                 )
               : Text(label),

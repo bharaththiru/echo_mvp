@@ -236,14 +236,18 @@ class _HashtagGridCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
-    final cardGradient = EchoGradients.hashtagCard(tokens, theme.brightness);
+    final tileColor = tokens.surface1;
+    final onTile = tokens.textPrimary;
+    final mutedOnTile = tokens.textSecondary;
+    final buttonFill = tokens.accentPrimary;
+    final onButtonFill = EchoColorUtils.onColor(buttonFill);
 
-    return EchoGradientCard(
+    return EchoCard(
       onTap: onTap,
       radius: 22,
-      glow: true,
+      color: tileColor,
+      overlayColor: EchoColorUtils.pressedOverlay(tileColor, alpha: 0.12),
       padding: const EdgeInsets.all(16),
-      gradient: cardGradient,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -253,32 +257,28 @@ class _HashtagGridCard extends StatelessWidget {
               Icon(
                 hashtag.icon,
                 size: 28,
-                color: Colors.white.withValues(alpha: 0.9),
+                color: tokens.textSecondary,
               ),
               Container(
                 height: 34,
                 width: 34,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.black,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  color: buttonFill,
                 ),
                 child: Icon(
                   Icons.play_arrow,
-                  color: Colors.white,
+                  color: onButtonFill,
                   size: 18,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Text(hashtag.name, style: theme.textTheme.titleMedium),
+          Text(
+            hashtag.name,
+            style: theme.textTheme.titleMedium?.copyWith(color: onTile),
+          ),
           const Spacer(),
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
@@ -287,7 +287,7 @@ class _HashtagGridCard extends StatelessWidget {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: tokens.textSecondary,
+                color: mutedOnTile,
                 height: 1.35,
               ),
             ),

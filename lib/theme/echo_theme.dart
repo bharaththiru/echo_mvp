@@ -1,28 +1,38 @@
 import 'package:flutter/material.dart';
 
 class EchoColors {
-  static const deepNavy = Color(0xFF071952);
-  static const deepTeal = Color(0xFF1F3B3E);
-  static const teal = Color(0xFF2A4F52);
-  static const mint = Color(0xFF3A6063);
-  static const bgBaseNearBlack = Color(0xFF050B16);
-  static const bgGlowNavy = Color(0xFF0B1733);
-  static const bgEdgeNearBlack = Color(0xFF03060B);
-
-  static const textPrimary = Color(0xFFF2F4F7);
-  static const textSecondary = Color(0xFFA3ACBC);
-  static const textTertiary = Color(0xFF6D7687);
-
-  static const danger = Color(0xFFB56D6D);
+  static const voidBg = Color(0xFF080A09);
+  static const clearing = Color(0xFF141C18);
+  static const pulse = Color(0xFF769586);
+  static const fog = Color(0xFFB8C4BE);
 }
 
 class EchoRadii {
-  static const double card = 16;
-  static const double button = 14;
-  static const double input = 14;
+  static const double card = 18;
+  static const double button = 16;
+  static const double input = 16;
   static const double pill = 24;
-  static const double sheet = 20;
-  static const double nav = 22;
+  static const double sheet = 22;
+  static const double nav = 20;
+}
+
+class EchoColorUtils {
+  static Color onColor(Color background) {
+    final luminance = background.computeLuminance();
+    return luminance > 0.35 ? EchoColors.voidBg : EchoColors.fog;
+  }
+
+  static Color pressedOverlay(Color background, {double alpha = 0.12}) {
+    return EchoColors.pulse.withValues(alpha: alpha);
+  }
+
+  static Color mutedOn(Color background, double alpha) {
+    return onColor(background).withValues(alpha: alpha);
+  }
+
+  static Color darken(Color color, double amount) {
+    return Color.lerp(color, Colors.black, amount)!;
+  }
 }
 
 @immutable
@@ -70,59 +80,33 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
   final Color shadow;
 
   factory EchoSemantic.fromBrightness(Brightness brightness) {
-    final isDark = brightness == Brightness.dark;
-    if (isDark) {
-      const bgBaseNearBlack = EchoColors.bgBaseNearBlack;
-      const bgGlowNavy = EchoColors.bgGlowNavy;
-      final surface1 =
-          Color.lerp(bgBaseNearBlack, Colors.white, 0.07)!;
-      final surface2 =
-          Color.lerp(bgBaseNearBlack, EchoColors.deepTeal, 0.24)!;
-      final surface3 =
-          Color.lerp(bgGlowNavy, Colors.white, 0.08)!;
-      return EchoSemantic(
-        bg: bgBaseNearBlack,
-        bgBaseNearBlack: bgBaseNearBlack,
-        bgGlowNavy: bgGlowNavy,
-        bgEdgeNearBlack: EchoColors.bgEdgeNearBlack,
-        surface1: surface1,
-        surface2: surface2,
-        surface3: surface3,
-        border: EchoColors.deepTeal,
-        borderSubtle: EchoColors.deepTeal,
-        textPrimary: EchoColors.textPrimary,
-        textSecondary: EchoColors.textSecondary,
-        textTertiary: EchoColors.textTertiary,
-        accentPrimary: EchoColors.teal,
-        accentSecondary: EchoColors.mint,
-        accentMuted: const Color(0x1F2A4F52),
-        danger: EchoColors.danger,
-        dangerMuted: EchoColors.danger.withValues(alpha: 0.7),
-        overlay: bgBaseNearBlack.withValues(alpha: 0.9),
-        shadow: Colors.black.withValues(alpha: 0.35),
-      );
-    }
-
-    return const EchoSemantic(
-      bg: Color(0xFFF4F7FF),
-      bgBaseNearBlack: Color(0xFFF4F7FF),
-      bgGlowNavy: Color(0xFFEAF1FA),
-      bgEdgeNearBlack: Color(0xFFF1F5FB),
-      surface1: Color(0xFFFFFFFF),
-      surface2: Color(0xFFEAF1FA),
-      surface3: Color(0xFFF1F5FB),
-      border: Color(0xFFD6DFEB),
-      borderSubtle: Color(0xFFE7EEF6),
-      textPrimary: EchoColors.deepNavy,
-      textSecondary: Color(0xFF4E5E77),
-      textTertiary: Color(0xFF7A8BA3),
-      accentPrimary: EchoColors.teal,
-      accentSecondary: EchoColors.mint,
-      accentMuted: Color(0x1F2A4F52),
-      danger: EchoColors.danger,
-      dangerMuted: Color(0xB3B56D6D),
-      overlay: Color(0xE6FFFFFF),
-      shadow: Color(0x1A000000),
+    const bgBaseNearBlack = EchoColors.voidBg;
+    const bgGlow = EchoColors.voidBg;
+    const neutral = EchoColors.clearing;
+    final surface1 = neutral;
+    final surface2 = Color.lerp(neutral, EchoColors.fog, 0.04)!;
+    final surface3 = Color.lerp(neutral, EchoColors.fog, 0.08)!;
+    final border = EchoColors.fog.withValues(alpha: 0.12);
+    return EchoSemantic(
+      bg: bgBaseNearBlack,
+      bgBaseNearBlack: bgBaseNearBlack,
+      bgGlowNavy: bgGlow,
+      bgEdgeNearBlack: EchoColors.voidBg,
+      surface1: surface1,
+      surface2: surface2,
+      surface3: surface3,
+      border: border,
+      borderSubtle: border.withValues(alpha: 0.5),
+      textPrimary: EchoColors.fog,
+      textSecondary: EchoColors.fog.withValues(alpha: 0.72),
+      textTertiary: EchoColors.fog.withValues(alpha: 0.55),
+      accentPrimary: EchoColors.pulse,
+      accentSecondary: EchoColors.pulse,
+      accentMuted: EchoColors.pulse.withValues(alpha: 0.18),
+      danger: EchoColors.pulse,
+      dangerMuted: EchoColors.pulse.withValues(alpha: 0.6),
+      overlay: bgBaseNearBlack.withValues(alpha: 0.9),
+      shadow: Colors.black.withValues(alpha: 0.2),
     );
   }
 
@@ -202,25 +186,21 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
   }
 }
 
-ThemeData buildEchoTheme(Brightness brightness) {
-  final resolvedBrightness = brightness == Brightness.dark
-      ? Brightness.dark
-      : Brightness.light;
+ThemeData buildEchoTheme(Brightness _brightness) {
+  const resolvedBrightness = Brightness.dark;
   final tokens = EchoSemantic.fromBrightness(resolvedBrightness);
+  final buttonFill = tokens.accentPrimary;
+  final onButtonFill = EchoColorUtils.onColor(buttonFill);
   final colorScheme = ColorScheme(
     brightness: resolvedBrightness,
     primary: tokens.accentPrimary,
-    onPrimary: tokens.bg,
-    secondary: tokens.surface2,
+    onPrimary: onButtonFill,
+    secondary: tokens.surface1,
     onSecondary: tokens.textPrimary,
-    tertiary: tokens.accentSecondary,
-    onTertiary: resolvedBrightness == Brightness.dark
-        ? tokens.bg
-        : tokens.textPrimary,
+    tertiary: tokens.surface2,
+    onTertiary: tokens.textPrimary,
     error: tokens.danger,
-    onError: resolvedBrightness == Brightness.dark
-        ? tokens.bg
-        : tokens.textPrimary,
+    onError: EchoColorUtils.onColor(tokens.danger),
     surface: tokens.surface1,
     onSurface: tokens.textPrimary,
     surfaceContainerHighest: tokens.surface2,
@@ -238,7 +218,7 @@ ThemeData buildEchoTheme(Brightness brightness) {
   return ThemeData(
     useMaterial3: true,
     brightness: resolvedBrightness,
-    fontFamily: 'Lora',
+    fontFamily: 'Satoshi',
     colorScheme: colorScheme,
     extensions: [tokens],
     scaffoldBackgroundColor: tokens.bg,
@@ -259,7 +239,7 @@ ThemeData buildEchoTheme(Brightness brightness) {
       color: tokens.surface1,
       shadowColor: tokens.shadow,
       surfaceTintColor: Colors.transparent,
-      elevation: 0,
+      elevation: 2,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(EchoRadii.card),
@@ -280,7 +260,7 @@ ThemeData buildEchoTheme(Brightness brightness) {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      elevation: 6,
+      elevation: 2,
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: tokens.surface1,
@@ -303,19 +283,21 @@ ThemeData buildEchoTheme(Brightness brightness) {
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(
       color: tokens.accentPrimary,
-      circularTrackColor: tokens.surface3,
-      linearTrackColor: tokens.surface3,
+      circularTrackColor: tokens.textSecondary.withValues(alpha: 0.2),
+      linearTrackColor: tokens.textSecondary.withValues(alpha: 0.2),
     ),
     iconTheme: IconThemeData(color: tokens.textPrimary),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: tokens.surface2,
+      fillColor: tokens.surface1,
       hintStyle: textTheme.bodyMedium?.copyWith(
-        color: tokens.textTertiary,
+        color: tokens.textTertiary.withValues(alpha: 0.7),
       ),
       labelStyle: textTheme.bodySmall?.copyWith(
         color: tokens.textSecondary,
       ),
+      prefixIconColor: tokens.textSecondary,
+      suffixIconColor: tokens.textSecondary,
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 18,
         vertical: 16,
@@ -334,87 +316,179 @@ ThemeData buildEchoTheme(Brightness brightness) {
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        disabledBackgroundColor: Colors.black.withValues(alpha: 0.55),
-        disabledForegroundColor: Colors.white.withValues(alpha: 0.6),
-        elevation: 1.5,
-        shadowColor: Colors.white.withValues(alpha: 0.18),
-        minimumSize: const Size.fromHeight(54),
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(EchoRadii.button),
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return buttonFill.withValues(alpha: 0.4);
+          }
+          if (states.contains(WidgetState.pressed)) {
+            return EchoColorUtils.darken(buttonFill, 0.08);
+          }
+          return buttonFill;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          final background = states.contains(WidgetState.disabled)
+              ? buttonFill.withValues(alpha: 0.4)
+              : states.contains(WidgetState.pressed)
+                  ? EchoColorUtils.darken(buttonFill, 0.08)
+                  : buttonFill;
+          final resolved = EchoColorUtils.onColor(background);
+          if (states.contains(WidgetState.disabled)) {
+            return resolved.withValues(alpha: 0.55);
+          }
+          return resolved;
+        }),
+        overlayColor: WidgetStateProperty.all(
+          EchoColorUtils.pressedOverlay(buttonFill),
         ),
-        textStyle: textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.1,
+        elevation: WidgetStateProperty.all(0),
+        shadowColor: WidgetStateProperty.all(Colors.transparent),
+        minimumSize: WidgetStateProperty.all(const Size.fromHeight(54)),
+        padding: WidgetStateProperty.all(
+          const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+        ),
+        shape: WidgetStateProperty.all(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(EchoRadii.button),
+          ),
+        ),
+        textStyle: WidgetStateProperty.all(
+          textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.1,
+          ),
         ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.white,
-        disabledForegroundColor: Colors.white.withValues(alpha: 0.6),
-        backgroundColor: Colors.black,
-        minimumSize: const Size.fromHeight(52),
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-        side: BorderSide.none,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(EchoRadii.button),
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return tokens.surface1.withValues(alpha: 0.6);
+          }
+          if (states.contains(WidgetState.pressed)) {
+            return tokens.surface1;
+          }
+          return tokens.surface1;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          final background = states.contains(WidgetState.disabled)
+              ? tokens.surface1.withValues(alpha: 0.6)
+              : states.contains(WidgetState.pressed)
+                  ? tokens.surface1
+                  : tokens.surface1;
+          final resolved = tokens.textPrimary;
+          if (states.contains(WidgetState.disabled)) {
+            return resolved.withValues(alpha: 0.5);
+          }
+          return resolved;
+        }),
+        overlayColor: WidgetStateProperty.all(
+          EchoColorUtils.pressedOverlay(tokens.surface1, alpha: 0.12),
         ),
-        textStyle: textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.1,
+        elevation: WidgetStateProperty.all(0),
+        shadowColor: WidgetStateProperty.all(Colors.transparent),
+        minimumSize: WidgetStateProperty.all(const Size.fromHeight(52)),
+        padding: WidgetStateProperty.all(
+          const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
         ),
-      ).copyWith(
-        elevation: WidgetStateProperty.all(1),
-        shadowColor: WidgetStateProperty.all(
-          Colors.white.withValues(alpha: 0.18),
+        side: WidgetStateProperty.all(BorderSide.none),
+        shape: WidgetStateProperty.all(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(EchoRadii.button),
+          ),
+        ),
+        textStyle: WidgetStateProperty.all(
+          textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.1,
+          ),
         ),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: Colors.white,
-        disabledForegroundColor: Colors.white.withValues(alpha: 0.6),
-        backgroundColor: Colors.black,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        textStyle: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
-      ).copyWith(
-        elevation: WidgetStateProperty.all(1),
-        shadowColor: WidgetStateProperty.all(
-          Colors.white.withValues(alpha: 0.18),
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return tokens.surface1.withValues(alpha: 0.4);
+          }
+          if (states.contains(WidgetState.pressed)) {
+            return tokens.surface1;
+          }
+          return tokens.surface1;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          final background = states.contains(WidgetState.disabled)
+              ? tokens.surface1.withValues(alpha: 0.4)
+              : states.contains(WidgetState.pressed)
+                  ? tokens.surface1
+                  : tokens.surface1;
+          final resolved = tokens.textPrimary;
+          if (states.contains(WidgetState.disabled)) {
+            return resolved.withValues(alpha: 0.5);
+          }
+          return resolved;
+        }),
+        overlayColor: WidgetStateProperty.all(
+          EchoColorUtils.pressedOverlay(tokens.surface1, alpha: 0.12),
+        ),
+        padding: WidgetStateProperty.all(
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+        elevation: WidgetStateProperty.all(0),
+        shadowColor: WidgetStateProperty.all(Colors.transparent),
+        textStyle: WidgetStateProperty.all(
+          textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        shape: WidgetStateProperty.all(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(EchoRadii.button),
+          ),
         ),
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
       style: ButtonStyle(
         foregroundColor: WidgetStateProperty.resolveWith((states) {
+          final background = states.contains(WidgetState.disabled)
+              ? tokens.surface1.withValues(alpha: 0.5)
+              : states.contains(WidgetState.pressed)
+                  ? tokens.surface1
+                  : tokens.surface1;
+          final resolved = tokens.textPrimary;
           if (states.contains(WidgetState.disabled)) {
-            return Colors.white.withValues(alpha: 0.6);
+            return resolved.withValues(alpha: 0.5);
           }
-          return Colors.white;
+          return resolved;
         }),
         backgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.disabled)) {
-            return Colors.black.withValues(alpha: 0.55);
+            return tokens.surface1.withValues(alpha: 0.5);
           }
-          return Colors.black;
+          if (states.contains(WidgetState.pressed)) {
+            return tokens.surface1;
+          }
+          return tokens.surface1;
         }),
-        elevation: WidgetStateProperty.all(1),
-        shadowColor: WidgetStateProperty.all(
-          Colors.white.withValues(alpha: 0.18),
+        overlayColor: WidgetStateProperty.all(
+          EchoColorUtils.pressedOverlay(tokens.surface1, alpha: 0.12),
+        ),
+        elevation: WidgetStateProperty.all(0),
+        shadowColor: WidgetStateProperty.all(Colors.transparent),
+        shape: WidgetStateProperty.all(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(EchoRadii.button),
+          ),
         ),
       ),
     ),
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: Colors.black,
-      foregroundColor: Colors.white,
-      elevation: 1.5,
-      highlightElevation: 2,
-      focusElevation: 1.5,
-      hoverElevation: 1.5,
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: buttonFill,
+      foregroundColor: onButtonFill,
+      elevation: 0,
+      highlightElevation: 0,
+      focusElevation: 0,
+      hoverElevation: 0,
       disabledElevation: 0,
       splashColor: Colors.transparent,
       focusColor: Colors.transparent,
@@ -426,36 +500,36 @@ ThemeData buildEchoTheme(Brightness brightness) {
           return tokens.textSecondary.withValues(alpha: 0.5);
         }
         return states.contains(WidgetState.selected)
-            ? tokens.accentPrimary
-            : tokens.textSecondary;
+            ? buttonFill
+            : tokens.textSecondary.withValues(alpha: 0.6);
       }),
       trackColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return tokens.accentPrimary.withValues(alpha: 0.45);
+          return buttonFill.withValues(alpha: 0.55);
         }
-        return tokens.surface3;
+        return tokens.textSecondary.withValues(alpha: 0.2);
       }),
       trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
     ),
     sliderTheme: SliderThemeData(
-      activeTrackColor: tokens.accentPrimary,
-      inactiveTrackColor: tokens.surface3,
-      thumbColor: tokens.accentPrimary,
-      overlayColor: tokens.accentPrimary.withValues(alpha: 0.12),
+      activeTrackColor: buttonFill,
+      inactiveTrackColor: tokens.textSecondary.withValues(alpha: 0.2),
+      thumbColor: buttonFill,
+      overlayColor: buttonFill.withValues(alpha: 0.12),
       trackHeight: 4,
     ),
     chipTheme: ChipThemeData(
-      backgroundColor: tokens.surface2,
-      disabledColor: tokens.surface2.withValues(alpha: 0.6),
-      selectedColor: tokens.accentPrimary,
-      secondarySelectedColor: tokens.accentPrimary,
+      backgroundColor: tokens.surface1,
+      disabledColor: tokens.surface1.withValues(alpha: 0.6),
+      selectedColor: buttonFill,
+      secondarySelectedColor: buttonFill,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       labelStyle: textTheme.bodySmall?.copyWith(
-        color: tokens.textPrimary,
+        color: tokens.textSecondary,
         fontWeight: FontWeight.w600,
       ),
       secondaryLabelStyle: textTheme.bodySmall?.copyWith(
-        color: tokens.bg,
+        color: onButtonFill,
         fontWeight: FontWeight.w700,
       ),
       side: BorderSide.none,
@@ -464,21 +538,21 @@ ThemeData buildEchoTheme(Brightness brightness) {
       ),
     ),
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
-      backgroundColor: tokens.surface1.withValues(alpha: 0.9),
-      selectedItemColor: Colors.white,
-      unselectedItemColor: Colors.white.withValues(alpha: 0.6),
+      backgroundColor: tokens.bg,
+      selectedItemColor: tokens.accentPrimary,
+      unselectedItemColor: tokens.textSecondary.withValues(alpha: 0.6),
       elevation: 0,
       type: BottomNavigationBarType.fixed,
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: tokens.surface1.withValues(alpha: 0.9),
-      indicatorColor: Colors.black.withValues(alpha: 0.16),
+      backgroundColor: tokens.bg,
+      indicatorColor: buttonFill.withValues(alpha: 0.18),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final isSelected = states.contains(WidgetState.selected);
         return textTheme.labelSmall?.copyWith(
           color: isSelected
-              ? Colors.white
-              : Colors.white.withValues(alpha: 0.6),
+              ? tokens.accentPrimary
+              : tokens.textSecondary.withValues(alpha: 0.6),
           fontWeight: FontWeight.w600,
         );
       }),
@@ -486,8 +560,8 @@ ThemeData buildEchoTheme(Brightness brightness) {
         final isSelected = states.contains(WidgetState.selected);
         return IconThemeData(
           color: isSelected
-              ? Colors.white
-              : Colors.white.withValues(alpha: 0.6),
+              ? tokens.accentPrimary
+              : tokens.textSecondary.withValues(alpha: 0.6),
           size: 22,
         );
       }),
@@ -502,9 +576,9 @@ ThemeData buildEchoTheme(Brightness brightness) {
       selectionHandleColor: tokens.accentPrimary,
     ),
     splashFactory: InkRipple.splashFactory,
-    highlightColor: Colors.white.withValues(alpha: 0.08),
-    hoverColor: Colors.white.withValues(alpha: 0.04),
-    focusColor: Colors.white.withValues(alpha: 0.14),
+    highlightColor: buttonFill.withValues(alpha: 0.08),
+    hoverColor: buttonFill.withValues(alpha: 0.06),
+    focusColor: buttonFill.withValues(alpha: 0.1),
     dividerColor: Colors.transparent,
   );
 }
@@ -593,83 +667,5 @@ extension EchoThemeX on BuildContext {
 }
 
 class EchoGradients {
-  static LinearGradient tonal({
-    required Color base,
-    required Color depth,
-    double top = 0.03,
-    double bottom = 0.12,
-    Alignment begin = Alignment.topLeft,
-    Alignment end = Alignment.bottomRight,
-  }) {
-    final topColor = Color.lerp(base, depth, top)!;
-    final bottomColor = Color.lerp(base, depth, bottom)!;
-    return LinearGradient(
-      begin: begin,
-      end: end,
-      colors: [topColor, bottomColor],
-    );
-  }
-
-  static Color depthFor(EchoSemantic tokens, Brightness brightness) {
-    return brightness == Brightness.dark ? tokens.bg : tokens.surface2;
-  }
-
-  static LinearGradient shell(EchoSemantic tokens, Brightness brightness) {
-    final base = brightness == Brightness.dark
-        ? Color.lerp(tokens.bg, tokens.surface1, 0.08)!
-        : tokens.bg;
-    final depth = depthFor(tokens, brightness);
-    return tonal(base: base, depth: depth, top: 0.04, bottom: 0.16);
-  }
-
-  static LinearGradient appBackground(
-    EchoSemantic tokens,
-    Brightness brightness,
-  ) {
-    if (brightness == Brightness.dark) {
-      final topColor = tokens.bgEdgeNearBlack;
-      final midColor = tokens.bgGlowNavy;
-      final baseColor = tokens.bgBaseNearBlack;
-      final bottomColor = tokens.bgEdgeNearBlack;
-      return LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [topColor, baseColor, midColor, baseColor, bottomColor],
-        stops: const [0.0, 0.28, 0.5, 0.72, 1.0],
-      );
-    }
-    final topColor = Color.lerp(tokens.bg, tokens.surface2, 0.35)!;
-    final midColor = tokens.bg;
-    final bottomColor = Color.lerp(tokens.bg, tokens.surface2, 0.35)!;
-    return LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [topColor, midColor, bottomColor],
-      stops: const [0.0, 0.5, 1.0],
-    );
-  }
-
-  static LinearGradient hashtagCard(
-    EchoSemantic tokens,
-    Brightness brightness,
-  ) {
-    if (brightness == Brightness.dark) {
-      final edge = Color.lerp(tokens.bgGlowNavy, tokens.bgBaseNearBlack, 0.22)!;
-      final center = Color.lerp(tokens.bgBaseNearBlack, tokens.bgEdgeNearBlack, 0.65)!;
-      return LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [edge, center, edge],
-        stops: const [0.0, 0.52, 1.0],
-      );
-    }
-    final edge = Color.lerp(tokens.bgGlowNavy, tokens.bg, 0.25)!;
-    final center = Color.lerp(tokens.bg, tokens.bgEdgeNearBlack, 0.5)!;
-    return LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [edge, center, edge],
-      stops: const [0.0, 0.52, 1.0],
-    );
-  }
+  static const Color background = EchoColors.voidBg;
 }

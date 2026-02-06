@@ -8,7 +8,7 @@ class Hashtag {
     required this.name,
     required this.description,
     required this.icon,
-    required this.gradient,
+    required this.color,
     required this.noteCount,
   });
 
@@ -16,7 +16,7 @@ class Hashtag {
   final String name;
   final String description;
   final IconData icon;
-  final List<Color> gradient;
+  final Color color;
   final int noteCount;
 
   factory Hashtag.fromRow(Map<String, dynamic> row) {
@@ -28,7 +28,7 @@ class Hashtag {
       name: name,
       description: row['description'] as String? ?? '',
       icon: style.icon,
-      gradient: style.gradient,
+      color: style.color,
       noteCount: row['note_count'] as int? ?? 0,
     );
   }

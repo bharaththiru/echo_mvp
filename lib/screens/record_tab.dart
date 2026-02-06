@@ -325,6 +325,8 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
     final tokens = context.echo;
     final appState = AppScope.of(context);
     final reduceMotion = appState.settings.reduceMotion;
+    final buttonFill = tokens.accentPrimary;
+    final onButtonFill = EchoColorUtils.onColor(buttonFill);
 
     return AnimatedBuilder(
       animation: appState.audio,
@@ -332,7 +334,7 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
         final audioState = appState.audio.state;
         final isPlaying =
             audioState.sourceId == 'recording_preview' && audioState.isPlaying;
-        final ringColor = Colors.white.withValues(alpha: 0.5);
+        final ringColor = buttonFill.withValues(alpha: 0.45);
         final isPreviewing = _hasRecording && isPlaying;
         final ringProgress = _isRecording
             ? 1 - (_remainingSeconds / _maxSeconds)
@@ -387,35 +389,16 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                               value: ringProgress,
                               strokeWidth: 8,
                               strokeCap: StrokeCap.round,
-                              backgroundColor: Colors.white.withValues(
-                                alpha: 0.12,
+                              backgroundColor: tokens.textSecondary.withValues(
+                                alpha: 0.15,
                               ),
                               valueColor: AlwaysStoppedAnimation(
                                 (_isRecording || isPreviewing)
-                                    ? Colors.white
+                                    ? buttonFill
                                     : ringColor,
                               ),
                             ),
                           ),
-                          if (_isRecording || isPreviewing)
-                            IgnorePointer(
-                              child: Container(
-                                height: ringSize,
-                                width: ringSize,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.18,
-                                      ),
-                                      blurRadius: 20,
-                                      spreadRadius: 1,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
                           SizedBox(
                             height: innerSize,
                             width: innerSize,
@@ -423,12 +406,10 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                               style: ElevatedButton.styleFrom(
                                 shape: const CircleBorder(),
                                 padding: EdgeInsets.zero,
-                                backgroundColor: Colors.black,
-                                foregroundColor: Colors.white,
-                                shadowColor: Colors.white.withValues(
-                                  alpha: 0.18,
-                                ),
-                                elevation: _isRecording ? 2 : 1.5,
+                                backgroundColor: buttonFill,
+                                foregroundColor: onButtonFill,
+                                shadowColor: Colors.transparent,
+                                elevation: 0,
                               ),
                               onPressed: _isRecording
                                   ? _stopRecording
@@ -485,7 +466,7 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                                         ),
                                         style: theme.textTheme.bodySmall
                                             ?.copyWith(
-                                          color: Colors.white.withValues(
+                                          color: onButtonFill.withValues(
                                             alpha: 0.85,
                                           ),
                                           fontWeight: FontWeight.w600,
@@ -501,7 +482,7 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                                             : Icons.play_arrow)
                                         : Icons.mic,
                                     size: iconSize,
-                                    color: Colors.white,
+                                    color: onButtonFill,
                                   ),
                                 ],
                               ),
@@ -563,19 +544,10 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
                                     width: 6,
                                     height: waveBase + waveAmplitude * height,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(
+                                      color: buttonFill.withValues(
                                         alpha: 0.75,
                                       ),
                                       borderRadius: BorderRadius.circular(8),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.2,
-                                          ),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
                                     ),
                                   ),
                                 )

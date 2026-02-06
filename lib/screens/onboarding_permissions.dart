@@ -148,7 +148,11 @@ class _PermissionCard extends StatelessWidget {
                   color: tokens.surface2,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: tokens.accentPrimary),
+                child: Icon(
+                  icon,
+                  color:
+                      enabled ? tokens.accentPrimary : tokens.textSecondary,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(

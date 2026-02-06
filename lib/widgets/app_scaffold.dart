@@ -26,25 +26,17 @@ class AppScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.echo;
-    final brightness = Theme.of(context).brightness;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: brightness == Brightness.dark
-          ? SystemUiOverlayStyle.light
-          : SystemUiOverlayStyle.dark,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: EchoGradients.appBackground(tokens, brightness),
-        ),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          resizeToAvoidBottomInset: true,
-          bottomNavigationBar: bottomNavigationBar,
-          body: Stack(
-            children: [
-              SizedBox(width: double.infinity, child: child),
-              if (showMiniPlayer) const _MiniPlayer(),
-            ],
-          ),
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: tokens.bg,
+        resizeToAvoidBottomInset: true,
+        bottomNavigationBar: bottomNavigationBar,
+        body: Stack(
+          children: [
+            SizedBox(width: double.infinity, child: child),
+            if (showMiniPlayer) const _MiniPlayer(),
+          ],
         ),
       ),
     );
@@ -60,6 +52,7 @@ class _MiniPlayer extends StatelessWidget {
     final autoplay = appState.autoplay;
     final tokens = context.echo;
     final theme = Theme.of(context);
+    final buttonFill = tokens.accentPrimary;
 
     return ListenableSelector<AutoplayState>(
       listenable: autoplay,
@@ -106,103 +99,92 @@ class _MiniPlayer extends StatelessWidget {
               },
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(18),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 7),
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                        BoxShadow(
-                          color: Colors.white.withValues(alpha: 0.08),
-                          blurRadius: 28,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            _MiniPulseDot(
-                              color: Colors.white,
-                              reduceMotion: appState.settings.reduceMotion,
-                              isActive: state.isPlaying,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    hashtag?.name ?? 'Station',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleSmall?.copyWith(
-                                      color: Colors.white,
-                                    ),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 7),
+                  decoration: BoxDecoration(
+                    color: tokens.surface1,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          _MiniPulseDot(
+                            color: buttonFill,
+                            reduceMotion: appState.settings.reduceMotion,
+                            isActive: state.isPlaying,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  hashtag?.name ?? 'Station',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    color: tokens.textPrimary,
                                   ),
-                                  const SizedBox(height: 1),
-                                  Text(
-                                    note.transcriptPreview ?? statusText,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.7,
-                                      ),
-                                    ),
+                                ),
+                                const SizedBox(height: 1),
+                                Text(
+                                  note.transcriptPreview ?? statusText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: tokens.textSecondary,
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                            IconButton(
-                              tooltip: state.isMuted
-                                  ? 'Unmute current note'
-                                  : 'Mute current note',
-                              onPressed: () => autoplay.toggleMute(),
-                              icon: Icon(
-                                state.isMuted
-                                    ? Icons.volume_off
-                                    : Icons.volume_up,
-                              ),
-                              iconSize: 19,
-                              constraints: const BoxConstraints.tightFor(
-                                width: 40,
-                                height: 40,
-                              ),
+                          ),
+                          IconButton(
+                            tooltip: state.isMuted
+                                ? 'Unmute current note'
+                                : 'Mute current note',
+                            onPressed: () => autoplay.toggleMute(),
+                            icon: Icon(
+                              state.isMuted
+                                  ? Icons.volume_off
+                                  : Icons.volume_up,
                             ),
-                            IconButton(
-                              tooltip: state.isPlaying ? 'Pause' : 'Play',
-                              onPressed: () => autoplay.togglePlayPause(),
-                              icon: Icon(
-                                state.isPlaying
-                                    ? Icons.pause
-                                    : Icons.play_arrow,
-                              ),
-                              iconSize: 20,
-                              constraints: const BoxConstraints.tightFor(
-                                width: 40,
-                                height: 40,
-                              ),
+                            iconSize: 19,
+                            constraints: const BoxConstraints.tightFor(
+                              width: 40,
+                              height: 40,
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        _MiniPlayerProgress(
-                          autoplay: autoplay,
-                          fallbackDuration: note.duration,
-                        ),
-                      ],
-                    ),
+                          ),
+                          IconButton(
+                            tooltip: state.isPlaying ? 'Pause' : 'Play',
+                            onPressed: () => autoplay.togglePlayPause(),
+                            icon: Icon(
+                              state.isPlaying ? Icons.pause : Icons.play_arrow,
+                            ),
+                            iconSize: 20,
+                            constraints: const BoxConstraints.tightFor(
+                              width: 40,
+                              height: 40,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      _MiniPlayerProgress(
+                        autoplay: autoplay,
+                        fallbackDuration: note.duration,
+                        trackColor: tokens.textSecondary.withValues(alpha: 0.2),
+                        progressColor: buttonFill,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -271,13 +253,6 @@ class _MiniPulseDotState extends State<_MiniPulseDot>
       decoration: BoxDecoration(
         color: widget.color,
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: widget.color.withValues(alpha: 0.5),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ],
       ),
     );
     if (widget.reduceMotion || !widget.isActive) {
@@ -324,14 +299,17 @@ class _MiniPlayerProgress extends StatelessWidget {
   const _MiniPlayerProgress({
     required this.autoplay,
     required this.fallbackDuration,
+    required this.trackColor,
+    required this.progressColor,
   });
 
   final AutoplayController autoplay;
   final Duration fallbackDuration;
+  final Color trackColor;
+  final Color progressColor;
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.echo;
     return ListenableSelector<_MiniProgressSnapshot>(
       listenable: autoplay,
       selector: () {
@@ -350,8 +328,6 @@ class _MiniPlayerProgress extends StatelessWidget {
       builder: (context, snapshot) {
         return LayoutBuilder(
           builder: (context, constraints) {
-            final trackColor = tokens.bgGlowNavy;
-            final progressColor = Colors.white;
             const dotSize = 7.0;
             final trackWidth = constraints.maxWidth;
             final left = (trackWidth - dotSize) * snapshot.progress;
@@ -372,13 +348,6 @@ class _MiniPlayerProgress extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: progressColor,
                       borderRadius: BorderRadius.circular(6),
-                      boxShadow: [
-                        BoxShadow(
-                          color: progressColor.withValues(alpha: 0.35),
-                          blurRadius: 10,
-                          spreadRadius: 1,
-                        ),
-                      ],
                     ),
                   ),
                 ),
@@ -390,13 +359,6 @@ class _MiniPlayerProgress extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: progressColor,
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: progressColor.withValues(alpha: 0.45),
-                          blurRadius: 10,
-                          spreadRadius: 2,
-                        ),
-                      ],
                     ),
                   ),
                 ),

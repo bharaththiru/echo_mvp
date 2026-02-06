@@ -1,67 +1,38 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
 import '../theme/echo_theme.dart';
 
 class HashtagStyle {
-  const HashtagStyle({required this.icon, required this.gradient});
+  const HashtagStyle({required this.icon, required this.color});
 
   final IconData icon;
-  final List<Color> gradient;
+  final Color color;
 }
 
-final Map<String, HashtagStyle> _styleMap = {
-  'nightwalk': HashtagStyle(
-    icon: Icons.nightlight_round,
-    gradient: [_tint(EchoColors.deepTeal, 0.32), _tint(EchoColors.deepTeal, 0.48)],
-  ),
-  'studysession': HashtagStyle(
-    icon: Icons.menu_book,
-    gradient: [_tint(EchoColors.teal, 0.26), _tint(EchoColors.teal, 0.42)],
-  ),
-  'newmom': HashtagStyle(
-    icon: Icons.child_friendly,
-    gradient: [_tint(EchoColors.mint, 0.2), _tint(EchoColors.mint, 0.34)],
-  ),
-  'anime': HashtagStyle(
-    icon: Icons.movie,
-    gradient: [_tint(EchoColors.teal, 0.3), _tint(EchoColors.deepTeal, 0.5)],
-  ),
-  'comedy': HashtagStyle(
-    icon: Icons.emoji_emotions,
-    gradient: [_tint(EchoColors.deepTeal, 0.22), _tint(EchoColors.teal, 0.36)],
-  ),
-  'bookworm': HashtagStyle(
-    icon: Icons.auto_stories,
-    gradient: [_tint(EchoColors.deepTeal, 0.28), _tint(EchoColors.teal, 0.4)],
-  ),
-  'quietwin': HashtagStyle(
-    icon: Icons.star,
-    gradient: [_tint(EchoColors.deepTeal, 0.24), _tint(EchoColors.mint, 0.3)],
-  ),
-  'cooking': HashtagStyle(
-    icon: Icons.restaurant,
-    gradient: [_tint(EchoColors.deepTeal, 0.2), _tint(EchoColors.teal, 0.32)],
-  ),
+final Map<String, IconData> _iconMap = {
+  'nightwalk': Icons.nightlight_round,
+  'studysession': Icons.menu_book,
+  'newmom': Icons.child_friendly,
+  'anime': Icons.movie,
+  'comedy': Icons.emoji_emotions,
+  'bookworm': Icons.auto_stories,
+  'quietwin': Icons.star,
+  'cooking': Icons.restaurant,
 };
 
 HashtagStyle resolveHashtagStyle(String id, {String? name}) {
   final normalizedId = _normalizeKey(id);
   final normalizedName = _normalizeKey(name ?? '');
-  final style =
-      _styleMap[id] ??
-      _styleMap[normalizedId] ??
-      _styleMap[normalizedName];
-  if (style != null) {
-    return style;
-  }
+  final icon =
+      _iconMap[id] ??
+      _iconMap[normalizedId] ??
+      _iconMap[normalizedName];
   final seed = normalizedId.isNotEmpty
       ? normalizedId
       : (normalizedName.isNotEmpty ? normalizedName : id);
   return HashtagStyle(
-    icon: _inferMinimalIcon('$normalizedId $normalizedName'),
-    gradient: _fallbackGradient(seed),
+    icon: icon ?? _inferMinimalIcon('$normalizedId $normalizedName'),
+    color: EchoColors.clearing,
   );
 }
 
@@ -112,24 +83,6 @@ class _IconRule {
   final IconData icon;
 }
 
-List<Color> _fallbackGradient(String seed) {
-  final random = Random(seed.hashCode);
-  final first = _colorFrom(random);
-  final second = _colorFrom(random);
-  return [first, second];
-}
-
-Color _colorFrom(Random random) {
-  final palette = [
-    EchoColors.deepTeal,
-    EchoColors.teal,
-    EchoColors.mint,
-  ];
-  final target = palette[random.nextInt(palette.length)];
-  final strength = 0.22 + random.nextDouble() * 0.28;
-  return _tint(target, strength);
-}
-
-Color _tint(Color tint, double amount) {
-  return Color.lerp(EchoColors.deepNavy, tint, amount)!;
+Color _paletteColor(String seed) {
+  return EchoColors.clearing;
 }

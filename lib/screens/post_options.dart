@@ -130,6 +130,8 @@ class _PostOptionsState extends State<PostOptions> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
+    final buttonFill = tokens.accentPrimary;
+    final onButtonFill = EchoColorUtils.onColor(buttonFill);
     final appState = AppScope.of(context);
     final hashtags = appState.hashtags;
     final posting = _isPosting || appState.isPosting;
@@ -273,14 +275,10 @@ class _PostOptionsState extends State<PostOptions> {
                     children: filteredHashtags.map((tag) {
                       final isSelected = _selectedHashtag?.name == tag;
                       final backgroundColor = isSelected
-                          ? Color.lerp(
-                                tokens.surface1,
-                                tokens.accentSecondary,
-                                0.12,
-                              ) ??
-                              tokens.surface1
-                          : tokens.surface1.withValues(alpha: 0.9);
-                      final textColor = tokens.textPrimary;
+                          ? buttonFill
+                          : tokens.surface1;
+                      final textColor =
+                          isSelected ? onButtonFill : tokens.textSecondary;
                       return GestureDetector(
                         onTap: () {
                           final selected = hashtags.firstWhere(
@@ -296,18 +294,6 @@ class _PostOptionsState extends State<PostOptions> {
                           decoration: BoxDecoration(
                             color: backgroundColor,
                             borderRadius: BorderRadius.circular(24),
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color:
-                                          tokens.accentSecondary.withValues(
-                                        alpha: 0.16,
-                                      ),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ]
-                                : null,
                           ),
                           child: Text(
                             tag,

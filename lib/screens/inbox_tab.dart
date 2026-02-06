@@ -32,6 +32,10 @@ class _InboxTabState extends State<InboxTab> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
+    final buttonFill = tokens.accentPrimary;
+    final loadingForeground = EchoColorUtils.onColor(
+      buttonFill.withValues(alpha: 0.35),
+    ).withValues(alpha: 0.5);
     final appState = AppScope.of(context);
     final myPosts = appState.userPosts();
     final showTranscript = appState.settings.transcriptsEnabled;
@@ -173,28 +177,25 @@ class _InboxTabState extends State<InboxTab> {
                                         path: path,
                                       );
                                     },
+                              style: IconButton.styleFrom(
+                                backgroundColor: buttonFill,
+                                foregroundColor: EchoColorUtils.onColor(
+                                  buttonFill,
+                                ),
+                              ),
                               icon: isPreparing
                                   ? SizedBox(
                                       height: 18,
                                       width: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor:
-                                          AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          loadingForeground,
+                                        ),
                                       ),
-                                    ),
-                                  )
-                                : const Icon(Icons.play_arrow),
-                            style: IconButton.styleFrom(
-                              backgroundColor: Colors.black,
-                              foregroundColor: Colors.white,
-                            ).copyWith(
-                              elevation: WidgetStateProperty.all(1),
-                              shadowColor: WidgetStateProperty.all(
-                                Colors.white.withValues(alpha: 0.18),
-                              ),
-                            ),
+                                    )
+                                  : const Icon(Icons.play_arrow),
                             ),
                             const SizedBox(width: 12),
                             Text(

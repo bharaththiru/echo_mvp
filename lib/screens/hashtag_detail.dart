@@ -279,9 +279,7 @@ class _HashtagHeaderFlexibleSpace extends StatelessWidget {
     final gap = lerpDouble(6, 2, easedProgress) ?? 4;
 
     return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: EchoGradients.shell(tokens, theme.brightness),
-      ),
+      decoration: BoxDecoration(color: tokens.bg),
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           horizontal,
@@ -325,6 +323,8 @@ class _AutoplayFab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.echo;
+    final buttonFill = tokens.accentPrimary;
+    final onButtonFill = EchoColorUtils.onColor(buttonFill);
     return Semantics(
       button: true,
       label: 'Start autoplay',
@@ -333,9 +333,9 @@ class _AutoplayFab extends StatelessWidget {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.white.withValues(alpha: 0.18),
+              color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 12,
-              offset: const Offset(0, 4),
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -345,8 +345,8 @@ class _AutoplayFab extends StatelessWidget {
             heroTag: heroTag,
             tooltip: 'Start autoplay',
             onPressed: onTap,
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
+            backgroundColor: buttonFill,
+            foregroundColor: onButtonFill,
             elevation: 0,
             highlightElevation: 0,
             child: const Icon(Icons.play_arrow_rounded, size: 36),
@@ -370,10 +370,9 @@ class _HashtagHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
-    final headerGradient = EchoGradients.hashtagCard(
-      tokens,
-      theme.brightness,
-    );
+    final tileColor = tokens.surface1;
+    final onTile = tokens.textPrimary;
+    final mutedOnTile = tokens.textSecondary;
     final compactEase = Curves.easeOutCubic.transform(collapseProgress);
     final iconFactor = (1 - Curves.easeOut.transform(compactEase)).clamp(0.0, 1.0);
     final descriptionFactor = (1 - Curves.easeIn.transform(compactEase)).clamp(
@@ -387,19 +386,20 @@ class _HashtagHeader extends StatelessWidget {
     )!;
     final iconSize = lerpDouble(40, 28, compactEase) ?? 40;
     final radius = lerpDouble(24, 18, compactEase) ?? 24;
-    final titleStyle = TextStyle.lerp(
+    final baseTitleStyle = TextStyle.lerp(
       theme.textTheme.headlineSmall,
       theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
       compactEase,
     );
+    final titleStyle = baseTitleStyle?.copyWith(color: onTile);
     final titleGap = lerpDouble(10, 0, compactEase) ?? 6;
     final descriptionGap = lerpDouble(8, 2, compactEase) ?? 5;
 
-    return EchoGradientCard(
+    return EchoCard(
       padding: cardPadding,
       radius: radius,
-      glow: true,
-      gradient: headerGradient,
+      color: tileColor,
+      overlayColor: EchoColorUtils.pressedOverlay(tileColor, alpha: 0.14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -407,7 +407,11 @@ class _HashtagHeader extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerLeft,
               heightFactor: iconFactor,
-              child: Icon(hashtag.icon, size: iconSize, color: tokens.accentPrimary),
+              child: Icon(
+                hashtag.icon,
+                size: iconSize,
+                color: tokens.textSecondary,
+              ),
             ),
           ),
           SizedBox(height: titleGap),
@@ -423,7 +427,7 @@ class _HashtagHeader extends StatelessWidget {
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: tokens.textSecondary,
+                    color: mutedOnTile,
                     height: 1.45,
                   ),
                 ),
@@ -459,6 +463,10 @@ class _VoiceNoteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
+    final buttonFill = tokens.accentPrimary;
+    final loadingForeground = EchoColorUtils.onColor(
+      buttonFill.withValues(alpha: 0.35),
+    ).withValues(alpha: 0.5);
     final timestamp = formatRelativeTime(note.createdAt);
 
     return ListenableSelector<_NotePlaybackSnapshot>(
@@ -550,35 +558,30 @@ class _VoiceNoteCard extends StatelessWidget {
               const SizedBox(height: 16),
               Row(
                 children: [
-                    IconButton.filled(
-                      onPressed: onPlay,
-                      icon: isPreparing
-                          ? SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                          : Icon(
-                              playback.isPlaying
-                                  ? Icons.pause
-                                  : Icons.play_arrow,
-                            ),
+                  IconButton.filled(
+                    onPressed: onPlay,
                     style: IconButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.all(16),
-                    ).copyWith(
-                      elevation: WidgetStateProperty.all(1),
-                      shadowColor: WidgetStateProperty.all(
-                        Colors.white.withValues(alpha: 0.18),
-                      ),
+                      backgroundColor: buttonFill,
+                      foregroundColor: EchoColorUtils.onColor(buttonFill),
                     ),
-                    ),
+                    icon: isPreparing
+                        ? SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                loadingForeground,
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            playback.isPlaying
+                                ? Icons.pause
+                                : Icons.play_arrow,
+                          ),
+                    padding: const EdgeInsets.all(16),
+                  ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
@@ -591,7 +594,8 @@ class _VoiceNoteCard extends StatelessWidget {
                                     ? 0
                                     : playback.progress.clamp(0, 1),
                             minHeight: 6,
-                            backgroundColor: tokens.surface3,
+                            backgroundColor:
+                                tokens.textSecondary.withValues(alpha: 0.2),
                             valueColor: AlwaysStoppedAnimation(
                               tokens.accentPrimary,
                             ),

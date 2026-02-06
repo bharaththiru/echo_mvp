@@ -126,7 +126,7 @@ class SettingsScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     _ToggleTile(
                       title: 'Subtle mood tint',
-                      subtitle: 'Gentle background gradients per hashtag',
+                      subtitle: 'Soft accent on active stations',
                       value: settings.moodTintEnabled,
                       onChanged: appState.updateMoodTint,
                     ),
@@ -217,10 +217,11 @@ class _ThemeOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final backgroundColor = isSelected
-        ? Colors.black
-        : Colors.black.withValues(alpha: 0.6);
-    final foregroundColor = Colors.white;
+    final tokens = context.echo;
+    final backgroundColor = tokens.surface1;
+    final foregroundColor = isSelected
+        ? tokens.accentPrimary
+        : tokens.textSecondary;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -230,7 +231,7 @@ class _ThemeOption extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.white.withValues(alpha: 0.18),
+              color: Colors.black.withValues(alpha: 0.2),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -243,9 +244,7 @@ class _ThemeOption extends StatelessWidget {
             Text(
               label,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.white.withValues(
-                  alpha: isSelected ? 1.0 : 0.7,
-                ),
+                color: foregroundColor,
                 fontWeight: FontWeight.w600,
               ),
             ),

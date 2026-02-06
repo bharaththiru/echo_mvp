@@ -211,10 +211,9 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
             (item) => item.id == note.id,
           );
           final currentIndex = noteIndex < 0 ? index : noteIndex;
-          final cardGradient = EchoGradients.hashtagCard(
-            tokens,
-            theme.brightness,
-          );
+          final tileColor = tokens.surface1;
+          final onTile = tokens.textPrimary;
+          final mutedOnTile = tokens.textSecondary;
 
           final isPreparing = state.isPreparing || state.isTransitioning;
           final statusLabel = _statusLabel(state) ?? 'Ready';
@@ -255,11 +254,14 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                     includeBottomSafeArea: true,
                   ),
                   children: [
-                    EchoGradientCard(
+                    EchoCard(
                       padding: const EdgeInsets.all(24),
                       radius: 28,
-                      glow: true,
-                      gradient: cardGradient,
+                      color: tileColor,
+                      overlayColor: EchoColorUtils.pressedOverlay(
+                        tileColor,
+                        alpha: 0.14,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -269,7 +271,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                               Icon(
                                 hashtag.icon,
                                 size: 44,
-                                color: tokens.accentPrimary,
+                                color: tokens.textSecondary,
                               ),
                               Row(
                                 children: [
@@ -279,13 +281,13 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: tokens.surface2,
+                                      color: onTile.withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(14),
                                     ),
                                     child: Text(
                                       '${currentIndex + 1} of ${state.queue.length}',
                                       style: theme.textTheme.bodySmall?.copyWith(
-                                        color: tokens.textSecondary,
+                                        color: mutedOnTile,
                                       ),
                                     ),
                                   ),
@@ -296,13 +298,13 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: tokens.surface2,
+                                      color: onTile.withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(14),
                                     ),
                                     child: Text(
                                       '${state.queueRemaining} ready',
                                       style: theme.textTheme.bodySmall?.copyWith(
-                                        color: tokens.textSecondary,
+                                        color: mutedOnTile,
                                       ),
                                     ),
                                   ),
@@ -338,7 +340,9 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                           const SizedBox(height: 16),
                           Text(
                             hashtag.name,
-                            style: theme.textTheme.headlineSmall,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              color: onTile,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           if (appState.settings.transcriptsEnabled &&
@@ -346,16 +350,14 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                             Text(
                               '"${note.transcriptPreview!}"',
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: tokens.textSecondary.withValues(
-                                  alpha: 0.92,
-                                ),
+                                color: mutedOnTile,
                               ),
                             ),
                           const SizedBox(height: 8),
                           Text(
                             'Anonymous - ${formatRelativeTime(note.createdAt)}',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: tokens.textSecondary,
+                              color: mutedOnTile,
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -420,12 +422,11 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                             style: ElevatedButton.styleFrom(
                               shape: const CircleBorder(),
                               padding: EdgeInsets.zero,
-                              backgroundColor: Colors.black,
-                              foregroundColor: Colors.white,
-                              elevation: 1.5,
-                              shadowColor: Colors.white.withValues(
-                                alpha: 0.18,
-                              ),
+                              backgroundColor: tokens.accentPrimary,
+                              foregroundColor:
+                                  EchoColorUtils.onColor(tokens.accentPrimary),
+                              elevation: 0,
+                              shadowColor: Colors.transparent,
                             ),
                             onPressed: isPreparing
                                 ? null
@@ -437,7 +438,9 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
+                                        EchoColorUtils.onColor(
+                                          tokens.accentPrimary,
+                                        ),
                                       ),
                                     ),
                                   )
@@ -540,23 +543,23 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                           padding: const EdgeInsets.all(12),
                           child: Row(
                             children: [
-                              Container(
-                                height: 38,
-                                width: 38,
-                                decoration: BoxDecoration(
-                                  color: tokens.surface2,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '${absoluteIndex + 1}',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: tokens.accentPrimary,
-                                      fontWeight: FontWeight.w700,
+                                  Container(
+                                    height: 38,
+                                    width: 38,
+                                    decoration: BoxDecoration(
+                                      color: tokens.surface2,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${absoluteIndex + 1}',
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          color: tokens.textSecondary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -636,78 +639,75 @@ class _NowListeningBar extends StatelessWidget {
     final clamped = progress.clamp(0.0, 1.0);
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-            decoration: BoxDecoration(
-              color: tokens.surface1.withValues(alpha: 0.9),
-            ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  if (showSpinner)
-                    SizedBox(
-                      height: 12,
-                      width: 12,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          tokens.accentPrimary,
-                        ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        decoration: BoxDecoration(
+          color: tokens.surface1,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                if (showSpinner)
+                  SizedBox(
+                    height: 12,
+                    width: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        tokens.accentPrimary,
                       ),
                     ),
-                  if (showSpinner) const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: isError ? tokens.danger : tokens.textSecondary,
-                      fontWeight: FontWeight.w600,
-                    ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  const dotSize = 8.0;
-                  final trackWidth = constraints.maxWidth;
-                  final left = (trackWidth - dotSize) * clamped;
-                  return Stack(
-                    alignment: Alignment.centerLeft,
-                    children: [
-                      Container(
+                if (showSpinner) const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isError ? tokens.danger : tokens.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                const dotSize = 8.0;
+                final trackWidth = constraints.maxWidth;
+                final left = (trackWidth - dotSize) * clamped;
+                return Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    Container(
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: tokens.textSecondary.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    FractionallySizedBox(
+                      widthFactor: clamped,
+                      child: Container(
                         height: 6,
                         decoration: BoxDecoration(
-                          color: tokens.surface3,
+                          color: tokens.accentPrimary,
                           borderRadius: BorderRadius.circular(6),
                         ),
                       ),
-                      FractionallySizedBox(
-                        widthFactor: clamped,
-                        child: Container(
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: tokens.accentPrimary,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
+                    ),
+                    Positioned(
+                      left: left,
+                      child: _PulseDot(
+                        color: tokens.accentPrimary,
+                        reduceMotion: reduceMotion,
                       ),
-                      Positioned(
-                        left: left,
-                        child: _PulseDot(
-                          color: tokens.accentPrimary,
-                          reduceMotion: reduceMotion,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -766,13 +766,6 @@ class _PulseDotState extends State<_PulseDot>
       decoration: BoxDecoration(
         color: widget.color,
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: widget.color.withValues(alpha: 0.55),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ],
       ),
     );
     if (widget.reduceMotion) {

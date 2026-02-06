@@ -29,11 +29,11 @@ class OnboardingWelcome extends StatelessWidget {
               width: 96,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: tokens.accentPrimary,
+                color: tokens.surface1,
               ),
               child: Icon(
                 Icons.graphic_eq,
-                color: tokens.bg,
+                color: tokens.accentPrimary,
                 size: 42,
               ),
             ),
