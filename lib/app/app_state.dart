@@ -232,12 +232,11 @@ class AppState extends ChangeNotifier
     final recordingsDirectory = Directory.systemTemp
         .createTempSync('echo_test')
         .path;
-    final audioCacheDirectory =
-        Directory(
-              '$recordingsDirectory${Platform.pathSeparator}audio_cache',
-            )
-            .createSync(recursive: true)
-            .path;
+    final audioCacheDir = Directory(
+      '$recordingsDirectory${Platform.pathSeparator}audio_cache',
+    );
+    audioCacheDir.createSync(recursive: true);
+    final audioCacheDirectory = audioCacheDir.path;
     final saved = hashtags.take(3).map((tag) => tag.name).toList();
     final state = AppState._(
       prefs: prefs,

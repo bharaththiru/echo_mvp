@@ -152,7 +152,7 @@ class AudioServiceEngine implements AudioEngine {
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.echo.echo.audio',
         androidNotificationChannelName: 'Echo playback',
-        androidNotificationOngoing: true,
+        androidNotificationOngoing: false,
         androidStopForegroundOnPause: false,
       ),
     );
