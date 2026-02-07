@@ -226,16 +226,20 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
               note.authorId != null &&
               note.authorId!.isNotEmpty &&
               note.authorId != appState.userId;
-          final isPreparing = state.isPreparing || state.isTransitioning;
+          final hasPlaybackStarted =
+              state.position > Duration.zero || state.isPlaying;
+          final isUiLoading =
+              (state.phase == AutoplayPhase.loading || state.isPreparing) &&
+              !hasPlaybackStarted;
+          final isUiBuffering = state.phase == AutoplayPhase.buffering;
           final statusLabel = _statusLabel(state) ?? 'Ready';
-          final showSpinner =
-              state.isBuffering ||
-              state.isPreparing ||
-              state.phase == AutoplayPhase.transitioning;
+          final showSpinner = isUiLoading || isUiBuffering;
           final isError = state.phase == AutoplayPhase.error;
           final buttonSize = state.handsFree ? 96.0 : 82.0;
           final noteTitle = _resolvedNoteTitle(note);
           final posterLabel = _resolvedPosterLabel(note);
+          final centerShowsSpinner = isUiBuffering;
+          final centerDisabled = centerShowsSpinner || state.isTransitioning;
 
           return Column(
             children: [
@@ -349,10 +353,10 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                               elevation: 0,
                               shadowColor: Colors.transparent,
                             ),
-                            onPressed: isPreparing
+                            onPressed: centerDisabled
                                 ? null
                                 : () => autoplay.togglePlayPause(),
-                            child: isPreparing
+                            child: centerShowsSpinner
                                 ? SizedBox(
                                     height: 24,
                                     width: 24,
@@ -560,6 +564,7 @@ class _NowListeningBar extends StatelessWidget {
     required this.label,
     required this.showSpinner,
     required this.progress,
+    required this.bufferedProgress,
     required this.reduceMotion,
     required this.isError,
   });
@@ -567,6 +572,7 @@ class _NowListeningBar extends StatelessWidget {
   final String label;
   final bool showSpinner;
   final double progress;
+  final double bufferedProgress;
   final bool reduceMotion;
   final bool isError;
 
@@ -575,6 +581,8 @@ class _NowListeningBar extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = context.echo;
     final clamped = progress.clamp(0.0, 1.0);
+    final rawBuffered = bufferedProgress.clamp(0.0, 1.0);
+    final bufferedClamped = rawBuffered < clamped ? clamped : rawBuffered;
     final showStatus =
         showSpinner || isError || (label != 'Now listening' && label != 'Ready');
     return Column(
@@ -622,6 +630,16 @@ class _NowListeningBar extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: tokens.textSecondary.withValues(alpha: 0.22),
                     borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                FractionallySizedBox(
+                  widthFactor: bufferedClamped,
+                  child: Container(
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: tokens.textSecondary.withValues(alpha: 0.36),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
                 ),
                 FractionallySizedBox(
@@ -793,9 +811,11 @@ class _AutoplayProgress extends StatelessWidget {
         final duration = state.duration.inMilliseconds > 0
             ? state.duration
             : fallbackDuration;
+        final buffered = state.bufferedPosition;
         return _ProgressSnapshot(
           position: state.position,
           duration: duration,
+          buffered: buffered,
         );
       },
       shouldRebuild: (previous, next) => previous != next,
@@ -806,12 +826,18 @@ class _AutoplayProgress extends StatelessWidget {
             : (progress.position.inMilliseconds / duration.inMilliseconds)
                 .clamp(0.0, 1.0)
                 .toDouble();
+        final bufferedRatio = duration.inMilliseconds == 0
+            ? 0.0
+            : (progress.buffered.inMilliseconds / duration.inMilliseconds)
+                .clamp(0.0, 1.0)
+                .toDouble();
         return Column(
           children: [
             _NowListeningBar(
               label: label,
               showSpinner: showSpinner,
               progress: ratio,
+              bufferedProgress: bufferedRatio,
               reduceMotion: reduceMotion,
               isError: isError,
             ),
@@ -841,20 +867,26 @@ class _AutoplayProgress extends StatelessWidget {
 }
 
 class _ProgressSnapshot {
-  const _ProgressSnapshot({required this.position, required this.duration});
+  const _ProgressSnapshot({
+    required this.position,
+    required this.duration,
+    required this.buffered,
+  });
 
   final Duration position;
   final Duration duration;
+  final Duration buffered;
 
   @override
   bool operator ==(Object other) {
     return other is _ProgressSnapshot &&
         other.position == position &&
-        other.duration == duration;
+        other.duration == duration &&
+        other.buffered == buffered;
   }
 
   @override
-  int get hashCode => Object.hash(position, duration);
+  int get hashCode => Object.hash(position, duration, buffered);
 }
 
 int _resolvedStationNoteCount({
@@ -891,17 +923,25 @@ String? _statusLabel(AutoplayState state) {
   if (state.errorMessage != null && state.errorMessage!.isNotEmpty) {
     return state.errorMessage;
   }
-  if (state.isPreparing) {
+  if (state.isBuffering) {
+    return state.statusText ?? 'Buffering...';
+  }
+  final hasStarted = state.position > Duration.zero || state.isPlaying;
+  if ((state.phase == AutoplayPhase.loading || state.isPreparing) &&
+      !hasStarted) {
     return 'Loading clip...';
   }
   if (state.phase == AutoplayPhase.transitioning) {
     return 'Moving to next clip...';
   }
-  if (state.isBuffering) {
-    return state.statusText ?? 'Buffering...';
-  }
   if (state.isPlaying) {
     return 'Now listening';
+  }
+  if (state.phase == AutoplayPhase.paused) {
+    return 'Paused';
+  }
+  if (state.phase == AutoplayPhase.completed && state.statusText != null) {
+    return state.statusText;
   }
   return state.statusText;
 }

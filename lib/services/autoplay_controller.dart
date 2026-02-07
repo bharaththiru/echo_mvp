@@ -82,8 +82,11 @@ class AutoplayState {
 
   bool get isPlaying => phase == AutoplayPhase.playing;
 
-  bool get isBuffering =>
-      phase == AutoplayPhase.loading || phase == AutoplayPhase.buffering;
+  bool get isLoading => phase == AutoplayPhase.loading || isLoadingNotes;
+
+  bool get isBuffering => phase == AutoplayPhase.buffering;
+
+  int get queueLength => queue.length;
 
   double get progress {
     if (duration.inMilliseconds <= 0) {
@@ -339,7 +342,7 @@ class AutoplayController extends ChangeNotifier {
   double _tortureResolveFailureRate = 0.0;
   int _tortureResolveMinDelayMs = 0;
   int _tortureResolveMaxDelayMs = 0;
-  bool _loopEnabled = false;
+  bool _loopEnabled = true;
   int _fadeToken = 0;
   bool _pendingBoundaryFadeIn = false;
   bool _isVolumeAutomationActive = false;
@@ -1416,7 +1419,10 @@ class AutoplayController extends ChangeNotifier {
     if (currentNote != null) {
       _markPlayed(currentNote.id);
     }
-    var nextIndex = _nextPlayableIndex(fromIndex: _state.currentIndex);
+    var nextIndex = _nextPlayableIndex(
+      fromIndex: _state.currentIndex,
+      allowLoop: true,
+    );
     if (nextIndex == null) {
       final replenished = await _tryReplenishQueueAfterExhaustion();
       if (replenished) {
@@ -1875,8 +1881,43 @@ class AutoplayController extends ChangeNotifier {
       await _finishQueue(message: 'No more clips right now.');
       return;
     }
-    _playbackQueueIds.clear();
-    _playbackQueueIndex = -1;
+    if (_loopEnabled && _playbackQueueIds.isNotEmpty) {
+      _playToken++;
+      _cancelStallGuard();
+      _playedIds.clear();
+      _recentlyPlayedIds.clear();
+      final firstId = _playbackQueueIds.first;
+      final firstStateIndex = _state.queue.indexWhere((note) => note.id == firstId);
+      final firstNote = firstStateIndex == -1
+          ? _playbackQueueNotes[firstId]
+          : _state.queue[firstStateIndex];
+      _resetTransitionCue(firstId);
+      _setState(
+        _state.copyWith(
+          phase: AutoplayPhase.transitioning,
+          isPreparing: false,
+          isTransitioning: true,
+          userPaused: false,
+          statusText: null,
+          errorMessage: null,
+          currentIndex: firstStateIndex == -1 ? _state.currentIndex : firstStateIndex,
+          currentNote: firstNote ?? _state.currentNote,
+          isMuted: _isMutedNote(firstId),
+        ),
+      );
+      try {
+        _playbackQueueIndex = 0;
+        _positionNoteId = firstId;
+        _lastObservedPosition = Duration.zero;
+        _positionResetCount = 0;
+        await _audio.seekToIndex(0, position: Duration.zero);
+        await _audio.resume();
+        _log('loop restart queueIndex=0 note=$firstId');
+        return;
+      } catch (_) {
+        _log('loop restart failed, falling back to advance');
+      }
+    }
     await _advance(_AdvanceReason.autoplay);
   }
 
@@ -2010,7 +2051,7 @@ class AutoplayController extends ChangeNotifier {
     if (_allNotesFailed() || !allowLoop || !_loopEnabled) {
       return null;
     }
-    // Optional loop mode only; default autoplay does not restart same queue.
+    // Loop autoplay to the first playable clip when the queue is exhausted.
     _playedIds.clear();
     final lastId = (fromIndex >= 0 && fromIndex < _state.queue.length)
         ? _state.queue[fromIndex].id
@@ -2591,6 +2632,18 @@ class AutoplayController extends ChangeNotifier {
     }
 
     var mappedPhase = _mapFromAudio(audioState);
+    final hasPositionProgress =
+        audioState.position > Duration.zero ||
+        audioState.position > _state.position ||
+        _lastObservedPosition > Duration.zero;
+    if (audioState.isPlaying &&
+        (mappedPhase == AutoplayPhase.loading ||
+            mappedPhase == AutoplayPhase.paused ||
+            mappedPhase == AutoplayPhase.idle ||
+            mappedPhase == AutoplayPhase.completed) &&
+        hasPositionProgress) {
+      mappedPhase = AutoplayPhase.playing;
+    }
     final suppressPhase =
         (_state.isTransitioning || _state.isPreparing) &&
         (mappedPhase == AutoplayPhase.idle ||
@@ -2652,6 +2705,11 @@ class AutoplayController extends ChangeNotifier {
     final statusText = mappedPhase == AutoplayPhase.buffering
         ? audioState.statusText
         : null;
+    final shouldKeepPreparing =
+        mappedPhase == AutoplayPhase.loading &&
+        !audioState.isPlaying &&
+        audioState.position <= Duration.zero &&
+        _state.position <= Duration.zero;
     _setState(
       _state.copyWith(
         phase: mappedPhase,
@@ -2663,6 +2721,8 @@ class AutoplayController extends ChangeNotifier {
         errorMessage: mappedPhase == AutoplayPhase.error
             ? audioState.errorMessage
             : null,
+        isPreparing: shouldKeepPreparing ? _state.isPreparing : false,
+        isTransitioning: false,
         isMuted: isMuted,
       ),
     );
