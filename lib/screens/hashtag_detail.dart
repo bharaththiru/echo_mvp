@@ -1,20 +1,17 @@
-import 'dart:ui' show lerpDouble;
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../theme/echo_theme.dart';
 import '../models/hashtag.dart';
 import '../models/voice_note.dart';
 import '../services/audio_controller.dart';
 import '../services/autoplay_controller.dart';
-import '../utils/time_format.dart';
+import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
+import '../utils/time_format.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/echo_components.dart';
 import '../widgets/listenable_selector.dart';
-import '../widgets/report_reason_sheet.dart';
 
 class HashtagDetail extends StatefulWidget {
   const HashtagDetail({super.key, required this.hashtagId});
@@ -38,59 +35,30 @@ class _HashtagDetailState extends State<HashtagDetail> {
     appState.loadNotesForHashtag(widget.hashtagId);
   }
 
-  Future<void> _handleMenuAction(VoiceNote note, String action) async {
-    final appState = AppScope.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-
-    switch (action) {
-      case 'save':
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Saved to your library.')),
-        );
-        return;
-      case 'share':
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Link copied.')),
-        );
-        return;
-      case 'hide':
-        final result = appState.hideClip(note);
-        messenger.showSnackBar(SnackBar(content: Text(result.message)));
-        return;
-      case 'report':
-        final reason = await showReportReasonSheet(context);
-        if (!mounted || reason == null) {
-          return;
-        }
-        final result = await appState.reportClip(
-          note: note,
-          reason: reason,
-        );
-        if (!mounted) {
-          return;
-        }
-        messenger.showSnackBar(SnackBar(content: Text(result.message)));
-        return;
-      case 'block':
-        final result = await appState.blockAuthor(note);
-        if (!mounted) {
-          return;
-        }
-        messenger.showSnackBar(SnackBar(content: Text(result.message)));
-        return;
+  @override
+  void didUpdateWidget(covariant HashtagDetail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.hashtagId == widget.hashtagId) {
+      return;
     }
+    final appState = AppScope.of(context);
+    appState.loadNotesForHashtag(widget.hashtagId);
+  }
+
+  void _openStation(Hashtag hashtag) {
+    final appState = AppScope.of(context);
+    appState.markStationListened(hashtag.id);
+    context.go('/hashtag/${hashtag.id}');
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tokens = context.echo;
     final appState = AppScope.of(context);
+    final tokens = context.echo;
     final hashtag = appState.hashtagById(widget.hashtagId);
     if (hashtag == null && appState.hashtagsLoading) {
-      return const AppScaffold(
-        child: Center(child: CircularProgressIndicator()),
-      );
+      return const AppScaffold(child: Center(child: CircularProgressIndicator()));
     }
     if (hashtag == null) {
       return AppScaffold(
@@ -102,13 +70,18 @@ class _HashtagDetailState extends State<HashtagDetail> {
     final notes = appState.notesForHashtag(hashtag.id);
     final isLoading = appState.isLoadingNotes(hashtag.id);
     final loadError = appState.notesError(hashtag.id);
-    final horizontal = EchoLayout.contentHorizontalPadding(context);
-    final safeBottom = MediaQuery.paddingOf(context).bottom;
-    final expandedHeight = kToolbarHeight + EchoLayout.space(context, 244);
-    final collapsedHeight = kToolbarHeight + EchoLayout.space(context, 52);
-    final fabRightOffset = horizontal + EchoLayout.space(context, 7);
+    final stationOrder = appState.hashtags;
+    final stationIndex = stationOrder.indexWhere((item) => item.id == hashtag.id);
+    final previousStation =
+        stationIndex > 0 ? stationOrder[stationIndex - 1] : null;
+    final nextStation = stationIndex >= 0 && stationIndex < stationOrder.length - 1
+        ? stationOrder[stationIndex + 1]
+        : null;
     final autoplay = appState.autoplay;
     final audio = appState.audio;
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
+    final fabRightOffset =
+        EchoLayout.contentHorizontalPadding(context) + EchoLayout.space(context, 4);
 
     return AppScaffold(
       child: ListenableSelector<bool>(
@@ -122,122 +95,121 @@ class _HashtagDetailState extends State<HashtagDetail> {
         },
         shouldRebuild: (previous, next) => previous != next,
         builder: (context, miniPlayerVisible) {
-          final fabBottomOffset = safeBottom + EchoLayout.space(
-            context,
-            miniPlayerVisible ? 126 : 28,
-          );
+          final fabBottomOffset = safeBottom +
+              EchoLayout.space(context, miniPlayerVisible ? 126 : 26);
           final listBottomPadding = miniPlayerVisible ? 196.0 : 124.0;
 
+          Widget content;
           if (isLoading && notes.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (loadError != null && notes.isEmpty) {
-            return _EmptyState(
+            content = const Center(child: CircularProgressIndicator());
+          } else if (loadError != null && notes.isEmpty) {
+            content = _EmptyState(
               title: 'Unable to load notes',
               subtitle: loadError,
-              onRetry: () =>
-                  appState.loadNotesForHashtag(hashtag.id, force: true),
+              onRetry: () => appState.loadNotesForHashtag(hashtag.id, force: true),
             );
-          }
-          if (notes.isEmpty) {
-            return _EmptyState(
+          } else if (notes.isEmpty) {
+            content = _EmptyState(
               title: 'No notes yet',
               subtitle: 'Be the first to post in ${hashtag.name}.',
-              onRetry: () =>
-                  appState.loadNotesForHashtag(hashtag.id, force: true),
+              onRetry: () => appState.loadNotesForHashtag(hashtag.id, force: true),
+            );
+          } else {
+            content = ListView.builder(
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              padding: EchoLayout.listPadding(
+                context,
+                top: 6,
+                bottom: listBottomPadding,
+                includeBottomSafeArea: true,
+              ),
+              itemCount: notes.length * 2 + 3,
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return _StationHeroPanel(
+                    station: hashtag,
+                    noteCount: notes.length,
+                    previousLabel: previousStation?.name,
+                    nextLabel: nextStation?.name,
+                    onPrevious: previousStation == null
+                        ? null
+                        : () => _openStation(previousStation!),
+                    onNext:
+                        nextStation == null ? null : () => _openStation(nextStation!),
+                  );
+                }
+                if (index == 1) {
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(2, 14, 2, 10),
+                    child: Text(
+                      'Notes',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: tokens.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  );
+                }
+                if (index == 2) {
+                  return const SizedBox(height: 2);
+                }
+                final rowIndex = index - 3;
+                if (rowIndex.isOdd) {
+                  return const SizedBox(height: 10);
+                }
+                final note = notes[rowIndex ~/ 2];
+                final isPreparing = _loadingNoteId == note.id;
+                return _VoiceNoteRow(
+                  note: note,
+                  isPreparing: isPreparing,
+                  audio: audio,
+                  onPlay: () async {
+                    if (isPreparing) {
+                      return;
+                    }
+                    final messenger = ScaffoldMessenger.of(context);
+                    setState(() => _loadingNoteId = note.id);
+                    final path = await appState.ensureLocalAudioPath(note);
+                    if (!mounted) {
+                      return;
+                    }
+                    setState(() => _loadingNoteId = null);
+                    if (path == null || path.isEmpty) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Playback is not available.'),
+                        ),
+                      );
+                      return;
+                    }
+                    audio.toggle(sourceId: note.id, path: path);
+                  },
+                );
+              },
             );
           }
 
           return Stack(
             children: [
-              CustomScrollView(
-                physics: const BouncingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics(),
-                ),
-                slivers: [
-                  SliverAppBar(
-                    pinned: true,
-                    leading: IconButton(
-                      tooltip: 'Back',
-                      onPressed: () => context.pop(),
-                      icon: const Icon(Icons.arrow_back),
-                    ),
-                    backgroundColor: tokens.bg,
-                    surfaceTintColor: Colors.transparent,
-                    elevation: 0,
-                    expandedHeight: expandedHeight,
-                    collapsedHeight: collapsedHeight,
-                    flexibleSpace: _HashtagHeaderFlexibleSpace(
-                      hashtag: hashtag,
-                      noteCount: notes.length,
-                    ),
+              Column(
+                children: [
+                  _StationTopBar(
+                    title: hashtag.name,
+                    onBack: () => context.go('/listen'),
                   ),
-                  SliverPadding(
-                    padding: EchoLayout.listPadding(
-                      context,
-                      top: 2,
-                      bottom: listBottomPadding,
-                      includeBottomSafeArea: true,
-                    ),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          if (index.isOdd) {
-                            return const SizedBox(height: 12);
-                          }
-                          final note = notes[index ~/ 2];
-                          final isPreparing = _loadingNoteId == note.id;
-                          final canBlock =
-                              note.authorId != null &&
-                              note.authorId!.isNotEmpty &&
-                              note.authorId != appState.userId;
-                          return _VoiceNoteCard(
-                            note: note,
-                            isPreparing: isPreparing,
-                            audio: audio,
-                            transcriptsEnabled:
-                                appState.settings.transcriptsEnabled,
-                            canBlock: canBlock,
-                            onPlay: () async {
-                              if (isPreparing) {
-                                return;
-                              }
-                              final messenger = ScaffoldMessenger.of(context);
-                              setState(() => _loadingNoteId = note.id);
-                              final path = await appState.ensureLocalAudioPath(
-                                note,
-                              );
-                              if (!mounted) {
-                                return;
-                              }
-                              setState(() => _loadingNoteId = null);
-                              if (path == null || path.isEmpty) {
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Playback is not available.',
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-                              audio.toggle(sourceId: note.id, path: path);
-                            },
-                            onMenuSelected: (action) =>
-                                _handleMenuAction(note, action),
-                          );
-                        },
-                        childCount: notes.isEmpty ? 0 : (notes.length * 2 - 1),
-                      ),
-                    ),
-                  ),
+                  Expanded(child: content),
                 ],
               ),
               Positioned(
                 right: fabRightOffset,
                 bottom: fabBottomOffset,
-                child: _AutoplayFab(
-                  onTap: () => context.push('/player/${hashtag.id}'),
+                child: _AutoplayFloatingButton(
+                  onTap: () {
+                    appState.markStationListened(hashtag.id);
+                    context.push('/player/${hashtag.id}');
+                  },
                   heroTag: 'autoplay-fab-${hashtag.id}',
                 ),
               ),
@@ -249,188 +221,43 @@ class _HashtagDetailState extends State<HashtagDetail> {
   }
 }
 
-class _HashtagHeaderFlexibleSpace extends StatelessWidget {
-  const _HashtagHeaderFlexibleSpace({
-    required this.hashtag,
-    required this.noteCount,
-  });
+class _StationTopBar extends StatelessWidget {
+  const _StationTopBar({required this.title, required this.onBack});
 
-  final Hashtag hashtag;
-  final int noteCount;
+  final String title;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
-    final horizontal = EchoLayout.contentHorizontalPadding(context);
-    final safeTop = MediaQuery.paddingOf(context).top;
-    final settings = context
-        .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
-    final maxExtent = settings?.maxExtent ?? 1.0;
-    final minExtent = settings?.minExtent ?? 1.0;
-    final currentExtent = settings?.currentExtent ?? maxExtent;
-    final range = (maxExtent - minExtent).abs() < 1 ? 1.0 : (maxExtent - minExtent);
-    final collapseProgress = ((maxExtent - currentExtent) / range).clamp(
-      0.0,
-      1.0,
-    );
-    final easedProgress = Curves.easeOutCubic.transform(collapseProgress);
-    final notesFactor = 1 - Curves.easeOut.transform(easedProgress);
-    final gap = lerpDouble(6, 2, easedProgress) ?? 4;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(color: tokens.bg),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          horizontal,
-          safeTop + kToolbarHeight + EchoLayout.space(context, 2),
-          horizontal,
-          0,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _HashtagHeader(
-              hashtag: hashtag,
-              collapseProgress: easedProgress,
-            ),
-            SizedBox(height: gap),
-            ClipRect(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                heightFactor: notesFactor.clamp(0.0, 1.0),
-                child: Text(
-                  '$noteCount notes',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: tokens.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+    return EchoHeaderShell(
+      padding: EchoLayout.pagePadding(
+        context,
+        top: 8,
+        bottom: 6,
       ),
-    );
-  }
-}
-
-class _AutoplayFab extends StatelessWidget {
-  const _AutoplayFab({required this.onTap, required this.heroTag});
-
-  final VoidCallback onTap;
-  final String heroTag;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.echo;
-    final buttonFill = tokens.accentPrimary;
-    final onButtonFill = EchoColorUtils.onColor(buttonFill);
-    return Semantics(
-      button: true,
-      label: 'Start autoplay',
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: SizedBox.square(
-          dimension: 64,
-          child: FloatingActionButton(
-            heroTag: heroTag,
-            tooltip: 'Start autoplay',
-            onPressed: onTap,
-            backgroundColor: buttonFill,
-            foregroundColor: onButtonFill,
-            elevation: 0,
-            highlightElevation: 0,
-            child: const Icon(Icons.play_arrow_rounded, size: 36),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HashtagHeader extends StatelessWidget {
-  const _HashtagHeader({
-    required this.hashtag,
-    this.collapseProgress = 0,
-  });
-
-  final Hashtag hashtag;
-  final double collapseProgress;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = context.echo;
-    final tileColor = tokens.surface1;
-    final onTile = tokens.textPrimary;
-    final mutedOnTile = tokens.textSecondary;
-    final compactEase = Curves.easeOutCubic.transform(collapseProgress);
-    final iconFactor = (1 - Curves.easeOut.transform(compactEase)).clamp(0.0, 1.0);
-    final descriptionFactor = (1 - Curves.easeIn.transform(compactEase)).clamp(
-      0.0,
-      1.0,
-    );
-    final cardPadding = EdgeInsets.lerp(
-      const EdgeInsets.all(22),
-      const EdgeInsets.fromLTRB(18, 12, 18, 12),
-      compactEase,
-    )!;
-    final iconSize = lerpDouble(40, 28, compactEase) ?? 40;
-    final radius = lerpDouble(24, 18, compactEase) ?? 24;
-    final baseTitleStyle = TextStyle.lerp(
-      theme.textTheme.headlineSmall,
-      theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-      compactEase,
-    );
-    final titleStyle = baseTitleStyle?.copyWith(color: onTile);
-    final titleGap = lerpDouble(10, 0, compactEase) ?? 6;
-    final descriptionGap = lerpDouble(8, 2, compactEase) ?? 5;
-
-    return EchoCard(
-      padding: cardPadding,
-      radius: radius,
-      color: tileColor,
-      overlayColor: EchoColorUtils.pressedOverlay(tileColor, alpha: 0.14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          ClipRect(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              heightFactor: iconFactor,
-              child: Icon(
-                hashtag.icon,
-                size: iconSize,
-                color: tokens.textSecondary,
-              ),
+          TextButton.icon(
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('Back'),
+            style: TextButton.styleFrom(
+              backgroundColor: tokens.surface1,
+              foregroundColor: tokens.textPrimary,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
           ),
-          SizedBox(height: titleGap),
-          Text(hashtag.name, style: titleStyle),
-          ClipRect(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              heightFactor: descriptionFactor,
-              child: Padding(
-                padding: EdgeInsets.only(top: descriptionGap),
-                child: Text(
-                  hashtag.description,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: mutedOnTile,
-                    height: 1.45,
-                  ),
-                ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: tokens.textPrimary,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -440,34 +267,182 @@ class _HashtagHeader extends StatelessWidget {
   }
 }
 
-class _VoiceNoteCard extends StatelessWidget {
-  const _VoiceNoteCard({
+class _StationHeroPanel extends StatelessWidget {
+  const _StationHeroPanel({
+    required this.station,
+    required this.noteCount,
+    required this.previousLabel,
+    required this.nextLabel,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final Hashtag station;
+  final int noteCount;
+  final String? previousLabel;
+  final String? nextLabel;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.echo;
+    final circleSize =
+        EchoLayout.space(context, 178).clamp(146.0, 214.0).toDouble();
+
+    return EchoCard(
+      radius: 30,
+      color: tokens.surface1,
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 18),
+      child: Column(
+        children: [
+          Text(
+            station.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: tokens.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$noteCount ${noteCount == 1 ? 'note' : 'notes'}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: tokens.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _StationNavButton(
+                icon: Icons.chevron_left_rounded,
+                label: previousLabel ?? 'Previous',
+                onPressed: onPrevious,
+              ),
+              const Spacer(),
+              Container(
+                height: circleSize,
+                width: circleSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color.lerp(station.color, tokens.surface2, 0.18)!,
+                      Color.lerp(tokens.surface1, station.color, 0.34)!,
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.22),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  station.icon,
+                  size: circleSize * 0.38,
+                  color: tokens.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              _StationNavButton(
+                icon: Icons.chevron_right_rounded,
+                label: nextLabel ?? 'Next',
+                onPressed: onNext,
+              ),
+            ],
+          ),
+          if (station.description.trim().isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              station.description,
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: tokens.textSecondary,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StationNavButton extends StatelessWidget {
+  const _StationNavButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.echo;
+    final isEnabled = onPressed != null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: label,
+          onPressed: onPressed,
+          style: IconButton.styleFrom(
+            backgroundColor: tokens.surface2.withValues(alpha: isEnabled ? 1 : 0.6),
+            foregroundColor: isEnabled ? tokens.textPrimary : tokens.textTertiary,
+          ),
+          iconSize: 28,
+          icon: Icon(icon),
+        ),
+        const SizedBox(height: 4),
+        SizedBox(
+          width: 76,
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: isEnabled ? tokens.textSecondary : tokens.textTertiary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _VoiceNoteRow extends StatelessWidget {
+  const _VoiceNoteRow({
     required this.note,
     required this.isPreparing,
     required this.audio,
-    required this.transcriptsEnabled,
-    required this.canBlock,
     required this.onPlay,
-    required this.onMenuSelected,
   });
 
   final VoiceNote note;
   final bool isPreparing;
   final AudioController audio;
-  final bool transcriptsEnabled;
-  final bool canBlock;
   final VoidCallback onPlay;
-  final ValueChanged<String> onMenuSelected;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
     final buttonFill = tokens.accentPrimary;
-    final loadingForeground = EchoColorUtils.onColor(
-      buttonFill.withValues(alpha: 0.35),
-    ).withValues(alpha: 0.5);
-    final timestamp = formatRelativeTime(note.createdAt);
+    final onButtonFill = theme.colorScheme.onPrimary;
+    final loadingForeground = onButtonFill.withValues(alpha: 0.5);
 
     return ListenableSelector<_NotePlaybackSnapshot>(
       listenable: audio,
@@ -495,153 +470,152 @@ class _VoiceNoteCard extends StatelessWidget {
       shouldRebuild: (previous, next) => previous != next,
       builder: (context, playback) {
         return EchoCard(
-          padding: const EdgeInsets.all(18),
-          radius: 24,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+          radius: 18,
+          color: tokens.surface1,
+          child: Row(
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _resolvedNoteTitle(note),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: tokens.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _resolvedPosterLabel(note),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: tokens.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
                       children: [
                         Text(
-                          'Anonymous - $timestamp',
+                          formatRelativeTime(note.createdAt),
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: tokens.textSecondary,
+                            color: tokens.textTertiary,
                           ),
                         ),
-                        if (transcriptsEnabled &&
-                            note.transcriptPreview != null) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            note.transcriptPreview!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: tokens.textSecondary.withValues(
-                                alpha: 0.92,
-                              ),
-                              height: 1.4,
-                            ),
+                        const SizedBox(width: 8),
+                        Text(
+                          formatDuration(playback.duration),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: tokens.textTertiary,
                           ),
-                        ],
+                        ),
                       ],
                     ),
-                  ),
-                  PopupMenuButton<String>(
-                    color: tokens.surface1,
-                    onSelected: onMenuSelected,
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(value: 'save', child: Text('Save')),
-                      const PopupMenuItem(
-                        value: 'share',
-                        child: Text('Share link'),
-                      ),
-                      const PopupMenuItem(
-                        value: 'hide',
-                        child: Text('Hide clip'),
-                      ),
-                      const PopupMenuItem(
-                        value: 'report',
-                        child: Text('Report & hide'),
-                      ),
-                      PopupMenuItem(
-                        value: 'block',
-                        enabled: canBlock,
-                        child: const Text('Block user'),
+                    if (playback.isActive) ...[
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: playback.progress.clamp(0.0, 1.0).toDouble(),
+                          minHeight: 4,
+                          backgroundColor: tokens.textSecondary.withValues(alpha: 0.2),
+                          valueColor: AlwaysStoppedAnimation(tokens.accentPrimary),
+                        ),
                       ),
                     ],
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  IconButton.filled(
-                    onPressed: onPlay,
-                    style: IconButton.styleFrom(
-                      backgroundColor: buttonFill,
-                      foregroundColor: EchoColorUtils.onColor(buttonFill),
-                    ),
-                    icon: isPreparing
-                        ? SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                loadingForeground,
-                              ),
-                            ),
-                          )
-                        : Icon(
-                            playback.isPlaying
-                                ? Icons.pause
-                                : Icons.play_arrow,
-                          ),
-                    padding: const EdgeInsets.all(16),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: LinearProgressIndicator(
-                            value:
-                                playback.progress.isNaN
-                                    ? 0
-                                    : playback.progress.clamp(0, 1),
-                            minHeight: 6,
-                            backgroundColor:
-                                tokens.textSecondary.withValues(alpha: 0.2),
-                            valueColor: AlwaysStoppedAnimation(
-                              tokens.accentPrimary,
-                            ),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                tooltip: playback.isPlaying ? 'Pause note' : 'Play note',
+                onPressed: onPlay,
+                style: IconButton.styleFrom(
+                  backgroundColor: buttonFill,
+                  foregroundColor: onButtonFill,
+                ),
+                icon: isPreparing
+                    ? SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            loadingForeground,
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              formatDuration(
-                                playback.isActive
-                                    ? playback.position
-                                    : Duration.zero,
-                              ),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: tokens.textSecondary,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: tokens.surface2,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                formatDuration(playback.duration),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: tokens.textSecondary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                      )
+                    : Icon(
+                        playback.isPlaying ? Icons.pause : Icons.play_arrow,
+                        size: 22,
+                      ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _AutoplayFloatingButton extends StatelessWidget {
+  const _AutoplayFloatingButton({required this.onTap, required this.heroTag});
+
+  final VoidCallback onTap;
+  final String heroTag;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.echo;
+    final onButtonFill = theme.colorScheme.onPrimary;
+    return Semantics(
+      button: true,
+      label: 'Start autoplay',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.34),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: SizedBox.square(
+          dimension: 72,
+          child: FloatingActionButton(
+            heroTag: heroTag,
+            tooltip: 'Autoplay',
+            onPressed: onTap,
+            backgroundColor: tokens.accentPrimary,
+            foregroundColor: onButtonFill,
+            elevation: 0,
+            highlightElevation: 0,
+            shape: const CircleBorder(),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.auto_awesome_rounded, color: onButtonFill, size: 20),
+                const SizedBox(height: 1),
+                Text(
+                  'AUTO',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: onButtonFill,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -656,11 +630,11 @@ class _NotePlaybackSnapshot {
   });
 
   const _NotePlaybackSnapshot.inactive(Duration duration)
-    : isActive = false,
-      isPlaying = false,
-      progress = 0.0,
-      position = Duration.zero,
-      duration = duration;
+      : isActive = false,
+        isPlaying = false,
+        progress = 0.0,
+        position = Duration.zero,
+        duration = duration;
 
   final bool isActive;
   final bool isPlaying;
@@ -679,13 +653,8 @@ class _NotePlaybackSnapshot {
   }
 
   @override
-  int get hashCode => Object.hash(
-        isActive,
-        isPlaying,
-        progress,
-        position,
-        duration,
-      );
+  int get hashCode =>
+      Object.hash(isActive, isPlaying, progress, position, duration);
 }
 
 class _EmptyState extends StatelessWidget {
@@ -730,4 +699,20 @@ class _EmptyState extends StatelessWidget {
       ),
     );
   }
+}
+
+String _resolvedNoteTitle(VoiceNote note) {
+  final title = note.transcriptPreview?.trim();
+  if (title == null || title.isEmpty) {
+    return 'Untitled';
+  }
+  return title;
+}
+
+String _resolvedPosterLabel(VoiceNote note) {
+  final username = note.authorId?.trim();
+  if (username == null || username.isEmpty) {
+    return 'Anonymous';
+  }
+  return username;
 }

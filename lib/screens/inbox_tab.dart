@@ -33,9 +33,8 @@ class _InboxTabState extends State<InboxTab> {
     final theme = Theme.of(context);
     final tokens = context.echo;
     final buttonFill = tokens.accentPrimary;
-    final loadingForeground = EchoColorUtils.onColor(
-      buttonFill.withValues(alpha: 0.35),
-    ).withValues(alpha: 0.5);
+    final onButtonFill = theme.colorScheme.onPrimary;
+    final loadingForeground = onButtonFill.withValues(alpha: 0.5);
     final appState = AppScope.of(context);
     final myPosts = appState.userPosts();
     final showTranscript = appState.settings.transcriptsEnabled;
@@ -179,9 +178,7 @@ class _InboxTabState extends State<InboxTab> {
                                     },
                               style: IconButton.styleFrom(
                                 backgroundColor: buttonFill,
-                                foregroundColor: EchoColorUtils.onColor(
-                                  buttonFill,
-                                ),
+                                foregroundColor: onButtonFill,
                               ),
                               icon: isPreparing
                                   ? SizedBox(

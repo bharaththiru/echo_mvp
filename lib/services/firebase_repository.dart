@@ -6,15 +6,82 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../models/hashtag.dart';
 import '../models/voice_note.dart';
 
+class HashtagFeedPageResult {
+  const HashtagFeedPageResult({
+    required this.notes,
+    required this.nextCursor,
+    required this.hasMore,
+  });
+
+  final List<VoiceNote> notes;
+  final String? nextCursor;
+  final bool hasMore;
+}
+
+class _HashtagFeedCursor {
+  const _HashtagFeedCursor({
+    required this.createdAtUtc,
+    required this.noteId,
+  });
+
+  final DateTime createdAtUtc;
+  final String noteId;
+
+  String encode() {
+    return '${createdAtUtc.millisecondsSinceEpoch}|$noteId';
+  }
+
+  static _HashtagFeedCursor? tryDecode(String? token) {
+    if (token == null || token.isEmpty) {
+      return null;
+    }
+    final separator = token.indexOf('|');
+    if (separator <= 0 || separator >= token.length - 1) {
+      return null;
+    }
+    final millis = int.tryParse(token.substring(0, separator));
+    final noteId = token.substring(separator + 1);
+    if (millis == null || noteId.isEmpty) {
+      return null;
+    }
+    return _HashtagFeedCursor(
+      createdAtUtc: DateTime.fromMillisecondsSinceEpoch(millis, isUtc: true),
+      noteId: noteId,
+    );
+  }
+}
+
+class _CachedAudioUrl {
+  const _CachedAudioUrl({required this.url, required this.expiresAt});
+
+  final String url;
+  final DateTime expiresAt;
+}
+
+class _StationFeedEntry {
+  const _StationFeedEntry({
+    required this.clipId,
+    this.inlineNote,
+  });
+
+  final String clipId;
+  final VoiceNote? inlineNote;
+}
+
 class FirebaseRepository {
   FirebaseRepository({
     required FirebaseFirestore firestore,
     required FirebaseStorage storage,
+    String? storageCdnBaseUrl,
   }) : _firestore = firestore,
-       _storage = storage;
+       _storage = storage,
+       _storageCdnBaseUrl = _normalizeBaseUrl(storageCdnBaseUrl);
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
+  final String? _storageCdnBaseUrl;
+  final Map<String, _CachedAudioUrl> _audioUrlCache = <String, _CachedAudioUrl>{};
+  static const _audioUrlCacheTtl = Duration(hours: 6);
 
   Future<List<Hashtag>> fetchHashtags() async {
     final snapshot = await _firestore
@@ -83,6 +150,271 @@ class FirebaseRepository {
     return notes;
   }
 
+  Future<HashtagFeedPageResult> fetchHashtagFeedPage({
+    required String hashtagId,
+    int limit = 40,
+    String? cursor,
+  }) async {
+    final stationId = hashtagId.trim();
+    if (stationId.isEmpty || limit <= 0) {
+      return const HashtagFeedPageResult(
+        notes: <VoiceNote>[],
+        nextCursor: null,
+        hasMore: false,
+      );
+    }
+    final requested = limit.clamp(1, 100).toInt();
+    final stationFeed = await _fetchStationFeedPage(
+      stationId: stationId,
+      limit: requested,
+      cursor: cursor,
+    );
+    if (stationFeed != null) {
+      return stationFeed;
+    }
+    return _fetchLegacyHashtagFeedPage(
+      hashtagId: stationId,
+      limit: requested,
+      cursor: cursor,
+    );
+  }
+
+  Future<HashtagFeedPageResult?> _fetchStationFeedPage({
+    required String stationId,
+    required int limit,
+    String? cursor,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final requested = limit.clamp(1, 100).toInt();
+    final collected = <VoiceNote>[];
+    var cursorValue = _HashtagFeedCursor.tryDecode(cursor);
+    var hasMore = true;
+    var loops = 0;
+    var feedSeen = false;
+    while (collected.length < requested && hasMore && loops < 8) {
+      final fetchLimit = ((requested - collected.length) + 20)
+          .clamp(10, 100)
+          .toInt();
+      Query<Map<String, dynamic>> query = _firestore
+          .collection('stations')
+          .doc(stationId)
+          .collection('feed')
+          .orderBy('created_at', descending: true)
+          .orderBy(FieldPath.documentId, descending: true)
+          .limit(fetchLimit);
+      if (cursorValue != null) {
+        query = query.startAfter(<Object>[
+          Timestamp.fromDate(cursorValue.createdAtUtc),
+          cursorValue.noteId,
+        ]);
+      }
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        hasMore = false;
+        break;
+      }
+      feedSeen = true;
+      final entries = <_StationFeedEntry>[];
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final clipId = (data['clip_id'] as String?)?.trim() ?? doc.id;
+        if (clipId.isEmpty) {
+          continue;
+        }
+        final inlineNote = _noteFromStationFeedDoc(
+          doc,
+          stationId: stationId,
+        );
+        entries.add(
+          _StationFeedEntry(
+            clipId: clipId,
+            inlineNote: inlineNote,
+          ),
+        );
+      }
+      final unresolvedClipIds = entries
+          .where((entry) => entry.inlineNote == null)
+          .map((entry) => entry.clipId)
+          .toSet()
+          .toList();
+      final hydratedById = unresolvedClipIds.isEmpty
+          ? <String, VoiceNote>{}
+          : await _fetchClipMetadataByIds(
+              clipIds: unresolvedClipIds,
+              stationId: stationId,
+            );
+      for (final entry in entries) {
+        final resolved = entry.inlineNote ?? hydratedById[entry.clipId];
+        if (resolved == null) {
+          continue;
+        }
+        final expiresAtUtc = resolved.expiresAt?.toUtc();
+        final stillActive = expiresAtUtc == null || expiresAtUtc.isAfter(now);
+        if (!stillActive) {
+          continue;
+        }
+        collected.add(resolved);
+        if (collected.length >= requested) {
+          break;
+        }
+      }
+      final lastDoc = snapshot.docs.last;
+      final lastCreatedAt =
+          _readTimestamp(lastDoc.data()['created_at'])?.toUtc() ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+      cursorValue = _HashtagFeedCursor(
+        createdAtUtc: lastCreatedAt,
+        noteId: lastDoc.id,
+      );
+      hasMore = snapshot.docs.length >= fetchLimit;
+      loops += 1;
+    }
+    if (!feedSeen) {
+      return null;
+    }
+    if (collected.length > requested) {
+      collected.removeRange(requested, collected.length);
+    }
+    final nextCursor = hasMore && cursorValue != null
+        ? cursorValue.encode()
+        : null;
+    return HashtagFeedPageResult(
+      notes: collected,
+      nextCursor: nextCursor,
+      hasMore: hasMore,
+    );
+  }
+
+  Future<HashtagFeedPageResult> _fetchLegacyHashtagFeedPage({
+    required String hashtagId,
+    required int limit,
+    String? cursor,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final requested = limit.clamp(1, 100).toInt();
+    final collected = <VoiceNote>[];
+    var cursorValue = _HashtagFeedCursor.tryDecode(cursor);
+    var hasMore = true;
+    var loops = 0;
+    while (collected.length < requested && hasMore && loops < 8) {
+      final fetchLimit = ((requested - collected.length) + 20)
+          .clamp(10, 100)
+          .toInt();
+      Query<Map<String, dynamic>> query = _firestore
+          .collection('voice_notes')
+          .where('status', isEqualTo: 'active')
+          .where('hashtag_id', isEqualTo: hashtagId)
+          .orderBy('created_at', descending: true)
+          .orderBy(FieldPath.documentId, descending: true)
+          .limit(fetchLimit);
+      if (cursorValue != null) {
+        query = query.startAfter(<Object>[
+          Timestamp.fromDate(cursorValue.createdAtUtc),
+          cursorValue.noteId,
+        ]);
+      }
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        hasMore = false;
+        break;
+      }
+      for (final doc in snapshot.docs) {
+        final note = _noteFromDoc(doc);
+        final expiresAtUtc = note.expiresAt?.toUtc();
+        final stillActive = expiresAtUtc == null || expiresAtUtc.isAfter(now);
+        if (!stillActive) {
+          continue;
+        }
+        collected.add(note);
+        if (collected.length >= requested) {
+          break;
+        }
+      }
+      final lastDoc = snapshot.docs.last;
+      final lastCreatedAt =
+          _readTimestamp(lastDoc.data()['created_at'])?.toUtc() ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+      cursorValue = _HashtagFeedCursor(
+        createdAtUtc: lastCreatedAt,
+        noteId: lastDoc.id,
+      );
+      hasMore = snapshot.docs.length >= fetchLimit;
+      loops += 1;
+    }
+    final notes = List<VoiceNote>.from(collected)
+      ..sort((a, b) {
+        final byCreated = b.createdAt.compareTo(a.createdAt);
+        if (byCreated != 0) {
+          return byCreated;
+        }
+        return b.id.compareTo(a.id);
+      });
+    if (notes.length > requested) {
+      notes.removeRange(requested, notes.length);
+    }
+    final nextCursor = hasMore && cursorValue != null
+        ? cursorValue.encode()
+        : null;
+    return HashtagFeedPageResult(
+      notes: notes,
+      nextCursor: nextCursor,
+      hasMore: hasMore,
+    );
+  }
+
+  Future<Map<String, VoiceNote>> _fetchClipMetadataByIds({
+    required List<String> clipIds,
+    required String stationId,
+  }) async {
+    if (clipIds.isEmpty) {
+      return const <String, VoiceNote>{};
+    }
+    final hydrated = <String, VoiceNote>{};
+    for (final chunk in _chunkIds(clipIds, 30)) {
+      if (chunk.isEmpty) {
+        continue;
+      }
+      final clipsSnapshot = await _firestore
+          .collection('clips')
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get();
+      for (final doc in clipsSnapshot.docs) {
+        final note = _noteFromClipDoc(doc, fallbackStationId: stationId);
+        if (note == null) {
+          continue;
+        }
+        hydrated[doc.id] = note;
+      }
+      final missing = chunk.where((id) => !hydrated.containsKey(id)).toList();
+      if (missing.isEmpty) {
+        continue;
+      }
+      final legacySnapshot = await _firestore
+          .collection('voice_notes')
+          .where(FieldPath.documentId, whereIn: missing)
+          .get();
+      for (final doc in legacySnapshot.docs) {
+        final note = _noteFromClipDoc(doc, fallbackStationId: stationId);
+        if (note == null) {
+          continue;
+        }
+        hydrated[doc.id] = note;
+      }
+    }
+    return hydrated;
+  }
+
+  Iterable<List<String>> _chunkIds(List<String> ids, int chunkSize) sync* {
+    if (chunkSize <= 0) {
+      yield ids;
+      return;
+    }
+    for (var start = 0; start < ids.length; start += chunkSize) {
+      final end = (start + chunkSize).clamp(0, ids.length).toInt();
+      yield ids.sublist(start, end);
+    }
+  }
+
   Future<VoiceNote> createNote({
     required String id,
     required String hashtagId,
@@ -95,21 +427,63 @@ class FirebaseRepository {
     required String authorId,
   }) async {
     final createdAt = DateTime.now().toUtc();
-    final docRef = _firestore.collection('voice_notes').doc(id);
-    await docRef.set({
+    final createdTimestamp = Timestamp.fromDate(createdAt);
+    final expiresTimestamp = expiresAt == null
+        ? null
+        : Timestamp.fromDate(expiresAt.toUtc());
+    final noteData = <String, dynamic>{
       'hashtag_id': hashtagId,
       'hashtag_label': hashtagLabel,
-      'created_at': Timestamp.fromDate(createdAt),
+      'created_at': createdTimestamp,
       'duration_seconds': durationSeconds,
       'storage_path': storagePath,
       'allow_replies': allowReplies,
-      'expires_at': expiresAt == null
-          ? null
-          : Timestamp.fromDate(expiresAt.toUtc()),
+      'expires_at': expiresTimestamp,
       'caption': caption,
       'author_id': authorId,
       'status': 'active',
-    }, SetOptions(merge: true));
+    };
+    final clipData = <String, dynamic>{
+      'station_id': hashtagId,
+      'station_label': hashtagLabel,
+      'created_at': createdTimestamp,
+      'duration_seconds': durationSeconds,
+      'storage_path': storagePath,
+      'allow_replies': allowReplies,
+      'expires_at': expiresTimestamp,
+      'caption': caption,
+      'author_id': authorId,
+      'status': 'active',
+    };
+    final feedData = <String, dynamic>{
+      'clip_id': id,
+      'station_id': hashtagId,
+      'created_at': createdTimestamp,
+      'duration_seconds': durationSeconds,
+      'storage_path': storagePath,
+      'allow_replies': allowReplies,
+      'expires_at': expiresTimestamp,
+      'caption': caption,
+      'author_id': authorId,
+      'status': 'active',
+    };
+    final batch = _firestore.batch();
+    final voiceNoteRef = _firestore.collection('voice_notes').doc(id);
+    final clipRef = _firestore.collection('clips').doc(id);
+    final feedRef = _firestore
+        .collection('stations')
+        .doc(hashtagId)
+        .collection('feed')
+        .doc(id);
+    batch.set(voiceNoteRef, noteData, SetOptions(merge: true));
+    batch.set(clipRef, clipData, SetOptions(merge: true));
+    batch.set(feedRef, feedData, SetOptions(merge: true));
+    try {
+      await batch.commit();
+    } catch (_) {
+      // Backward-compatible fallback while feed-model rules/indexes roll out.
+      await voiceNoteRef.set(noteData, SetOptions(merge: true));
+    }
 
     return VoiceNote(
       id: id,
@@ -208,8 +582,26 @@ class FirebaseRepository {
   }
 
   Future<String> fetchAudioUrl(String storagePath) async {
-    final ref = _storage.ref(storagePath);
-    return ref.getDownloadURL();
+    final normalizedPath = storagePath.trim();
+    if (normalizedPath.isEmpty) {
+      return '';
+    }
+    final cdnUrl = _buildCdnUrl(normalizedPath);
+    if (cdnUrl != null) {
+      return cdnUrl;
+    }
+    final now = DateTime.now().toUtc();
+    final cached = _audioUrlCache[normalizedPath];
+    if (cached != null && cached.expiresAt.isAfter(now)) {
+      return cached.url;
+    }
+    final ref = _storage.ref(normalizedPath);
+    final url = await ref.getDownloadURL();
+    _audioUrlCache[normalizedPath] = _CachedAudioUrl(
+      url: url,
+      expiresAt: now.add(_audioUrlCacheTtl),
+    );
+    return url;
   }
 
   Future<List<int>> downloadAudio(String storagePath) async {
@@ -220,6 +612,72 @@ class FirebaseRepository {
       return const <int>[];
     }
     return data;
+  }
+
+  VoiceNote? _noteFromStationFeedDoc(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc, {
+    required String stationId,
+  }) {
+    final data = doc.data();
+    return _noteFromMap(
+      id: (data['clip_id'] as String?)?.trim() ?? doc.id,
+      data: data,
+      fallbackStationId: stationId,
+    );
+  }
+
+  VoiceNote? _noteFromClipDoc(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc, {
+    required String fallbackStationId,
+  }) {
+    return _noteFromMap(
+      id: doc.id,
+      data: doc.data(),
+      fallbackStationId: fallbackStationId,
+    );
+  }
+
+  VoiceNote? _noteFromMap({
+    required String id,
+    required Map<String, dynamic> data,
+    required String fallbackStationId,
+  }) {
+    final resolvedId = id.trim();
+    if (resolvedId.isEmpty) {
+      return null;
+    }
+    final status = (data['status'] as String?)?.trim();
+    if (status != null && status.isNotEmpty && status != 'active') {
+      return null;
+    }
+    final stationId =
+        (data['station_id'] as String?)?.trim() ??
+        (data['hashtag_id'] as String?)?.trim() ??
+        fallbackStationId;
+    final storagePath = (data['storage_path'] as String?)?.trim() ?? '';
+    if (stationId.isEmpty || storagePath.isEmpty) {
+      return null;
+    }
+    final createdAt =
+        _readTimestamp(data['created_at'])?.toLocal() ?? DateTime.now();
+    final expiresAt = _readTimestamp(data['expires_at'])?.toLocal();
+    final label =
+        (data['station_label'] as String?)?.trim() ??
+        (data['hashtag_label'] as String?)?.trim() ??
+        (data['hashtag_name'] as String?)?.trim() ??
+        '#$stationId';
+    return VoiceNote(
+      id: resolvedId,
+      hashtagId: stationId,
+      hashtagLabel: label,
+      createdAt: createdAt,
+      duration: Duration(seconds: _parseInt(data['duration_seconds'])),
+      storagePath: storagePath,
+      allowReplies: data['allow_replies'] as bool? ?? false,
+      expiresAt: expiresAt,
+      authorId: data['author_id'] as String?,
+      transcriptPreview: data['caption'] as String?,
+    );
   }
 
   VoiceNote _noteFromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
@@ -275,5 +733,34 @@ class FirebaseRepository {
     final month = now.month.toString().padLeft(2, '0');
     final day = now.day.toString().padLeft(2, '0');
     return '$year-$month-$day';
+  }
+
+  static String? _normalizeBaseUrl(String? value) {
+    if (value == null) {
+      return null;
+    }
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    return trimmed.endsWith('/')
+        ? trimmed.substring(0, trimmed.length - 1)
+        : trimmed;
+  }
+
+  String? _buildCdnUrl(String storagePath) {
+    final base = _storageCdnBaseUrl;
+    if (base == null || base.isEmpty) {
+      return null;
+    }
+    final encodedPath = storagePath
+        .split('/')
+        .where((segment) => segment.isNotEmpty)
+        .map(Uri.encodeComponent)
+        .join('/');
+    if (encodedPath.isEmpty) {
+      return null;
+    }
+    return '$base/$encodedPath';
   }
 }

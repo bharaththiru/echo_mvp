@@ -6,7 +6,15 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'audio_playback_controller.dart';
-enum EchoAudioEventType { interruptionBegan, interruptionEnded, error }
+
+enum EchoAudioEventType {
+  interruptionBegan,
+  interruptionEnded,
+  duckBegan,
+  duckEnded,
+  becameNoisy,
+  error,
+}
 
 class EchoAudioEvent {
   const EchoAudioEvent(this.type, {this.message});
@@ -56,9 +64,14 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
   StreamSubscription<void>? _becomingNoisySub;
   StreamSubscription<AudioDevicesChangedEvent>? _devicesChangedSub;
+  bool _resumeAfterPauseInterruption = false;
+  bool _isDucked = false;
+  double _unduckedVolume = 1.0;
+
+  static const _duckVolumeFactor = 0.35;
+  static const _duckVolumeFloor = 0.2;
 
   Stream<EchoAudioEvent> get events => _eventController.stream;
-
 
   Future<void> _init() async {
     if (kIsWeb) {
@@ -67,14 +80,14 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     final session = await AudioSession.instance;
     _session = session;
-    final config = const AudioSessionConfiguration.speech().copyWith(
+    final config = const AudioSessionConfiguration.music().copyWith(
       avAudioSessionCategoryOptions:
           AVAudioSessionCategoryOptions.allowBluetooth |
           AVAudioSessionCategoryOptions.allowBluetoothA2dp |
           AVAudioSessionCategoryOptions.allowAirPlay,
       avAudioSessionSetActiveOptions:
           AVAudioSessionSetActiveOptions.notifyOthersOnDeactivation,
-      androidWillPauseWhenDucked: true,
+      androidWillPauseWhenDucked: false,
     );
     await session.configure(config);
     _interruptionSub = session.interruptionEventStream.listen(
@@ -94,17 +107,84 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       return;
     }
     if (event.begin) {
-      _eventController.add(
-        const EchoAudioEvent(EchoAudioEventType.interruptionBegan),
-      );
-      if (_player.playing) {
-        unawaited(pause());
+      switch (event.type) {
+        case AudioInterruptionType.duck:
+          unawaited(_beginDuck());
+          return;
+        case AudioInterruptionType.pause:
+        case AudioInterruptionType.unknown:
+          _beginPauseInterruption();
+          return;
       }
-      return;
+    }
+    switch (event.type) {
+      case AudioInterruptionType.duck:
+        unawaited(_endDuck());
+        return;
+      case AudioInterruptionType.pause:
+      case AudioInterruptionType.unknown:
+        unawaited(_endPauseInterruption());
+        return;
+    }
+  }
+
+  void _beginPauseInterruption() {
+    if (_isDucked) {
+      unawaited(_endDuck());
+    }
+    _resumeAfterPauseInterruption = _player.playing;
+    _eventController.add(
+      const EchoAudioEvent(EchoAudioEventType.interruptionBegan),
+    );
+    if (_player.playing) {
+      unawaited(pause());
+    }
+  }
+
+  Future<void> _endPauseInterruption() async {
+    final shouldResume = _resumeAfterPauseInterruption && !_player.playing;
+    _resumeAfterPauseInterruption = false;
+    if (shouldResume) {
+      try {
+        await play();
+      } catch (_) {
+        // Ignore resume failures after interruption.
+      }
     }
     _eventController.add(
       const EchoAudioEvent(EchoAudioEventType.interruptionEnded),
     );
+  }
+
+  Future<void> _beginDuck() async {
+    if (_isDucked || !_player.playing) {
+      return;
+    }
+    _unduckedVolume = _player.volume.clamp(0.0, 1.0).toDouble();
+    final ducked = _duckVolumeFor(_unduckedVolume);
+    _isDucked = true;
+    await _player.setVolume(ducked);
+    _eventController.add(const EchoAudioEvent(EchoAudioEventType.duckBegan));
+    _broadcastState();
+  }
+
+  Future<void> _endDuck() async {
+    if (!_isDucked) {
+      return;
+    }
+    _isDucked = false;
+    await _player.setVolume(_unduckedVolume.clamp(0.0, 1.0).toDouble());
+    _eventController.add(const EchoAudioEvent(EchoAudioEventType.duckEnded));
+    _broadcastState();
+  }
+
+  double _duckVolumeFor(double base) {
+    final clampedBase = base.clamp(0.0, 1.0).toDouble();
+    final scaled = clampedBase * _duckVolumeFactor;
+    if (scaled >= _duckVolumeFloor || clampedBase <= _duckVolumeFloor) {
+      return scaled.clamp(0.0, 1.0).toDouble();
+    }
+    return _duckVolumeFloor;
   }
 
   void _handleBecomingNoisy() {
@@ -112,6 +192,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       return;
     }
     if (_player.playing) {
+      _eventController.add(const EchoAudioEvent(EchoAudioEventType.becameNoisy));
       unawaited(pause());
     }
   }
@@ -355,6 +436,10 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> stop() async {
     await _player.stop();
+    _resumeAfterPauseInterruption = false;
+    if (!kIsWeb) {
+      await _session?.setActive(false);
+    }
     _broadcastState();
   }
 
@@ -365,7 +450,13 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> setVolume(double volume) async {
-    await _player.setVolume(volume);
+    final clamped = volume.clamp(0.0, 1.0).toDouble();
+    _unduckedVolume = clamped;
+    if (_isDucked) {
+      await _player.setVolume(_duckVolumeFor(clamped));
+    } else {
+      await _player.setVolume(clamped);
+    }
     _broadcastState();
   }
 
@@ -401,23 +492,37 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final position = _player.position;
     final bufferedPosition = _player.bufferedPosition;
     final speed = _player.speed;
+    final hasPrevious = _queueMode && _player.hasPrevious;
+    final hasNext = _queueMode && _player.hasNext;
     final controls = <MediaControl>[
+      if (hasPrevious) MediaControl.skipToPrevious,
       if (playing) MediaControl.pause else MediaControl.play,
+      if (hasNext) MediaControl.skipToNext,
       MediaControl.stop,
     ];
-    final actions = const <MediaAction>{
+    final actions = <MediaAction>{
       MediaAction.play,
       MediaAction.pause,
       MediaAction.stop,
       MediaAction.seek,
       MediaAction.seekForward,
       MediaAction.seekBackward,
+      if (hasPrevious) MediaAction.skipToPrevious,
+      if (hasNext) MediaAction.skipToNext,
     };
+    final compactActionIndices = <int>[
+      if (hasPrevious) 0,
+      hasPrevious ? 1 : 0,
+      if (hasNext) hasPrevious ? 2 : 1,
+    ];
+    final compact = compactActionIndices.length > 3
+        ? compactActionIndices.sublist(0, 3)
+        : compactActionIndices;
     playbackState.add(
       PlaybackState(
         controls: controls,
         systemActions: actions,
-        androidCompactActionIndices: const [0, 1],
+        androidCompactActionIndices: compact,
         processingState: processingState,
         playing: playing,
         updatePosition: position,

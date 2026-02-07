@@ -326,7 +326,7 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
     final appState = AppScope.of(context);
     final reduceMotion = appState.settings.reduceMotion;
     final buttonFill = tokens.accentPrimary;
-    final onButtonFill = EchoColorUtils.onColor(buttonFill);
+    final onButtonFill = theme.colorScheme.onPrimary;
 
     return AnimatedBuilder(
       animation: appState.audio,

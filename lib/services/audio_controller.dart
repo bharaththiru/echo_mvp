@@ -170,6 +170,13 @@ class AudioController extends ChangeNotifier
         notifyListeners();
         _syncPositionTimer();
         break;
+      case EchoAudioEventType.duckBegan:
+      case EchoAudioEventType.duckEnded:
+      case EchoAudioEventType.becameNoisy:
+        _state = _state.copyWith(errorMessage: null);
+        notifyListeners();
+        _syncPositionTimer();
+        break;
       case EchoAudioEventType.error:
         _state = _state.copyWith(
           isPlaying: false,

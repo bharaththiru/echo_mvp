@@ -87,7 +87,11 @@ import UIKit
     stopRecording()
     do {
       let session = AVAudioSession.sharedInstance()
-      try session.setCategory(.playAndRecord, options: [.defaultToSpeaker])
+      try session.setCategory(
+        .playAndRecord,
+        mode: .default,
+        options: [.defaultToSpeaker, .allowBluetooth]
+      )
       try session.setActive(true)
 
       let settings: [String: Any] = [
@@ -110,6 +114,14 @@ import UIKit
   private func stopRecording() -> Bool {
     recorder?.stop()
     recorder = nil
+    do {
+      try AVAudioSession.sharedInstance().setActive(
+        false,
+        options: .notifyOthersOnDeactivation
+      )
+    } catch {
+      // Ignore deactivation failures.
+    }
     return true
   }
 
@@ -117,7 +129,11 @@ import UIKit
     stopPlayback()
     do {
       let session = AVAudioSession.sharedInstance()
-      try session.setCategory(.playAndRecord, options: [.defaultToSpeaker])
+      try session.setCategory(
+        .playback,
+        mode: .default,
+        options: [.allowAirPlay, .allowBluetoothA2DP]
+      )
       try session.setActive(true)
 
       let url = URL(fileURLWithPath: path)
@@ -143,6 +159,14 @@ import UIKit
   private func stopPlayback() -> Bool {
     player?.stop()
     player = nil
+    do {
+      try AVAudioSession.sharedInstance().setActive(
+        false,
+        options: .notifyOthersOnDeactivation
+      )
+    } catch {
+      // Ignore deactivation failures.
+    }
     return true
   }
 

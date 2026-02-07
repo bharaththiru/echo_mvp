@@ -19,11 +19,13 @@ import '../models/voice_note.dart';
 import '../services/audio_controller.dart';
 import '../services/autoplay_controller.dart';
 import '../services/autoplay_data_source.dart';
+import '../services/autoplay_feed_queue_builder.dart';
 import '../services/firebase_repository.dart';
 import '../utils/id_generator.dart';
 import 'firebase_config.dart';
 
-class AppState extends ChangeNotifier implements AutoplayDataSource {
+class AppState extends ChangeNotifier
+    implements AutoplayDataSource, AutoplayFeedQueueBuilder {
   AppState._({
     required SharedPreferences prefs,
     required this.settings,
@@ -32,15 +34,18 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     required FirebaseRepository repository,
     required User? user,
     required String recordingsDirectory,
+    required String audioCacheDirectory,
     required this.onboardingComplete,
     required this.onboardingInterests,
     required this.savedHashtags,
+    required this.recentHashtagIds,
   }) : _prefs = prefs,
-       _auth = auth,
-       _repository = repository,
-       _user = user,
-       _recordingsDirectory = recordingsDirectory,
-       _idGenerator = IdGenerator();
+        _auth = auth,
+        _repository = repository,
+        _user = user,
+        _recordingsDirectory = recordingsDirectory,
+        _audioCacheDirectory = audioCacheDirectory,
+        _idGenerator = IdGenerator();
 
   static const _themeModeKey = 'theme_mode';
   static const _moodTintKey = 'mood_tint';
@@ -51,6 +56,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
   static const _onboardingCompleteKey = 'onboarding_complete';
   static const _onboardingInterestsKey = 'onboarding_interests';
   static const _savedHashtagsKey = 'saved_hashtags';
+  static const _recentHashtagIdsKey = 'recent_hashtag_ids';
   static const _skipQuotaDateKey = 'skip_quota_date';
   static const _skipQuotaRemainingKey = 'skip_quota_remaining';
   static const _blockedAuthorIdsKey = 'blocked_author_ids';
@@ -62,6 +68,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
   static const _postTimeout = Duration(seconds: 12);
   static const _postRateLimitWindow = Duration(hours: 1);
   static const _postRateLimitMax = 20;
+  static const _audioDiskCacheMaxEntries = 300;
 
   final SharedPreferences _prefs;
   final IdGenerator _idGenerator;
@@ -73,6 +80,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
   final AudioController audio;
   late final AutoplayController autoplay;
   final String _recordingsDirectory;
+  final String _audioCacheDirectory;
   final List<Hashtag> _hashtags = [];
   final Map<String, List<VoiceNote>> _notesByHashtag = {};
   final Map<String, List<VoiceNote>> _localDevNotesByHashtag = {};
@@ -86,7 +94,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
   bool _myPostsLoading = false;
   String? _hashtagsError;
   String? _myPostsError;
-  final Map<String, String> _audioUrlCache = <String, String>{};
+  final Map<String, String> _audioPathCache = <String, String>{};
   PendingPostDraft? _pendingPostDraft;
   Future<VoiceNote>? _postInFlight;
 
@@ -94,6 +102,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
   bool onboardingComplete;
   List<String> onboardingInterests;
   List<String> savedHashtags;
+  List<String> recentHashtagIds;
   String? pendingRecordingPath;
 
   static Future<AppState> create() async {
@@ -104,9 +113,11 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     final repository = FirebaseRepository(
       firestore: FirebaseFirestore.instance,
       storage: FirebaseStorage.instance,
+      storageCdnBaseUrl: FirebaseConfig.storageCdnBaseUrl,
     );
     final user = auth.currentUser;
     final recordingsDirectory = await _prepareRecordingsDirectory();
+    final audioCacheDirectory = await _prepareAudioCacheDirectory();
     final onboardingComplete = prefs.getBool(_onboardingCompleteKey) ?? false;
     final onboardingInterests =
         prefs.getStringList(_onboardingInterestsKey) ?? <String>[];
@@ -115,6 +126,8 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
         (onboardingInterests.isNotEmpty
             ? onboardingInterests
             : suggestedHashtags.take(3).toList());
+    final recentHashtagIds =
+        prefs.getStringList(_recentHashtagIdsKey) ?? <String>[];
     final blockedAuthors =
         prefs.getStringList(_blockedAuthorIdsKey) ?? <String>[];
     final hiddenNotes =
@@ -165,9 +178,11 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
       repository: repository,
       user: user,
       recordingsDirectory: recordingsDirectory,
+      audioCacheDirectory: audioCacheDirectory,
       onboardingComplete: onboardingComplete,
       onboardingInterests: onboardingInterests,
       savedHashtags: savedHashtags,
+      recentHashtagIds: recentHashtagIds,
     );
     state.pendingRecordingPath = resolvedRecordingPath;
     state._pendingPostDraft = pendingDraft;
@@ -177,7 +192,11 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     state._hiddenNoteIds
       ..clear()
       ..addAll(hiddenNotes.where((id) => id.trim().isNotEmpty));
-    state.autoplay = AutoplayController(dataSource: state, audio: audio);
+    state.autoplay = AutoplayController(
+      dataSource: state,
+      feedQueueBuilder: state,
+      audio: audio,
+    );
     state.autoplay.syncSuppressed(
       noteIds: state._hiddenNoteIds,
       authorIds: state._blockedAuthorIds,
@@ -187,6 +206,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     unawaited(state._maybeAutoSignIn());
     unawaited(state.refreshHashtags());
     unawaited(state.refreshMyPosts());
+    unawaited(state._pruneAudioDiskCacheLru());
     return state;
   }
 
@@ -207,10 +227,17 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
         FirebaseRepository(
           firestore: FirebaseFirestore.instance,
           storage: FirebaseStorage.instance,
+          storageCdnBaseUrl: FirebaseConfig.storageCdnBaseUrl,
         );
     final recordingsDirectory = Directory.systemTemp
         .createTempSync('echo_test')
         .path;
+    final audioCacheDirectory =
+        Directory(
+              '$recordingsDirectory${Platform.pathSeparator}audio_cache',
+            )
+            .createSync(recursive: true)
+            .path;
     final saved = hashtags.take(3).map((tag) => tag.name).toList();
     final state = AppState._(
       prefs: prefs,
@@ -220,11 +247,17 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
       repository: resolvedRepository,
       user: null,
       recordingsDirectory: recordingsDirectory,
+      audioCacheDirectory: audioCacheDirectory,
       onboardingComplete: onboardingComplete,
       onboardingInterests: saved,
       savedHashtags: saved,
+      recentHashtagIds: const [],
     );
-    state.autoplay = AutoplayController(dataSource: state, audio: audio);
+    state.autoplay = AutoplayController(
+      dataSource: state,
+      feedQueueBuilder: state,
+      audio: audio,
+    );
     state.autoplay.syncSuppressed(noteIds: const [], authorIds: const []);
     state._authSubscription = const Stream<User?>.empty().listen((_) {});
     state._hashtags
@@ -245,6 +278,15 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
       await recordings.create(recursive: true);
     }
     return recordings.path;
+  }
+
+  static Future<String> _prepareAudioCacheDirectory() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final cache = Directory('${directory.path}/audio_cache');
+    if (!await cache.exists()) {
+      await cache.create(recursive: true);
+    }
+    return cache.path;
   }
 
   static Future<bool> _recordingExists(String path) async {
@@ -404,6 +446,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
         ..clear()
         ..addAll(fetched);
       _syncSavedHashtags();
+      _syncRecentHashtags();
     } catch (_) {
       _hashtagsError = 'Unable to load hashtags.';
     } finally {
@@ -429,19 +472,322 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     }
   }
 
+  void _syncRecentHashtags() {
+    if (_hashtags.isEmpty || recentHashtagIds.isEmpty) {
+      return;
+    }
+    final available = _hashtags.map((tag) => tag.id).toSet();
+    final filtered = recentHashtagIds.where(available.contains).toList();
+    if (filtered.length != recentHashtagIds.length) {
+      recentHashtagIds = filtered;
+      _prefs.setStringList(_recentHashtagIdsKey, recentHashtagIds);
+    }
+  }
+
+  List<Hashtag> recentHashtags({int limit = 6}) {
+    if (_hashtags.isEmpty || limit <= 0) {
+      return const [];
+    }
+    final byId = {for (final tag in _hashtags) tag.id: tag};
+    final seen = <String>{};
+    final resolved = <Hashtag>[];
+    for (final id in recentHashtagIds) {
+      final tag = byId[id];
+      if (tag == null || seen.contains(tag.id)) {
+        continue;
+      }
+      resolved.add(tag);
+      seen.add(tag.id);
+      if (resolved.length >= limit) {
+        return resolved;
+      }
+    }
+    if (resolved.isNotEmpty) {
+      return resolved;
+    }
+    final fallback = List<Hashtag>.from(_hashtags)
+      ..sort((a, b) {
+        final countOrder = b.noteCount.compareTo(a.noteCount);
+        if (countOrder != 0) {
+          return countOrder;
+        }
+        return a.name.compareTo(b.name);
+      });
+    if (fallback.length > limit) {
+      return fallback.sublist(0, limit);
+    }
+    return fallback;
+  }
+
   @override
+  Future<List<String>> fallbackStationIds({
+    required String currentStationId,
+    int limit = 6,
+  }) async {
+    final normalizedCurrent = currentStationId.trim();
+    if (limit <= 0) {
+      return const <String>[];
+    }
+    final resolved = <String>[];
+    final seen = <String>{};
+    for (final id in recentHashtagIds) {
+      final normalized = id.trim();
+      if (normalized.isEmpty ||
+          normalized == normalizedCurrent ||
+          seen.contains(normalized)) {
+        continue;
+      }
+      resolved.add(normalized);
+      seen.add(normalized);
+      if (resolved.length >= limit) {
+        return resolved;
+      }
+    }
+    final trending = List<Hashtag>.from(_hashtags)
+      ..sort((a, b) {
+        final byCount = b.noteCount.compareTo(a.noteCount);
+        if (byCount != 0) {
+          return byCount;
+        }
+        return a.name.compareTo(b.name);
+      });
+    for (final hashtag in trending) {
+      final id = hashtag.id.trim();
+      if (id.isEmpty || id == normalizedCurrent || seen.contains(id)) {
+        continue;
+      }
+      resolved.add(id);
+      seen.add(id);
+      if (resolved.length >= limit) {
+        break;
+      }
+    }
+    return resolved;
+  }
+
+  static const _localFeedCursorPrefix = 'local:';
+  static const _autoplayFeedWindow = 50;
+
+  @override
+  Future<AutoplayFeedPage> loadPage({
+    required String stationId,
+    required int limit,
+    String? cursor,
+  }) async {
+    final normalizedStationId = stationId.trim();
+    if (normalizedStationId.isEmpty || limit <= 0) {
+      return const AutoplayFeedPage(
+        stationId: '',
+        notes: <VoiceNote>[],
+        nextCursor: null,
+        hasMore: false,
+      );
+    }
+    if (_isDevUnauthed) {
+      final local = _localFeedPage(
+        stationId: normalizedStationId,
+        limit: max(limit, _autoplayFeedWindow),
+        cursor: cursor,
+      );
+      final shuffled = _buildDeterministicFeedSlice(
+        notes: _filterNotes(local.notes),
+        stationId: normalizedStationId,
+        cursor: cursor,
+        take: limit,
+      );
+      return AutoplayFeedPage(
+        stationId: normalizedStationId,
+        notes: shuffled,
+        nextCursor: local.nextCursor,
+        hasMore: local.hasMore,
+      );
+    }
+    final window = max(limit, _autoplayFeedWindow);
+    try {
+      final page = await _repository.fetchHashtagFeedPage(
+        hashtagId: normalizedStationId,
+        limit: window,
+        cursor: cursor,
+      );
+      final filtered = _filterNotes(page.notes);
+      final shuffled = _buildDeterministicFeedSlice(
+        notes: filtered,
+        stationId: normalizedStationId,
+        cursor: cursor,
+        take: limit,
+      );
+      return AutoplayFeedPage(
+        stationId: normalizedStationId,
+        notes: shuffled,
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      );
+    } catch (_) {
+      final fallback = _localFeedPage(
+        stationId: normalizedStationId,
+        limit: window,
+        cursor: cursor,
+      );
+      final shuffled = _buildDeterministicFeedSlice(
+        notes: _filterNotes(fallback.notes),
+        stationId: normalizedStationId,
+        cursor: cursor,
+        take: limit,
+      );
+      if (fallback.notes.isNotEmpty || cursor == null || cursor.isEmpty) {
+        return AutoplayFeedPage(
+          stationId: normalizedStationId,
+          notes: shuffled,
+          nextCursor: fallback.nextCursor,
+          hasMore: fallback.hasMore,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  List<VoiceNote> _buildDeterministicFeedSlice({
+    required List<VoiceNote> notes,
+    required String stationId,
+    required String? cursor,
+    required int take,
+  }) {
+    if (notes.isEmpty || take <= 0) {
+      return const <VoiceNote>[];
+    }
+    if (notes.length <= 1) {
+      return notes.take(take).toList();
+    }
+    final seed = '${stationId.trim()}|${cursor ?? 'root'}';
+    final candidates = List<_FeedShuffleCandidate>.generate(notes.length, (
+      index,
+    ) {
+      final note = notes[index];
+      final hash = _stableFeedHash('$seed|${note.id}|$index');
+      return _FeedShuffleCandidate(note: note, hash: hash, sourceIndex: index);
+    })..sort((a, b) {
+      final byHash = a.hash.compareTo(b.hash);
+      if (byHash != 0) {
+        return byHash;
+      }
+      return a.sourceIndex.compareTo(b.sourceIndex);
+    });
+    final selected = <VoiceNote>[];
+    final usedIds = <String>{};
+    String? lastAuthor;
+    final pool = List<_FeedShuffleCandidate>.from(candidates);
+    while (selected.length < take && pool.isNotEmpty) {
+      int pick = -1;
+      for (var i = 0; i < pool.length; i++) {
+        final candidate = pool[i].note;
+        if (usedIds.contains(candidate.id)) {
+          continue;
+        }
+        final author = candidate.authorId;
+        final sameAuthor =
+            author != null &&
+            author.isNotEmpty &&
+            lastAuthor != null &&
+            author == lastAuthor;
+        if (sameAuthor) {
+          continue;
+        }
+        pick = i;
+        break;
+      }
+      if (pick == -1) {
+        for (var i = 0; i < pool.length; i++) {
+          final candidate = pool[i].note;
+          if (!usedIds.contains(candidate.id)) {
+            pick = i;
+            break;
+          }
+        }
+      }
+      if (pick == -1) {
+        break;
+      }
+      final chosen = pool.removeAt(pick).note;
+      if (!usedIds.add(chosen.id)) {
+        continue;
+      }
+      selected.add(chosen);
+      final author = chosen.authorId;
+      if (author != null && author.isNotEmpty) {
+        lastAuthor = author;
+      }
+    }
+    return selected;
+  }
+
+  int _stableFeedHash(String input) {
+    var hash = 0x811c9dc5;
+    for (final unit in input.codeUnits) {
+      hash ^= unit;
+      hash = (hash * 0x01000193) & 0x7fffffff;
+    }
+    return hash;
+  }
+
+  AutoplayFeedPage _localFeedPage({
+    required String stationId,
+    required int limit,
+    String? cursor,
+  }) {
+    final sorted = List<VoiceNote>.from(
+      _filterNotes(_localDevNotesByHashtag[stationId] ?? const <VoiceNote>[]),
+    )..sort((a, b) {
+      final byCreated = b.createdAt.compareTo(a.createdAt);
+      if (byCreated != 0) {
+        return byCreated;
+      }
+      return b.id.compareTo(a.id);
+    });
+    final start = _decodeLocalFeedCursor(cursor);
+    if (start >= sorted.length) {
+      return AutoplayFeedPage(
+        stationId: stationId,
+        notes: const <VoiceNote>[],
+        nextCursor: null,
+        hasMore: false,
+      );
+    }
+    final end = min(start + limit, sorted.length);
+    final notes = sorted.sublist(start, end);
+    final hasMore = end < sorted.length;
+    final nextCursor = hasMore ? '$_localFeedCursorPrefix$end' : null;
+    return AutoplayFeedPage(
+      stationId: stationId,
+      notes: notes,
+      nextCursor: nextCursor,
+      hasMore: hasMore,
+    );
+  }
+
+  int _decodeLocalFeedCursor(String? cursor) {
+    if (cursor == null || cursor.isEmpty) {
+      return 0;
+    }
+    if (!cursor.startsWith(_localFeedCursorPrefix)) {
+      return 0;
+    }
+    final rawOffset = cursor.substring(_localFeedCursorPrefix.length);
+    final offset = int.tryParse(rawOffset);
+    if (offset == null || offset < 0) {
+      return 0;
+    }
+    return offset;
+  }
+
   List<VoiceNote> notesForHashtag(String hashtagId) {
     final notes = _notesByHashtag[hashtagId] ?? <VoiceNote>[];
     return List<VoiceNote>.from(_filterNotes(notes));
   }
 
-  @override
   bool isLoadingNotes(String hashtagId) => _notesLoading[hashtagId] ?? false;
 
-  @override
   String? notesError(String hashtagId) => _notesError[hashtagId];
 
-  @override
   Future<void> loadNotesForHashtag(
     String hashtagId, {
     bool force = false,
@@ -665,6 +1011,27 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     }
     savedHashtags = [...savedHashtags, tag];
     _prefs.setStringList(_savedHashtagsKey, savedHashtags);
+    notifyListeners();
+  }
+
+  void markStationListened(String hashtagId) {
+    final normalized = hashtagId.trim();
+    if (normalized.isEmpty) {
+      return;
+    }
+    final reordered = [
+      normalized,
+      ...recentHashtagIds.where((id) => id != normalized),
+    ];
+    const maxRecent = 20;
+    final trimmed = reordered.length > maxRecent
+        ? reordered.sublist(0, maxRecent)
+        : reordered;
+    if (_sameList(recentHashtagIds, trimmed)) {
+      return;
+    }
+    recentHashtagIds = trimmed;
+    _prefs.setStringList(_recentHashtagIdsKey, recentHashtagIds);
     notifyListeners();
   }
 
@@ -955,21 +1322,144 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
   @override
   Future<String?> ensureLocalAudioPath(VoiceNote note) async {
     if (note.localPath != null && await File(note.localPath!).exists()) {
+      await _touchCachedFile(File(note.localPath!));
       return note.localPath;
     }
-    final cachedUrl = _audioUrlCache[note.id];
-    if (cachedUrl != null && cachedUrl.isNotEmpty) {
-      return cachedUrl;
+    final cachedPath = _audioPathCache[note.id];
+    if (cachedPath != null && cachedPath.isNotEmpty) {
+      if (_isRemotePath(cachedPath)) {
+        return cachedPath;
+      }
+      final cachedFile = File(cachedPath);
+      if (await cachedFile.exists()) {
+        final size = await cachedFile.length();
+        if (size > 0) {
+          await _touchCachedFile(cachedFile);
+          return cachedPath;
+        }
+      }
+      _audioPathCache.remove(note.id);
     }
     if (note.storagePath.isEmpty) {
       return note.localPath;
     }
+    final diskPath = await _ensureAudioDownloadedToDisk(note);
+    if (diskPath != null && diskPath.isNotEmpty) {
+      _audioPathCache[note.id] = diskPath;
+      return diskPath;
+    }
     try {
       final url = await _repository.fetchAudioUrl(note.storagePath);
-      _audioUrlCache[note.id] = url;
+      _audioPathCache[note.id] = url;
       return url;
     } catch (_) {
       return null;
+    }
+  }
+
+  bool _isRemotePath(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null || !uri.hasScheme) {
+      return false;
+    }
+    final scheme = uri.scheme.toLowerCase();
+    return scheme == 'http' || scheme == 'https';
+  }
+
+  String _cachePathForStorage(String storagePath) {
+    final digest = sha1.convert(utf8.encode(storagePath)).toString();
+    final ext = _extensionForStoragePath(storagePath);
+    return '$_audioCacheDirectory${Platform.pathSeparator}$digest$ext';
+  }
+
+  String _extensionForStoragePath(String storagePath) {
+    final dot = storagePath.lastIndexOf('.');
+    if (dot < 0 || dot >= storagePath.length - 1) {
+      return '.m4a';
+    }
+    final ext = storagePath.substring(dot);
+    if (ext.length > 8 || ext.contains('/') || ext.contains('\\')) {
+      return '.m4a';
+    }
+    return ext;
+  }
+
+  Future<String?> _ensureAudioDownloadedToDisk(VoiceNote note) async {
+    if (note.storagePath.isEmpty) {
+      return null;
+    }
+    final cachePath = _cachePathForStorage(note.storagePath);
+    final file = File(cachePath);
+    if (await file.exists()) {
+      try {
+        final size = await file.length();
+        if (size > 0) {
+          await _touchCachedFile(file);
+          return file.path;
+        }
+        await file.delete();
+      } catch (_) {
+        // Attempt fresh download when cached file is invalid.
+      }
+    }
+    try {
+      final bytes = await _repository.downloadAudio(note.storagePath);
+      if (bytes.isEmpty) {
+        return null;
+      }
+      await file.parent.create(recursive: true);
+      await file.writeAsBytes(bytes, flush: true);
+      await _touchCachedFile(file);
+      _audioPathCache[note.id] = file.path;
+      unawaited(_pruneAudioDiskCacheLru());
+      return file.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _touchCachedFile(File file) async {
+    try {
+      await file.setLastModified(DateTime.now().toUtc());
+    } catch (_) {
+      // Ignore file timestamp updates.
+    }
+  }
+
+  Future<void> _pruneAudioDiskCacheLru() async {
+    final dir = Directory(_audioCacheDirectory);
+    if (!await dir.exists()) {
+      return;
+    }
+    final entities = await dir.list(followLinks: false).toList();
+    final files = <_CachedDiskFile>[];
+    for (final entity in entities) {
+      if (entity is! File) {
+        continue;
+      }
+      try {
+        final stat = await entity.stat();
+        if (stat.type != FileSystemEntityType.file) {
+          continue;
+        }
+        files.add(_CachedDiskFile(file: entity, modified: stat.modified));
+      } catch (_) {
+        // Skip files that cannot be inspected.
+      }
+    }
+    if (files.length <= _audioDiskCacheMaxEntries) {
+      return;
+    }
+    files.sort((a, b) => a.modified.compareTo(b.modified));
+    final toDelete = files.length - _audioDiskCacheMaxEntries;
+    for (var i = 0; i < toDelete; i++) {
+      final path = files[i].file.path;
+      try {
+        await files[i].file.delete();
+      } catch (_) {
+        // Skip files that cannot be deleted.
+      }
+      _audioPathCache.removeWhere((_, value) => value == path);
     }
   }
 
@@ -1258,11 +1748,45 @@ String _sha256ofString(String input) {
   return digest.toString();
 }
 
+bool _sameList(List<String> left, List<String> right) {
+  if (identical(left, right)) {
+    return true;
+  }
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var i = 0; i < left.length; i++) {
+    if (left[i] != right[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 class _SkipQuotaCache {
   const _SkipQuotaCache({required this.date, required this.remaining});
 
   final String date;
   final int remaining;
+}
+
+class _CachedDiskFile {
+  const _CachedDiskFile({required this.file, required this.modified});
+
+  final File file;
+  final DateTime modified;
+}
+
+class _FeedShuffleCandidate {
+  const _FeedShuffleCandidate({
+    required this.note,
+    required this.hash,
+    required this.sourceIndex,
+  });
+
+  final VoiceNote note;
+  final int hash;
+  final int sourceIndex;
 }
 
 class PostException implements Exception {

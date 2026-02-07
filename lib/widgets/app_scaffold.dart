@@ -53,6 +53,7 @@ class _MiniPlayer extends StatelessWidget {
     final tokens = context.echo;
     final theme = Theme.of(context);
     final buttonFill = tokens.accentPrimary;
+    final miniPlayerColor = EchoColorUtils.darken(tokens.surface1, 0.08);
 
     return ListenableSelector<AutoplayState>(
       listenable: autoplay,
@@ -102,7 +103,7 @@ class _MiniPlayer extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(10, 8, 10, 7),
                   decoration: BoxDecoration(
-                    color: tokens.surface1,
+                    color: miniPlayerColor,
                     borderRadius: BorderRadius.circular(18),
                     boxShadow: [
                       BoxShadow(

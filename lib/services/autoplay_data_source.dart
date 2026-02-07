@@ -13,12 +13,6 @@ class SkipQuotaResult {
 }
 
 abstract class AutoplayDataSource {
-  List<VoiceNote> notesForHashtag(String hashtagId);
-  bool isLoadingNotes(String hashtagId);
-  String? notesError(String hashtagId);
-  Future<void> loadNotesForHashtag(String hashtagId, {bool force});
   Future<String?> ensureLocalAudioPath(VoiceNote note);
   Future<SkipQuotaResult> consumeSkip();
-  void addListener(void Function() listener);
-  void removeListener(void Function() listener);
 }

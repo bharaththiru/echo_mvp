@@ -153,7 +153,7 @@ class AudioServiceEngine implements AudioEngine {
         androidNotificationChannelId: 'com.echo.echo.audio',
         androidNotificationChannelName: 'Echo playback',
         androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
+        androidStopForegroundOnPause: false,
       ),
     );
     final engine = AudioServiceEngine._(handler);
@@ -177,6 +177,11 @@ class AudioServiceEngine implements AudioEngine {
         break;
       case EchoAudioEventType.interruptionEnded:
         _interrupted = false;
+        _emitFromLatest(errorMessage: null);
+        break;
+      case EchoAudioEventType.duckBegan:
+      case EchoAudioEventType.duckEnded:
+      case EchoAudioEventType.becameNoisy:
         _emitFromLatest(errorMessage: null);
         break;
       case EchoAudioEventType.error:

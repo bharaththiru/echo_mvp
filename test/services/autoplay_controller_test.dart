@@ -7,6 +7,7 @@ import 'package:echo/services/audio_playback_controller.dart';
 import 'package:echo/services/audio_playback_state.dart';
 import 'package:echo/services/autoplay_controller.dart';
 import 'package:echo/services/autoplay_data_source.dart';
+import 'package:echo/services/autoplay_feed_queue_builder.dart';
 
 void main() {
   const hashtagId = 'focus';
@@ -36,7 +37,7 @@ void main() {
       hashtagId: [note('a'), note('b')],
     });
     final audio = FakeAudioPlaybackController();
-    final controller = AutoplayController(dataSource: dataSource, audio: audio);
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
 
     controller.attach(hashtagId);
     await settle();
@@ -52,7 +53,7 @@ void main() {
       hashtagId: [note('a'), note('b'), note('c')],
     });
     final audio = FakeAudioPlaybackController();
-    final controller = AutoplayController(dataSource: dataSource, audio: audio);
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
 
     controller.attach(hashtagId);
     await settle();
@@ -72,7 +73,7 @@ void main() {
       hashtagId: [note('a'), note('b')],
     });
     final audio = FakeAudioPlaybackController();
-    final controller = AutoplayController(dataSource: dataSource, audio: audio);
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
 
     controller.attach(hashtagId);
     await settle();
@@ -92,7 +93,7 @@ void main() {
       hashtagId: [note('a'), note('b')],
     });
     final audio = FakeAudioPlaybackController();
-    final controller = AutoplayController(dataSource: dataSource, audio: audio);
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
 
     controller.attach(hashtagId);
     await settle();
@@ -115,7 +116,7 @@ void main() {
         hashtagId: [note('a'), note('b')],
       });
       final audio = FakeAudioPlaybackController(autoPlay: false);
-      final controller = AutoplayController(dataSource: dataSource, audio: audio);
+      final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
 
       controller.attach(hashtagId);
       async.elapse(const Duration(milliseconds: 60));
@@ -134,7 +135,7 @@ void main() {
       hashtagId: [note('a'), note('b')],
     });
     final audio = FakeAudioPlaybackController();
-    final controller = AutoplayController(dataSource: dataSource, audio: audio);
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
 
     controller.attach(hashtagId);
     await settle();
@@ -151,7 +152,7 @@ void main() {
       hashtagId: [note('a'), note('b')],
     });
     final audio = FakeAudioPlaybackController();
-    final controller = AutoplayController(dataSource: dataSource, audio: audio);
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
 
     controller.attach(hashtagId);
     await settle();
@@ -185,7 +186,7 @@ void main() {
       failingNotes: {'a'},
     );
     final audio = FakeAudioPlaybackController();
-    final controller = AutoplayController(dataSource: dataSource, audio: audio);
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
 
     controller.attach(hashtagId);
     await settle(const Duration(milliseconds: 900));
@@ -200,7 +201,7 @@ void main() {
       hashtagId: [note('a'), note('b')],
     });
     final audio = FakeAudioPlaybackController();
-    final controller = AutoplayController(dataSource: dataSource, audio: audio);
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
 
     controller.attach(hashtagId);
     await settle();
@@ -225,7 +226,7 @@ void main() {
       ],
     });
     final audio = FakeAudioPlaybackController();
-    final controller = AutoplayController(dataSource: dataSource, audio: audio);
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
 
     controller.attach(hashtagId);
     await settle();
@@ -245,7 +246,7 @@ void main() {
       'beta': [note('b1', hashtag: 'beta')],
     });
     final audio = FakeAudioPlaybackController();
-    final controller = AutoplayController(dataSource: dataSource, audio: audio);
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
 
     controller.attach('alpha');
     await settle();
@@ -266,7 +267,7 @@ void main() {
         failingNotes: {'a', 'b', 'c'},
       );
       final audio = FakeAudioPlaybackController();
-      final controller = AutoplayController(dataSource: dataSource, audio: audio);
+      final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
 
       controller.attach(hashtagId);
       async.elapse(const Duration(seconds: 3));
@@ -288,7 +289,7 @@ void main() {
       failingNotes: failing,
     );
     final audio = FakeAudioPlaybackController();
-    final controller = AutoplayController(dataSource: dataSource, audio: audio);
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
     controller.configureAutoplayTortureMode(
       enabled: true,
       resolveFailureRate: 0,
@@ -314,7 +315,7 @@ void main() {
 }
 
 class FakeAutoplayDataSource extends ChangeNotifier
-    implements AutoplayDataSource {
+    implements AutoplayDataSource, AutoplayFeedQueueBuilder {
   FakeAutoplayDataSource(
     this._notesByHashtag, {
     Set<String> failingNotes = const {},
@@ -322,29 +323,53 @@ class FakeAutoplayDataSource extends ChangeNotifier
 
   final Map<String, List<VoiceNote>> _notesByHashtag;
   final Set<String> _failingNotes;
-  final Map<String, bool> _loading = <String, bool>{};
-  final Map<String, String?> _errors = <String, String?>{};
   int skipCalls = 0;
   bool allowSkips = true;
 
   @override
-  List<VoiceNote> notesForHashtag(String hashtagId) {
-    return List<VoiceNote>.from(_notesByHashtag[hashtagId] ?? const []);
+  Future<AutoplayFeedPage> loadPage({
+    required String stationId,
+    required int limit,
+    String? cursor,
+  }) async {
+    final sorted = List<VoiceNote>.from(_notesByHashtag[stationId] ?? const [])
+      ..sort((a, b) {
+        final byCreated = b.createdAt.compareTo(a.createdAt);
+        if (byCreated != 0) {
+          return byCreated;
+        }
+        return b.id.compareTo(a.id);
+      });
+    final start = _decodeCursor(cursor);
+    if (start >= sorted.length) {
+      return AutoplayFeedPage(
+        stationId: stationId,
+        notes: const <VoiceNote>[],
+        nextCursor: null,
+        hasMore: false,
+      );
+    }
+    final end = (start + limit).clamp(0, sorted.length).toInt();
+    final page = sorted.sublist(start, end);
+    final hasMore = end < sorted.length;
+    return AutoplayFeedPage(
+      stationId: stationId,
+      notes: page,
+      nextCursor: hasMore ? 'offset:$end' : null,
+      hasMore: hasMore,
+    );
   }
 
   @override
-  bool isLoadingNotes(String hashtagId) => _loading[hashtagId] ?? false;
-
-  @override
-  String? notesError(String hashtagId) => _errors[hashtagId];
-
-  @override
-  Future<void> loadNotesForHashtag(
-    String hashtagId, {
-    bool force = false,
+  Future<List<String>> fallbackStationIds({
+    required String currentStationId,
+    int limit = 6,
   }) async {
-    _loading[hashtagId] = false;
-    notifyListeners();
+    final ids = _notesByHashtag.keys
+        .where((id) => id != currentStationId)
+        .take(limit)
+        .toList();
+    return ids;
   }
 
   @override
@@ -366,6 +391,21 @@ class FakeAutoplayDataSource extends ChangeNotifier
       );
     }
     return const SkipQuotaResult(allowed: true, skipsLeft: 2);
+  }
+
+  int _decodeCursor(String? cursor) {
+    if (cursor == null || cursor.isEmpty) {
+      return 0;
+    }
+    const prefix = 'offset:';
+    if (!cursor.startsWith(prefix)) {
+      return 0;
+    }
+    final offset = int.tryParse(cursor.substring(prefix.length));
+    if (offset == null || offset < 0) {
+      return 0;
+    }
+    return offset;
   }
 }
 

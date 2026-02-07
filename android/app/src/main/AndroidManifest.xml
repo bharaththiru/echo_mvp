@@ -38,11 +38,16 @@
             android:value="2" />
         <service
             android:name="com.ryanheise.audioservice.AudioService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:exported="true"
+            android:permission="android.permission.BIND_MEDIA_BROWSER_SERVICE"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
         <receiver
             android:name="com.ryanheise.audioservice.MediaButtonReceiver"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>

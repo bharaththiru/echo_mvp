@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../theme/echo_theme.dart';
 import '../models/hashtag.dart';
+import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
 import '../widgets/echo_components.dart';
 
@@ -15,8 +15,6 @@ class ListenTab extends StatefulWidget {
 }
 
 class _ListenTabState extends State<ListenTab> {
-  final TextEditingController _searchController = TextEditingController();
-  String _query = '';
   bool _loaded = false;
 
   @override
@@ -32,40 +30,23 @@ class _ListenTabState extends State<ListenTab> {
     }
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _onSearchChanged(String value) {
-    setState(() => _query = value.trim());
+  void _openStation(Hashtag hashtag) {
+    final appState = AppScope.of(context);
+    appState.markStationListened(hashtag.id);
+    context.push('/hashtag/${hashtag.id}');
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final contentHorizontalPadding = EchoLayout.contentHorizontalPadding(
-      context,
-    );
     final tokens = context.echo;
-    final searchBottomSpacing = EchoLayout.space(context, 8);
+    final contentPadding = EchoLayout.contentHorizontalPadding(context);
     final gridSpacing = EchoLayout.space(context, 10);
     final appState = AppScope.of(context);
     final allHashtags = appState.hashtags;
     final isLoading = appState.hashtagsLoading;
     final loadError = appState.hashtagsError;
-    final filtered = _query.isEmpty
-        ? allHashtags
-        : allHashtags
-              .where(
-                (tag) =>
-                    tag.name.toLowerCase().contains(_query.toLowerCase()) ||
-                    tag.description.toLowerCase().contains(
-                      _query.toLowerCase(),
-                    ),
-              )
-              .toList();
+    final recentStations = appState.recentHashtags(limit: 6);
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(
@@ -79,28 +60,14 @@ class _ListenTabState extends State<ListenTab> {
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           scrolledUnderElevation: 0,
-          titleSpacing: contentHorizontalPadding,
-          title: Text('Listen', style: theme.textTheme.displaySmall),
-          toolbarHeight: EchoLayout.space(context, 54),
-          bottom: PreferredSize(
-            preferredSize: Size.fromHeight(
-              EchoLayout.space(context, 62),
-            ),
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                contentHorizontalPadding,
-                0,
-                contentHorizontalPadding,
-                searchBottomSpacing,
-              ),
-              child: EchoInput(
-                controller: _searchController,
-                hintText: 'Search moods, tones',
-                prefixIcon: Icons.search,
-                onChanged: _onSearchChanged,
-              ),
+          titleSpacing: contentPadding,
+          title: Text(
+            'Listen',
+            style: theme.textTheme.displaySmall?.copyWith(
+              fontWeight: FontWeight.w700,
             ),
           ),
+          toolbarHeight: EchoLayout.space(context, 56),
         ),
         if (isLoading && allHashtags.isEmpty)
           const SliverFillRemaining(
@@ -125,56 +92,276 @@ class _ListenTabState extends State<ListenTab> {
               onRetry: () => appState.refreshHashtags(force: true),
             ),
           )
-        else if (filtered.isEmpty)
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: _EmptyState(
-              title: 'No matches yet',
-              subtitle: 'Try a different search phrase.',
-              onRetry: () {
-                _searchController.clear();
-                _onSearchChanged('');
-              },
+        else ...[
+          SliverPadding(
+            padding: EchoLayout.listPadding(
+              context,
+              top: 8,
+              bottom: 12,
+              includeBottomSafeArea: false,
             ),
-          )
-        else
-          SliverLayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.crossAxisExtent;
-              final usableWidth = width - (contentHorizontalPadding * 2);
-              final targetTileWidth = 180.0;
-              final crossAxisCount =
-                  (usableWidth / targetTileWidth).floor().clamp(2, 3);
-              final aspectRatio = crossAxisCount == 2 ? 0.9 : 1.05;
-              return SliverPadding(
-                padding: EchoLayout.listPadding(
-                  context,
-                  top: 6,
-                  bottom: 12,
-                  includeBottomSafeArea: true,
-                ),
-                sliver: SliverGrid(
+            sliver: SliverToBoxAdapter(
+              child: SizedBox(
+                height: EchoLayout.space(context, 346)
+                    .clamp(286.0, 380.0)
+                    .toDouble(),
+                child: GridView.builder(
+                  primary: false,
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
+                    crossAxisCount: 2,
+                    mainAxisExtent: EchoLayout.space(context, 190)
+                        .clamp(168.0, 222.0)
+                        .toDouble(),
                     mainAxisSpacing: gridSpacing,
                     crossAxisSpacing: gridSpacing,
-                    childAspectRatio: aspectRatio,
+                    childAspectRatio: 1.0,
                   ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final hashtag = filtered[index];
-                      return _HashtagGridCard(
-                        hashtag: hashtag,
-                        onTap: () => context.push('/hashtag/${hashtag.id}'),
-                      );
-                    },
-                    childCount: filtered.length,
+                  itemCount: allHashtags.length,
+                  itemBuilder: (context, index) {
+                    final hashtag = allHashtags[index];
+                    return _StationGridCard(
+                      hashtag: hashtag,
+                      onTap: () => _openStation(hashtag),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: EchoLayout.listPadding(
+              context,
+              top: 2,
+              bottom: 4,
+              includeBottomSafeArea: false,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: _SectionHeading(
+                title: 'Recent',
+                subtitle: 'Stations based on your latest listening activity.',
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: EchoLayout.listPadding(
+              context,
+              top: 0,
+              bottom: 12,
+              includeBottomSafeArea: true,
+            ),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final station = recentStations[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _RecentStationTile(
+                    station: station,
+                    onTap: () => _openStation(station),
+                  ),
+                );
+              }, childCount: recentStations.length),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.echo;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: tokens.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: tokens.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StationGridCard extends StatelessWidget {
+  const _StationGridCard({required this.hashtag, required this.onTap});
+
+  final Hashtag hashtag;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.echo;
+    final gradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.lerp(hashtag.color, tokens.surface2, 0.18)!,
+        Color.lerp(tokens.surface1, hashtag.color, 0.35)!,
+      ],
+    );
+
+    return EchoGradientCard(
+      onTap: onTap,
+      radius: 22,
+      gradient: gradient,
+      glow: true,
+      overlayColor: EchoColorUtils.pressedOverlay(tokens.surface1, alpha: 0.14),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                height: 46,
+                width: 46,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: tokens.bg.withValues(alpha: 0.2),
+                  border: Border.all(
+                    color: tokens.textPrimary.withValues(alpha: 0.16),
+                    width: 1,
                   ),
                 ),
-              );
-            },
+                child: Icon(
+                  hashtag.icon,
+                  size: 28,
+                  color: tokens.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _noteCountLabel(hashtag.noteCount),
+              style: theme.textTheme.labelSmall?.copyWith(
+                  color: tokens.textPrimary.withValues(alpha: 0.9),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
+          const Spacer(),
+          Text(
+            hashtag.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: tokens.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            hashtag.description,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: tokens.textPrimary.withValues(alpha: 0.78),
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentStationTile extends StatelessWidget {
+  const _RecentStationTile({required this.station, required this.onTap});
+
+  final Hashtag station;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.echo;
+    final circleGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.lerp(station.color, tokens.surface2, 0.25)!,
+        Color.lerp(tokens.surface1, station.color, 0.45)!,
       ],
+    );
+
+    return EchoCard(
+      onTap: onTap,
+      radius: 18,
+      color: tokens.surface1,
+      overlayColor: EchoColorUtils.pressedOverlay(tokens.surface1, alpha: 0.12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            height: 48,
+            width: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: circleGradient,
+            ),
+            child: Icon(
+              station.icon,
+              color: tokens.textPrimary,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  station.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: tokens.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_noteCountLabel(station.noteCount)} in this station',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: tokens.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Icon(
+            Icons.play_arrow_rounded,
+            size: 26,
+            color: tokens.textSecondary,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -223,77 +410,6 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _HashtagGridCard extends StatelessWidget {
-  const _HashtagGridCard({
-    required this.hashtag,
-    required this.onTap,
-  });
-
-  final Hashtag hashtag;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = context.echo;
-    final tileColor = tokens.surface1;
-    final onTile = tokens.textPrimary;
-    final mutedOnTile = tokens.textSecondary;
-    final buttonFill = tokens.accentPrimary;
-    final onButtonFill = EchoColorUtils.onColor(buttonFill);
-
-    return EchoCard(
-      onTap: onTap,
-      radius: 22,
-      color: tileColor,
-      overlayColor: EchoColorUtils.pressedOverlay(tileColor, alpha: 0.12),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(
-                hashtag.icon,
-                size: 28,
-                color: tokens.textSecondary,
-              ),
-              Container(
-                height: 34,
-                width: 34,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: buttonFill,
-                ),
-                child: Icon(
-                  Icons.play_arrow,
-                  color: onButtonFill,
-                  size: 18,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            hashtag.name,
-            style: theme.textTheme.titleMedium?.copyWith(color: onTile),
-          ),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text(
-              hashtag.description,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: mutedOnTile,
-                height: 1.35,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+String _noteCountLabel(int count) {
+  return '$count ${count == 1 ? 'note' : 'notes'}';
 }

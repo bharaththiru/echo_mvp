@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
-import '../theme/echo_theme.dart';
 import '../models/voice_note.dart';
 import '../services/autoplay_controller.dart';
-import '../utils/time_format.dart';
+import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
+import '../utils/time_format.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/echo_components.dart';
 import '../widgets/listenable_selector.dart';
@@ -45,11 +45,6 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
     if (appState.hashtags.isEmpty && !appState.hashtagsLoading) {
       appState.refreshHashtags();
     }
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   @override
@@ -130,6 +125,10 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
     final notes = autoplayState.queue;
     final isLoading = autoplayState.isLoadingNotes;
     final loadError = autoplayState.loadError;
+    final stationNoteCount = _resolvedStationNoteCount(
+      fallback: notes.length,
+      hashtagCount: hashtag.noteCount,
+    );
 
     if (notes.isEmpty) {
       Widget emptyChild = Text(
@@ -161,29 +160,24 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
           ],
         );
       }
+
       final emptyContent = isLoading
           ? emptyChild
-          : EchoCard(padding: const EdgeInsets.all(24), child: emptyChild);
+          : EchoCard(
+              padding: const EdgeInsets.all(24),
+              radius: 20,
+              color: tokens.surface1,
+              child: emptyChild,
+            );
 
       return AppScaffold(
         showMiniPlayer: false,
         child: Column(
           children: [
-            EchoHeaderShell(
-              padding: EchoLayout.pagePadding(
-                context,
-                top: 8,
-                bottom: 6,
-              ),
-              child: Row(
-                children: [
-                  TextButton.icon(
-                    onPressed: () => context.pop(),
-                    icon: const Icon(Icons.arrow_back),
-                    label: Text('Back to ${hashtag.name}'),
-                  ),
-                ],
-              ),
+            _PlayerHeader(
+              stationTitle: hashtag.name,
+              noteCountLabel: _noteCountLabel(stationNoteCount),
+              onBack: () => context.pop(),
             ),
             Expanded(child: Center(child: emptyContent)),
           ],
@@ -207,14 +201,12 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
           );
           final index = resolvedIndex.toInt();
           final note = state.currentNote ?? state.queue[index];
-          final noteIndex = state.queue.indexWhere(
-            (item) => item.id == note.id,
-          );
+          final noteIndex = state.queue.indexWhere((item) => item.id == note.id);
           final currentIndex = noteIndex < 0 ? index : noteIndex;
-          final tileColor = tokens.surface1;
-          final onTile = tokens.textPrimary;
-          final mutedOnTile = tokens.textSecondary;
-
+          final canBlock =
+              note.authorId != null &&
+              note.authorId!.isNotEmpty &&
+              note.authorId != appState.userId;
           final isPreparing = state.isPreparing || state.isTransitioning;
           final statusLabel = _statusLabel(state) ?? 'Ready';
           final showSpinner =
@@ -222,163 +214,73 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
               state.isPreparing ||
               state.phase == AutoplayPhase.transitioning;
           final isError = state.phase == AutoplayPhase.error;
-          final upcoming = state.upcoming(take: 3);
-          final canBlock =
-              note.authorId != null &&
-              note.authorId!.isNotEmpty &&
-              note.authorId != appState.userId;
+          final buttonSize = state.handsFree ? 96.0 : 82.0;
+          final noteTitle = _resolvedNoteTitle(note);
+          final posterLabel = _resolvedPosterLabel(note);
+          final noteCountLabel = _noteCountLabel(
+            _resolvedStationNoteCount(
+              fallback: state.queue.length,
+              hashtagCount: hashtag.noteCount,
+            ),
+          );
 
           return Column(
             children: [
-              EchoHeaderShell(
-                padding: EchoLayout.pagePadding(
-                  context,
-                  top: 8,
-                  bottom: 6,
-                ),
-                child: Row(
-                  children: [
-                    TextButton.icon(
-                      onPressed: () => context.pop(),
-                      icon: const Icon(Icons.arrow_back),
-                      label: Text('Back to ${hashtag.name}'),
-                    ),
-                  ],
-                ),
+              _PlayerHeader(
+                stationTitle: hashtag.name,
+                noteCountLabel: noteCountLabel,
+                onBack: () => context.pop(),
               ),
               Expanded(
                 child: ListView(
                   padding: EchoLayout.listPadding(
                     context,
-                    bottom: 8,
+                    bottom: 12,
                     includeBottomSafeArea: true,
                   ),
                   children: [
-                    EchoCard(
-                      padding: const EdgeInsets.all(24),
-                      radius: 28,
-                      color: tileColor,
-                      overlayColor: EchoColorUtils.pressedOverlay(
-                        tileColor,
-                        alpha: 0.14,
+                    SizedBox(height: EchoLayout.space(context, 8)),
+                    _StationAvatar(icon: hashtag.icon),
+                    SizedBox(height: EchoLayout.space(context, 22)),
+                    Text(
+                      noteTitle,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: tokens.textPrimary,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Icon(
-                                hashtag.icon,
-                                size: 44,
-                                color: tokens.textSecondary,
-                              ),
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: onTile.withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    child: Text(
-                                      '${currentIndex + 1} of ${state.queue.length}',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: mutedOnTile,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: onTile.withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    child: Text(
-                                      '${state.queueRemaining} ready',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: mutedOnTile,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  PopupMenuButton<String>(
-                                    color: tokens.surface1,
-                                    icon: Icon(
-                                      Icons.more_horiz,
-                                      color: tokens.textSecondary,
-                                    ),
-                                    onSelected: (action) =>
-                                        _handleMenuAction(note, action),
-                                    itemBuilder: (context) => [
-                                      const PopupMenuItem(
-                                        value: 'hide',
-                                        child: Text('Hide clip'),
-                                      ),
-                                      const PopupMenuItem(
-                                        value: 'report',
-                                        child: Text('Report & hide'),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'block',
-                                        enabled: canBlock,
-                                        child: const Text('Block user'),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            hashtag.name,
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              color: onTile,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          if (appState.settings.transcriptsEnabled &&
-                              note.transcriptPreview != null)
-                            Text(
-                              '"${note.transcriptPreview!}"',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: mutedOnTile,
-                              ),
-                            ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Anonymous - ${formatRelativeTime(note.createdAt)}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: mutedOnTile,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _AutoplayProgress(
-                            autoplay: autoplay,
-                            fallbackDuration: note.duration,
-                            label: statusLabel,
-                            showSpinner: showSpinner,
-                            reduceMotion: reduceMotion,
-                            isError: isError,
-                          ),
-                        ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      posterLabel,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: tokens.textSecondary,
                       ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '${currentIndex + 1} of ${state.queue.length}',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: tokens.textTertiary,
+                      ),
+                    ),
+                    SizedBox(height: EchoLayout.space(context, 14)),
+                    _AutoplayProgress(
+                      autoplay: autoplay,
+                      fallbackDuration: note.duration,
+                      label: statusLabel,
+                      showSpinner: showSpinner,
+                      reduceMotion: reduceMotion,
+                      isError: isError,
                     ),
                     if (state.phase == AutoplayPhase.error &&
                         state.errorMessage != null)
                       Padding(
-                        padding: const EdgeInsets.only(top: 16),
+                        padding: const EdgeInsets.only(top: 12),
                         child: EchoCard(
-                          padding: const EdgeInsets.all(16),
-                          radius: 18,
+                          padding: const EdgeInsets.all(14),
+                          radius: 16,
                           color: tokens.surface2,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,7 +296,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                   color: tokens.textSecondary,
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 10),
                               EchoSecondaryButton(
                                 label: 'Retry',
                                 onPressed: () => autoplay.restart(),
@@ -403,28 +305,34 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                           ),
                         ),
                       ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: EchoLayout.space(context, 28)),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         IconButton(
-                          onPressed: currentIndex == 0
-                              ? null
-                              : () => autoplay.playPrevious(),
-                          icon: const Icon(Icons.skip_previous),
+                          tooltip: state.isMuted
+                              ? 'Unmute current note'
+                              : 'Mute current note',
+                          onPressed: () => autoplay.toggleMute(),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            foregroundColor: tokens.textPrimary,
+                          ),
+                          icon: Icon(
+                            state.isMuted ? Icons.volume_off : Icons.volume_up,
+                          ),
                           iconSize: 28,
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 14),
                         SizedBox(
-                          height: state.handsFree ? 96 : 80,
-                          width: state.handsFree ? 96 : 80,
+                          height: buttonSize,
+                          width: buttonSize,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               shape: const CircleBorder(),
                               padding: EdgeInsets.zero,
                               backgroundColor: tokens.accentPrimary,
-                              foregroundColor:
-                                  EchoColorUtils.onColor(tokens.accentPrimary),
+                              foregroundColor: theme.colorScheme.onPrimary,
                               elevation: 0,
                               shadowColor: Colors.transparent,
                             ),
@@ -438,9 +346,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       valueColor: AlwaysStoppedAnimation<Color>(
-                                        EchoColorUtils.onColor(
-                                          tokens.accentPrimary,
-                                        ),
+                                        theme.colorScheme.onPrimary,
                                       ),
                                     ),
                                   )
@@ -452,157 +358,52 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                   ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 14),
                         IconButton(
-                          onPressed: state.queue.length <= 1
-                              ? null
-                              : () => autoplay.skip(),
+                          tooltip: 'Next note',
+                          onPressed:
+                              state.queue.length <= 1 ? null : () => autoplay.skip(),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            foregroundColor: tokens.textPrimary,
+                          ),
                           icon: const Icon(Icons.skip_next),
-                          iconSize: 28,
+                          iconSize: 30,
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () => autoplay.toggleMute(),
-                          icon: Icon(
-                            state.isMuted
-                                ? Icons.volume_off
-                                : Icons.volume_up,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Slider(
-                            value: state.volume,
-                            onChanged: (value) => autoplay.setVolume(value),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 48,
-                          child: Text(
-                            '${(state.volume * 100).round()}%',
-                            textAlign: TextAlign.end,
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    EchoCard(
-                      padding: const EdgeInsets.all(16),
-                      radius: 18,
-                      color: tokens.surface2,
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Hands-free mode',
-                                  style: theme.textTheme.titleSmall,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Bigger controls, easier tapping',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: tokens.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Switch(
-                            value: state.handsFree,
-                            onChanged: (value) => autoplay.setHandsFree(value),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Up next',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: tokens.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
                     ),
                     const SizedBox(height: 12),
-                    ...upcoming.asMap().entries.map((entry) {
-                      final indexOffset = entry.key + 1;
-                      final absoluteIndex = currentIndex + indexOffset;
-                      final nextNote = entry.value;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: EchoCard(
-                          onTap: () => autoplay.playFromUpNext(absoluteIndex),
-                          radius: 16,
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                                  Container(
-                                    height: 38,
-                                    width: 38,
-                                    decoration: BoxDecoration(
-                                      color: tokens.surface2,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        '${absoluteIndex + 1}',
-                                        style: theme.textTheme.bodySmall?.copyWith(
-                                          color: tokens.textSecondary,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      nextNote.transcriptPreview ??
-                                          'Voice note',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.bodyMedium,
-                                    ),
-                                    Text(
-                                      formatRelativeTime(nextNote.createdAt),
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: tokens.textSecondary,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Text(
-                                formatDuration(nextNote.duration),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: tokens.textSecondary,
-                                ),
-                              ),
-                            ],
+                    Center(
+                      child: PopupMenuButton<String>(
+                        color: tokens.surface1,
+                        onSelected: (action) => _handleMenuAction(note, action),
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'hide',
+                            child: Text('Hide clip'),
                           ),
-                        ),
-                      );
-                    }),
-                    const SizedBox(height: 16),
-                    EchoCard(
-                      padding: const EdgeInsets.all(16),
-                      radius: 16,
-                      color: tokens.surface2,
-                      child: Text(
-                        'Message slot (disabled in MVP)',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: tokens.textSecondary,
+                          const PopupMenuItem(
+                            value: 'report',
+                            child: Text('Report & hide'),
+                          ),
+                          PopupMenuItem(
+                            value: 'block',
+                            enabled: canBlock,
+                            child: const Text('Block user'),
+                          ),
+                        ],
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          child: Text(
+                            'Clip actions',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: tokens.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -612,6 +413,130 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _PlayerHeader extends StatelessWidget {
+  const _PlayerHeader({
+    required this.stationTitle,
+    required this.noteCountLabel,
+    required this.onBack,
+  });
+
+  final String stationTitle;
+  final String noteCountLabel;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.echo;
+    return EchoHeaderShell(
+      padding: EchoLayout.pagePadding(context, top: 8, bottom: 8),
+      child: Container(
+        height: EchoLayout.space(context, 94).clamp(84.0, 108.0).toDouble(),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: tokens.surface1,
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: Stack(
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                tooltip: 'Back',
+                onPressed: onBack,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: tokens.textPrimary,
+                ),
+                icon: const Icon(Icons.arrow_back),
+              ),
+            ),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 44),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      stationTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: tokens.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      noteCountLabel,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: tokens.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StationAvatar extends StatelessWidget {
+  const _StationAvatar({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.echo;
+    final size = EchoLayout.space(context, 228).clamp(184.0, 254.0).toDouble();
+    final haloColor = tokens.accentPrimary.withValues(alpha: 0.2);
+
+    return Center(
+      child: Container(
+        height: size,
+        width: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color.lerp(tokens.accentPrimary, tokens.surface1, 0.45)!,
+              tokens.surface2,
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.24),
+              blurRadius: 22,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Container(
+            height: size * 0.42,
+            width: size * 0.42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: haloColor,
+            ),
+            child: Icon(
+              icon,
+              size: size * 0.22,
+              color: tokens.textPrimary,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -637,79 +562,77 @@ class _NowListeningBar extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = context.echo;
     final clamped = progress.clamp(0.0, 1.0);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        decoration: BoxDecoration(
-          color: tokens.surface1,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                if (showSpinner)
-                  SizedBox(
-                    height: 12,
-                    width: 12,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        tokens.accentPrimary,
-                      ),
+    final showStatus =
+        showSpinner || isError || (label != 'Now listening' && label != 'Ready');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (showStatus)
+          Row(
+            children: [
+              if (showSpinner)
+                SizedBox(
+                  height: 12,
+                  width: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      tokens.accentPrimary,
                     ),
                   ),
-                if (showSpinner) const SizedBox(width: 8),
-                Text(
+                ),
+              if (showSpinner) const SizedBox(width: 8),
+              Expanded(
+                child: Text(
                   label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: isError ? tokens.danger : tokens.textSecondary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+              ),
+            ],
+          ),
+        if (showStatus) const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const dotSize = 10.0;
+            final trackWidth = constraints.maxWidth;
+            final left = (trackWidth - dotSize) * clamped;
+            return Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: tokens.textSecondary.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                FractionallySizedBox(
+                  widthFactor: clamped,
+                  child: Container(
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: tokens.accentPrimary,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: left,
+                  child: _PulseDot(
+                    color: tokens.accentPrimary,
+                    reduceMotion: reduceMotion,
+                  ),
+                ),
               ],
-            ),
-            const SizedBox(height: 10),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                const dotSize = 8.0;
-                final trackWidth = constraints.maxWidth;
-                final left = (trackWidth - dotSize) * clamped;
-                return Stack(
-                  alignment: Alignment.centerLeft,
-                  children: [
-                    Container(
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: tokens.textSecondary.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    FractionallySizedBox(
-                      widthFactor: clamped,
-                      child: Container(
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: tokens.accentPrimary,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: left,
-                      child: _PulseDot(
-                        color: tokens.accentPrimary,
-                        reduceMotion: reduceMotion,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
+            );
+          },
         ),
-      ),
+      ],
     );
   }
 }
@@ -761,8 +684,8 @@ class _PulseDotState extends State<_PulseDot>
   @override
   Widget build(BuildContext context) {
     final base = Container(
-      height: 8,
-      width: 8,
+      height: 10,
+      width: 10,
       decoration: BoxDecoration(
         color: widget.color,
         shape: BoxShape.circle,
@@ -774,8 +697,8 @@ class _PulseDotState extends State<_PulseDot>
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, _) {
-        final scale = lerpDouble(0.85, 1.1, _animation.value)!;
-        final opacity = lerpDouble(0.6, 1.0, _animation.value)!;
+        final scale = lerpDouble(0.84, 1.12, _animation.value)!;
+        final opacity = lerpDouble(0.65, 1.0, _animation.value)!;
         return Opacity(
           opacity: opacity,
           child: Transform.scale(scale: scale, child: base),
@@ -793,9 +716,6 @@ bool _autoplayShouldRebuild(AutoplayState previous, AutoplayState next) {
     return true;
   }
   if (previous.queue.length != next.queue.length) {
-    return true;
-  }
-  if (previous.queueRemaining != next.queueRemaining) {
     return true;
   }
   if (previous.phase != next.phase) {
@@ -882,7 +802,7 @@ class _AutoplayProgress extends StatelessWidget {
               reduceMotion: reduceMotion,
               isError: isError,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -922,6 +842,33 @@ class _ProgressSnapshot {
 
   @override
   int get hashCode => Object.hash(position, duration);
+}
+
+int _resolvedStationNoteCount({
+  required int fallback,
+  required int hashtagCount,
+}) {
+  return hashtagCount > 0 ? hashtagCount : fallback;
+}
+
+String _noteCountLabel(int count) {
+  return '$count ${count == 1 ? 'note' : 'notes'}';
+}
+
+String _resolvedNoteTitle(VoiceNote note) {
+  final title = note.transcriptPreview?.trim();
+  if (title == null || title.isEmpty) {
+    return 'Untitled';
+  }
+  return title;
+}
+
+String _resolvedPosterLabel(VoiceNote note) {
+  final username = note.authorId?.trim();
+  if (username == null || username.isEmpty) {
+    return 'Anonymous';
+  }
+  return username;
 }
 
 String? _statusLabel(AutoplayState state) {

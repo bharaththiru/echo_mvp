@@ -169,11 +169,9 @@ class EchoPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.echo;
-    final buttonFill = tokens.accentPrimary;
-    final loadingForeground = EchoColorUtils.onColor(
-      buttonFill.withValues(alpha: 0.45),
-    ).withValues(alpha: 0.55);
+    final theme = Theme.of(context);
+    final onButtonFill = theme.colorScheme.onPrimary;
+    final loadingForeground = onButtonFill.withValues(alpha: 0.55);
     final height = EchoLayout.buttonHeight(context);
     return Semantics(
       button: true,

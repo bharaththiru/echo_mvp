@@ -190,7 +190,7 @@ ThemeData buildEchoTheme(Brightness _brightness) {
   const resolvedBrightness = Brightness.dark;
   final tokens = EchoSemantic.fromBrightness(resolvedBrightness);
   final buttonFill = tokens.accentPrimary;
-  final onButtonFill = EchoColorUtils.onColor(buttonFill);
+  final onButtonFill = Colors.black;
   final colorScheme = ColorScheme(
     brightness: resolvedBrightness,
     primary: tokens.accentPrimary,
@@ -327,16 +327,10 @@ ThemeData buildEchoTheme(Brightness _brightness) {
           return buttonFill;
         }),
         foregroundColor: WidgetStateProperty.resolveWith((states) {
-          final background = states.contains(WidgetState.disabled)
-              ? buttonFill.withValues(alpha: 0.4)
-              : states.contains(WidgetState.pressed)
-                  ? EchoColorUtils.darken(buttonFill, 0.08)
-                  : buttonFill;
-          final resolved = EchoColorUtils.onColor(background);
           if (states.contains(WidgetState.disabled)) {
-            return resolved.withValues(alpha: 0.55);
+            return onButtonFill.withValues(alpha: 0.55);
           }
-          return resolved;
+          return onButtonFill;
         }),
         overlayColor: WidgetStateProperty.all(
           EchoColorUtils.pressedOverlay(buttonFill),

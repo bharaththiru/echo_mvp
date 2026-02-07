@@ -100,7 +100,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final theme = Theme.of(context);
     final tokens = context.echo;
     final buttonFill = tokens.accentPrimary;
-    final onButtonFill = EchoColorUtils.onColor(buttonFill);
+    final onButtonFill = theme.colorScheme.onPrimary;
     final overlayStyle = theme.brightness == Brightness.dark
         ? SystemUiOverlayStyle.light
         : SystemUiOverlayStyle.dark;

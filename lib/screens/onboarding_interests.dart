@@ -55,7 +55,7 @@ class _OnboardingInterestsState extends State<OnboardingInterests> {
     final theme = Theme.of(context);
     final tokens = context.echo;
     final buttonFill = tokens.accentPrimary;
-    final onButtonFill = EchoColorUtils.onColor(buttonFill);
+    final onButtonFill = theme.colorScheme.onPrimary;
     final appState = AppScope.of(context);
     final reduceMotion = appState.settings.reduceMotion;
     final hashtags = appState.hashtags;
