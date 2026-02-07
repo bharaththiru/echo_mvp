@@ -1604,11 +1604,21 @@ class AutoplayController extends ChangeNotifier {
     if (!ignoreFeedBackoff && !_canAttemptFeedFetch(reset: false)) {
       return false;
     }
+    _setState(
+      _state.copyWith(
+        phase: AutoplayPhase.loading,
+        isPreparing: true,
+        isTransitioning: false,
+        statusText: 'Finding more clips...',
+        errorMessage: null,
+      ),
+    );
     final fallbackIds = await _feedQueueBuilder.fallbackStationIds(
       currentStationId: currentStationId,
       limit: _fallbackStationLimit,
     );
     if (fallbackIds.isEmpty) {
+      _setState(_state.copyWith(isPreparing: false));
       return false;
     }
     for (final stationId in fallbackIds) {
@@ -1691,6 +1701,7 @@ class AutoplayController extends ChangeNotifier {
         // Try next fallback station id.
       }
     }
+    _setState(_state.copyWith(isPreparing: false));
     return false;
   }
 
@@ -1875,10 +1886,16 @@ class AutoplayController extends ChangeNotifier {
     }
     _log('finish queue message=${message ?? ''}');
     _cancelStallGuard();
-    try {
-      await _audio.stop();
-    } catch (_) {
-      // Stop failures should not crash playback recovery.
+    final audioState = _audio.state;
+    final shouldStop = audioState.isPlaying ||
+        (audioState.phase != AudioPlaybackPhase.idle &&
+            audioState.phase != AudioPlaybackPhase.completed);
+    if (shouldStop) {
+      try {
+        await _audio.stop();
+      } catch (_) {
+        // Stop failures should not crash playback recovery.
+      }
     }
     _setState(
       _state.copyWith(

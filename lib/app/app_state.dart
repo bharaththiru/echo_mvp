@@ -69,6 +69,8 @@ class AppState extends ChangeNotifier
   static const _postRateLimitWindow = Duration(hours: 1);
   static const _postRateLimitMax = 20;
   static const _audioDiskCacheMaxEntries = 300;
+  static const _remoteFeedTransientCooldown = Duration(seconds: 45);
+  static const _remoteFeedPolicyCooldown = Duration(minutes: 10);
 
   final SharedPreferences _prefs;
   final IdGenerator _idGenerator;
@@ -97,6 +99,7 @@ class AppState extends ChangeNotifier
   final Map<String, String> _audioPathCache = <String, String>{};
   PendingPostDraft? _pendingPostDraft;
   Future<VoiceNote>? _postInFlight;
+  DateTime? _remoteFeedCooldownUntil;
 
   AppSettings settings;
   bool onboardingComplete;
@@ -529,6 +532,46 @@ class AppState extends ChangeNotifier
     }
     final resolved = <String>[];
     final seen = <String>{};
+    bool addCandidate(String id) {
+      final normalized = id.trim();
+      if (normalized.isEmpty ||
+          normalized == normalizedCurrent ||
+          seen.contains(normalized)) {
+        return false;
+      }
+      final cachedNotes = _localFeedPage(
+        stationId: normalized,
+        limit: 1,
+        cursor: null,
+      );
+      if (cachedNotes.notes.isEmpty) {
+        return false;
+      }
+      resolved.add(normalized);
+      seen.add(normalized);
+      return resolved.length >= limit;
+    }
+
+    for (final id in recentHashtagIds) {
+      if (addCandidate(id)) {
+        return resolved;
+      }
+    }
+    for (final id in _notesByHashtag.keys) {
+      if (addCandidate(id)) {
+        return resolved;
+      }
+    }
+    for (final id in _localDevNotesByHashtag.keys) {
+      if (addCandidate(id)) {
+        return resolved;
+      }
+    }
+
+    if (_isRemoteFeedCoolingDown) {
+      return resolved;
+    }
+
     for (final id in recentHashtagIds) {
       final normalized = id.trim();
       if (normalized.isEmpty ||
@@ -566,6 +609,37 @@ class AppState extends ChangeNotifier
 
   static const _localFeedCursorPrefix = 'local:';
   static const _autoplayFeedWindow = 50;
+  bool get _isRemoteFeedCoolingDown {
+    final until = _remoteFeedCooldownUntil;
+    if (until == null) {
+      return false;
+    }
+    return DateTime.now().isBefore(until);
+  }
+
+  void _recordRemoteFeedFailure(Object error) {
+    final cooldown = _isPolicyFeedFailure(error)
+        ? _remoteFeedPolicyCooldown
+        : _remoteFeedTransientCooldown;
+    _remoteFeedCooldownUntil = DateTime.now().add(cooldown);
+  }
+
+  void _recordRemoteFeedSuccess() {
+    _remoteFeedCooldownUntil = null;
+  }
+
+  bool _isPolicyFeedFailure(Object error) {
+    if (error is FirebaseException) {
+      final code = error.code.toLowerCase();
+      return code == 'permission-denied' || code == 'failed-precondition';
+    }
+    final raw = error.toString().toLowerCase();
+    return raw.contains('permission-denied') ||
+        raw.contains('failed-precondition') ||
+        raw.contains('failed_precondition') ||
+        raw.contains('missing or insufficient permissions') ||
+        raw.contains('requires an index');
+  }
 
   @override
   Future<AutoplayFeedPage> loadPage({
@@ -602,15 +676,14 @@ class AppState extends ChangeNotifier
       );
     }
     final window = max(limit, _autoplayFeedWindow);
-    try {
-      final page = await _repository.fetchHashtagFeedPage(
-        hashtagId: normalizedStationId,
+    if (_isRemoteFeedCoolingDown) {
+      final fallback = _localFeedPage(
+        stationId: normalizedStationId,
         limit: window,
         cursor: cursor,
       );
-      final filtered = _filterNotes(page.notes);
       final shuffled = _buildDeterministicFeedSlice(
-        notes: filtered,
+        notes: _filterNotes(fallback.notes),
         stationId: normalizedStationId,
         cursor: cursor,
         take: limit,
@@ -618,10 +691,53 @@ class AppState extends ChangeNotifier
       return AutoplayFeedPage(
         stationId: normalizedStationId,
         notes: shuffled,
+        nextCursor: fallback.nextCursor,
+        hasMore: fallback.hasMore,
+      );
+    }
+    try {
+      final page = await _repository.fetchHashtagFeedPage(
+        hashtagId: normalizedStationId,
+        limit: window,
+        cursor: cursor,
+      );
+      _recordRemoteFeedSuccess();
+      final filtered = _filterNotes(page.notes);
+      final shuffled = _buildDeterministicFeedSlice(
+        notes: filtered,
+        stationId: normalizedStationId,
+        cursor: cursor,
+        take: limit,
+      );
+      if (shuffled.isEmpty && (cursor == null || cursor.isEmpty)) {
+        final fallback = _localFeedPage(
+          stationId: normalizedStationId,
+          limit: window,
+          cursor: cursor,
+        );
+        final fallbackShuffled = _buildDeterministicFeedSlice(
+          notes: _filterNotes(fallback.notes),
+          stationId: normalizedStationId,
+          cursor: cursor,
+          take: limit,
+        );
+        if (fallbackShuffled.isNotEmpty) {
+          return AutoplayFeedPage(
+            stationId: normalizedStationId,
+            notes: fallbackShuffled,
+            nextCursor: fallback.nextCursor,
+            hasMore: fallback.hasMore,
+          );
+        }
+      }
+      return AutoplayFeedPage(
+        stationId: normalizedStationId,
+        notes: shuffled,
         nextCursor: page.nextCursor,
         hasMore: page.hasMore,
       );
-    } catch (_) {
+    } catch (error) {
+      _recordRemoteFeedFailure(error);
       final fallback = _localFeedPage(
         stationId: normalizedStationId,
         limit: window,
@@ -733,9 +849,14 @@ class AppState extends ChangeNotifier
     required int limit,
     String? cursor,
   }) {
-    final sorted = List<VoiceNote>.from(
-      _filterNotes(_localDevNotesByHashtag[stationId] ?? const <VoiceNote>[]),
-    )..sort((a, b) {
+    final mergedById = <String, VoiceNote>{};
+    for (final note in _notesByHashtag[stationId] ?? const <VoiceNote>[]) {
+      mergedById[note.id] = note;
+    }
+    for (final note in _localDevNotesByHashtag[stationId] ?? const <VoiceNote>[]) {
+      mergedById[note.id] = note;
+    }
+    final sorted = _filterNotes(mergedById.values.toList())..sort((a, b) {
       final byCreated = b.createdAt.compareTo(a.createdAt);
       if (byCreated != 0) {
         return byCreated;

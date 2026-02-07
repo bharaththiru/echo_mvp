@@ -94,11 +94,9 @@ class _ListenTabState extends State<ListenTab> {
           )
         else ...[
           SliverPadding(
-            padding: EchoLayout.listPadding(
-              context,
-              top: 8,
-              bottom: 12,
-              includeBottomSafeArea: false,
+            padding: EdgeInsets.only(
+              top: EchoLayout.space(context, 8),
+              bottom: EchoLayout.space(context, 12),
             ),
             sliver: SliverToBoxAdapter(
               child: SizedBox(
@@ -252,14 +250,6 @@ class _StationGridCard extends StatelessWidget {
                   color: tokens.textPrimary,
                 ),
               ),
-              const Spacer(),
-              Text(
-                _noteCountLabel(hashtag.noteCount),
-              style: theme.textTheme.labelSmall?.copyWith(
-                  color: tokens.textPrimary.withValues(alpha: 0.9),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
             ],
           ),
           const Spacer(),
@@ -342,15 +332,6 @@ class _RecentStationTile extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  '${_noteCountLabel(station.noteCount)} in this station',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: tokens.textSecondary,
-                  ),
-                ),
               ],
             ),
           ),
@@ -408,8 +389,4 @@ class _EmptyState extends StatelessWidget {
       ),
     );
   }
-}
-
-String _noteCountLabel(int count) {
-  return '$count ${count == 1 ? 'note' : 'notes'}';
 }

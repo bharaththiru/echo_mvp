@@ -81,6 +81,8 @@ class FirebaseRepository {
   final FirebaseStorage _storage;
   final String? _storageCdnBaseUrl;
   final Map<String, _CachedAudioUrl> _audioUrlCache = <String, _CachedAudioUrl>{};
+  bool _stationFeedQueryEnabled = true;
+  bool _legacyHashtagPagedQueryEnabled = true;
   static const _audioUrlCacheTtl = Duration(hours: 6);
 
   Future<List<Hashtag>> fetchHashtags() async {
@@ -164,12 +166,22 @@ class FirebaseRepository {
       );
     }
     final requested = limit.clamp(1, 100).toInt();
-    final stationFeed = await _fetchStationFeedPage(
-      stationId: stationId,
-      limit: requested,
-      cursor: cursor,
-    );
-    if (stationFeed != null) {
+    HashtagFeedPageResult? stationFeed;
+    if (_stationFeedQueryEnabled) {
+      try {
+        stationFeed = await _fetchStationFeedPage(
+          stationId: stationId,
+          limit: requested,
+          cursor: cursor,
+        );
+      } on FirebaseException catch (error) {
+        if (error.code == 'permission-denied') {
+          _stationFeedQueryEnabled = false;
+        }
+        stationFeed = null;
+      }
+    }
+    if (stationFeed != null && stationFeed.notes.isNotEmpty) {
       return stationFeed;
     }
     return _fetchLegacyHashtagFeedPage(
@@ -292,6 +304,32 @@ class FirebaseRepository {
   }) async {
     final now = DateTime.now().toUtc();
     final requested = limit.clamp(1, 100).toInt();
+    if (!_legacyHashtagPagedQueryEnabled) {
+      if (cursor != null && cursor.isNotEmpty) {
+        return const HashtagFeedPageResult(
+          notes: <VoiceNote>[],
+          nextCursor: null,
+          hasMore: false,
+        );
+      }
+      final fallback = await fetchNotes(hashtagId: hashtagId, limit: requested);
+      final notes = List<VoiceNote>.from(fallback)
+        ..sort((a, b) {
+          final byCreated = b.createdAt.compareTo(a.createdAt);
+          if (byCreated != 0) {
+            return byCreated;
+          }
+          return b.id.compareTo(a.id);
+        });
+      if (notes.length > requested) {
+        notes.removeRange(requested, notes.length);
+      }
+      return HashtagFeedPageResult(
+        notes: notes,
+        nextCursor: null,
+        hasMore: false,
+      );
+    }
     final collected = <VoiceNote>[];
     var cursorValue = _HashtagFeedCursor.tryDecode(cursor);
     var hasMore = true;
@@ -313,7 +351,39 @@ class FirebaseRepository {
           cursorValue.noteId,
         ]);
       }
-      final snapshot = await query.get();
+      late final QuerySnapshot<Map<String, dynamic>> snapshot;
+      try {
+        snapshot = await query.get();
+      } on FirebaseException catch (error) {
+        final isMissingIndex =
+            error.code == 'failed-precondition' &&
+            (error.message?.toLowerCase().contains('requires an index') ??
+                false);
+        if (isMissingIndex && cursorValue == null) {
+          _legacyHashtagPagedQueryEnabled = false;
+          final fallback = await fetchNotes(
+            hashtagId: hashtagId,
+            limit: requested,
+          );
+          final notes = List<VoiceNote>.from(fallback)
+            ..sort((a, b) {
+              final byCreated = b.createdAt.compareTo(a.createdAt);
+              if (byCreated != 0) {
+                return byCreated;
+              }
+              return b.id.compareTo(a.id);
+            });
+          if (notes.length > requested) {
+            notes.removeRange(requested, notes.length);
+          }
+          return HashtagFeedPageResult(
+            notes: notes,
+            nextCursor: null,
+            hasMore: false,
+          );
+        }
+        rethrow;
+      }
       if (snapshot.docs.isEmpty) {
         hasMore = false;
         break;

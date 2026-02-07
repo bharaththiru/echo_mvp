@@ -43,7 +43,15 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
       });
     }
     if (appState.hashtags.isEmpty && !appState.hashtagsLoading) {
-      appState.refreshHashtags();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        final state = AppScope.of(context);
+        if (state.hashtags.isEmpty && !state.hashtagsLoading) {
+          state.refreshHashtags();
+        }
+      });
     }
   }
 
@@ -121,70 +129,6 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
       );
     }
 
-    final autoplayState = autoplay.state;
-    final notes = autoplayState.queue;
-    final isLoading = autoplayState.isLoadingNotes;
-    final loadError = autoplayState.loadError;
-    final stationNoteCount = _resolvedStationNoteCount(
-      fallback: notes.length,
-      hashtagCount: hashtag.noteCount,
-    );
-
-    if (notes.isEmpty) {
-      Widget emptyChild = Text(
-        'No notes yet.',
-        style: theme.textTheme.titleMedium,
-        textAlign: TextAlign.center,
-      );
-      if (isLoading) {
-        emptyChild = const CircularProgressIndicator();
-      } else if (loadError != null) {
-        emptyChild = Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Unable to load notes', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              loadError,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: tokens.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: () =>
-                  autoplay.attach(widget.hashtagId, forceRefresh: true),
-              child: const Text('Retry'),
-            ),
-          ],
-        );
-      }
-
-      final emptyContent = isLoading
-          ? emptyChild
-          : EchoCard(
-              padding: const EdgeInsets.all(24),
-              radius: 20,
-              color: tokens.surface1,
-              child: emptyChild,
-            );
-
-      return AppScaffold(
-        showMiniPlayer: false,
-        child: Column(
-          children: [
-            _PlayerHeader(
-              stationTitle: hashtag.name,
-              noteCountLabel: _noteCountLabel(stationNoteCount),
-              onBack: () => context.pop(),
-            ),
-            Expanded(child: Center(child: emptyContent)),
-          ],
-        ),
-      );
-    }
-
     return AppScaffold(
       showMiniPlayer: false,
       child: ListenableSelector<AutoplayState>(
@@ -192,8 +136,83 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
         selector: () => autoplay.state,
         shouldRebuild: _autoplayShouldRebuild,
         builder: (context, state) {
+          final noteCountLabel = _noteCountLabel(
+            _resolvedStationNoteCount(
+              fallback: state.queue.length,
+              hashtagCount: hashtag.noteCount,
+            ),
+          );
           if (state.queue.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
+            final resolvedStatus = (state.statusText ?? '').trim();
+            final isRecovering =
+                state.phase == AutoplayPhase.loading ||
+                state.phase == AutoplayPhase.buffering ||
+                state.phase == AutoplayPhase.transitioning ||
+                state.isPreparing;
+            Widget emptyChild = Text(
+              resolvedStatus.isNotEmpty ? resolvedStatus : 'No notes yet.',
+              style: theme.textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            );
+            if (state.isLoadingNotes || isRecovering) {
+              emptyChild = Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 12),
+                  Text(
+                    resolvedStatus.isNotEmpty
+                        ? resolvedStatus
+                        : 'Loading clips...',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: tokens.textSecondary,
+                    ),
+                  ),
+                ],
+              );
+            } else if (state.loadError != null) {
+              emptyChild = Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Unable to load notes', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text(
+                    state.loadError!,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: tokens.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton(
+                    onPressed: () =>
+                        autoplay.attach(widget.hashtagId, forceRefresh: true),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              );
+            }
+
+            final emptyContent = state.isLoadingNotes || isRecovering
+                ? emptyChild
+                : EchoCard(
+                    padding: const EdgeInsets.all(24),
+                    radius: 20,
+                    color: tokens.surface1,
+                    child: emptyChild,
+                  );
+
+            return Column(
+              children: [
+                _PlayerHeader(
+                  stationTitle: hashtag.name,
+                  noteCountLabel: noteCountLabel,
+                  onBack: () => context.pop(),
+                ),
+                Expanded(child: Center(child: emptyContent)),
+              ],
+            );
           }
           final resolvedIndex = state.currentIndex.clamp(
             0,
@@ -217,12 +236,6 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
           final buttonSize = state.handsFree ? 96.0 : 82.0;
           final noteTitle = _resolvedNoteTitle(note);
           final posterLabel = _resolvedPosterLabel(note);
-          final noteCountLabel = _noteCountLabel(
-            _resolvedStationNoteCount(
-              fallback: state.queue.length,
-              hashtagCount: hashtag.noteCount,
-            ),
-          );
 
           return Column(
             children: [

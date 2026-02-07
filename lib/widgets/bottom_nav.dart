@@ -50,6 +50,10 @@ class BottomNavBar extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = context.echo;
     final buttonFill = tokens.accentPrimary;
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
+    final bottomGap = safeBottom > 0
+        ? (safeBottom * 0.34).clamp(6.0, 12.0).toDouble()
+        : 6.0;
     final reduceMotion = AppScope.of(context).settings.reduceMotion;
     final duration = reduceMotion
         ? Duration.zero
@@ -61,63 +65,60 @@ class BottomNavBar extends StatelessWidget {
       _NavItem('Profile', Icons.person, 3),
     ];
 
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-        child: Container(
-          decoration: BoxDecoration(
-            color: tokens.bg,
-            borderRadius: BorderRadius.circular(EchoRadii.nav),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: items.map((item) {
-              final isActive = currentIndex == item.index;
-              final backgroundColor = isActive
-                  ? buttonFill.withValues(alpha: 0.16)
-                  : Colors.transparent;
-              final foregroundColor = isActive
-                  ? tokens.accentPrimary
-                  : tokens.textSecondary.withValues(alpha: 0.6);
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => onTap(item.index),
-                  child: AnimatedContainer(
-                    duration: duration,
-                    curve: Curves.easeOutCubic,
-                    padding: const EdgeInsets.symmetric(vertical: 7),
-                    decoration: BoxDecoration(
-                      color: backgroundColor,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(item.icon, size: 20, color: foregroundColor),
-                        const SizedBox(height: 3),
-                        Text(
-                          item.label,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: foregroundColor,
-                            fontWeight: FontWeight.w600,
-                          ),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, bottomGap),
+      child: Container(
+        decoration: BoxDecoration(
+          color: tokens.bg,
+          borderRadius: BorderRadius.circular(EchoRadii.nav),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: items.map((item) {
+            final isActive = currentIndex == item.index;
+            final backgroundColor = isActive
+                ? buttonFill.withValues(alpha: 0.16)
+                : Colors.transparent;
+            final foregroundColor = isActive
+                ? tokens.accentPrimary
+                : tokens.textSecondary.withValues(alpha: 0.6);
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => onTap(item.index),
+                child: AnimatedContainer(
+                  duration: duration,
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(item.icon, size: 20, color: foregroundColor),
+                      const SizedBox(height: 3),
+                      Text(
+                        item.label,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: foregroundColor,
+                          fontWeight: FontWeight.w600,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            }).toList(),
-          ),
+              ),
+            );
+          }).toList(),
         ),
       ),
     );

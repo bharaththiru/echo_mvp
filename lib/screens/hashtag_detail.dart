@@ -207,7 +207,6 @@ class _HashtagDetailState extends State<HashtagDetail> {
                 bottom: fabBottomOffset,
                 child: _AutoplayFloatingButton(
                   onTap: () {
-                    appState.markStationListened(hashtag.id);
                     context.push('/player/${hashtag.id}');
                   },
                   heroTag: 'autoplay-fab-${hashtag.id}',
