@@ -442,6 +442,8 @@ class _VoiceNoteRow extends StatelessWidget {
     final buttonFill = tokens.accentPrimary;
     final onButtonFill = theme.colorScheme.onPrimary;
     final loadingForeground = onButtonFill.withValues(alpha: 0.5);
+    final clipTintedSurface =
+        Color.lerp(tokens.surface1, const Color(0xFF42C0BD), 0.10)!;
 
     return ListenableSelector<_NotePlaybackSnapshot>(
       listenable: audio,
@@ -471,7 +473,7 @@ class _VoiceNoteRow extends StatelessWidget {
         return EchoCard(
           padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
           radius: 18,
-          color: tokens.surface1,
+          color: clipTintedSurface,
           child: Row(
             children: [
               Expanded(
