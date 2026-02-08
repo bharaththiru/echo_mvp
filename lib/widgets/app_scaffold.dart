@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
+import '../services/audio_playback_controller.dart';
 import '../services/autoplay_controller.dart';
 import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
@@ -49,6 +50,7 @@ class _MiniPlayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = AppScope.of(context);
+    final audio = appState.audio;
     final autoplay = appState.autoplay;
     final tokens = context.echo;
     final theme = Theme.of(context);
@@ -75,122 +77,138 @@ class _MiniPlayer extends StatelessWidget {
             hashtagId == null ? null : appState.hashtagById(hashtagId);
         final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
         final bottomPadding = EchoLayout.space(context, 8);
-        final statusText = state.isBuffering
-            ? 'Buffering'
-            : state.isPlaying
-                ? 'Now listening'
-                : state.phase == AutoplayPhase.paused
-                    ? 'Paused'
-                    : 'Ready';
 
-        return Positioned(
-          left: 0,
-          right: 0,
-          bottom: max(bottomInset, bottomPadding),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: EchoLayout.contentHorizontalPadding(context),
-            ),
-            child: GestureDetector(
-              onTap: () {
-                if (hashtagId == null || hashtagId.isEmpty) {
-                  return;
-                }
-                context.push('/player/$hashtagId');
-              },
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(18),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 7),
-                  decoration: BoxDecoration(
-                    color: miniPlayerColor,
+        return StreamBuilder<PlaybackMetrics>(
+          stream: audio.playbackMetrics,
+          initialData: audio.currentMetrics,
+          builder: (context, snapshot) {
+            final metrics = snapshot.data ?? audio.currentMetrics;
+            final metricsMatchCurrent = metrics.sourceId == note.id;
+            final isEnginePlaying = metricsMatchCurrent
+                ? metrics.playing
+                : (state.isPlaying && state.currentNote?.id == note.id);
+            final isEngineBuffering = metricsMatchCurrent &&
+                (metrics.processingState == PlaybackProcessingState.loading ||
+                    metrics.processingState == PlaybackProcessingState.buffering);
+            final statusText = isEngineBuffering && !isEnginePlaying
+                ? 'Buffering'
+                : isEnginePlaying
+                    ? 'Now listening'
+                    : state.phase == AutoplayPhase.paused
+                        ? 'Paused'
+                        : 'Ready';
+
+            return Positioned(
+              left: 0,
+              right: 0,
+              bottom: max(bottomInset, bottomPadding),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: EchoLayout.contentHorizontalPadding(context),
+                ),
+                child: GestureDetector(
+                  onTap: () {
+                    if (hashtagId == null || hashtagId.isEmpty) {
+                      return;
+                    }
+                    context.push('/player/$hashtagId');
+                  },
+                  child: ClipRRect(
                     borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.25),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          _MiniPulseDot(
-                            color: buttonFill,
-                            reduceMotion: appState.settings.reduceMotion,
-                            isActive: state.isPlaying,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  hashtag?.name ?? 'Station',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    color: tokens.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 1),
-                                Text(
-                                  note.transcriptPreview ?? statusText,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: tokens.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: state.isMuted
-                                ? 'Unmute current note'
-                                : 'Mute current note',
-                            onPressed: () => autoplay.toggleMute(),
-                            icon: Icon(
-                              state.isMuted
-                                  ? Icons.volume_off
-                                  : Icons.volume_up,
-                            ),
-                            iconSize: 19,
-                            constraints: const BoxConstraints.tightFor(
-                              width: 40,
-                              height: 40,
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: state.isPlaying ? 'Pause' : 'Play',
-                            onPressed: () => autoplay.togglePlayPause(),
-                            icon: Icon(
-                              state.isPlaying ? Icons.pause : Icons.play_arrow,
-                            ),
-                            iconSize: 20,
-                            constraints: const BoxConstraints.tightFor(
-                              width: 40,
-                              height: 40,
-                            ),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 7),
+                      decoration: BoxDecoration(
+                        color: miniPlayerColor,
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      _MiniPlayerProgress(
-                        autoplay: autoplay,
-                        fallbackDuration: note.duration,
-                        trackColor: tokens.textSecondary.withValues(alpha: 0.2),
-                        progressColor: buttonFill,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              _MiniPulseDot(
+                                color: buttonFill,
+                                reduceMotion: appState.settings.reduceMotion,
+                                isActive: isEnginePlaying,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      hashtag?.name ?? 'Station',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleSmall?.copyWith(
+                                        color: tokens.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      note.transcriptPreview ?? statusText,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: tokens.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: state.isMuted
+                                    ? 'Unmute current note'
+                                    : 'Mute current note',
+                                onPressed: () => autoplay.toggleMute(),
+                                icon: Icon(
+                                  state.isMuted
+                                      ? Icons.volume_off
+                                      : Icons.volume_up,
+                                ),
+                                iconSize: 19,
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 40,
+                                  height: 40,
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: isEnginePlaying ? 'Pause' : 'Play',
+                                onPressed: () => autoplay.togglePlayPause(),
+                                icon: Icon(
+                                  isEnginePlaying ? Icons.pause : Icons.play_arrow,
+                                ),
+                                iconSize: 20,
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 40,
+                                  height: 40,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          _MiniPlayerProgress(
+                            audio: audio,
+                            currentNoteId: note.id,
+                            fallbackDuration: note.duration,
+                            trackColor: tokens.textSecondary.withValues(alpha: 0.2),
+                            progressColor: buttonFill,
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -298,40 +316,42 @@ bool _miniPlayerShouldRebuild(AutoplayState previous, AutoplayState next) {
 
 class _MiniPlayerProgress extends StatelessWidget {
   const _MiniPlayerProgress({
-    required this.autoplay,
+    required this.audio,
+    required this.currentNoteId,
     required this.fallbackDuration,
     required this.trackColor,
     required this.progressColor,
   });
 
-  final AutoplayController autoplay;
+  final AudioPlaybackController audio;
+  final String currentNoteId;
   final Duration fallbackDuration;
   final Color trackColor;
   final Color progressColor;
 
   @override
   Widget build(BuildContext context) {
-    return ListenableSelector<_MiniProgressSnapshot>(
-      listenable: autoplay,
-      selector: () {
-        final state = autoplay.state;
-        final duration = state.duration.inMilliseconds > 0
-            ? state.duration
+    return StreamBuilder<PlaybackMetrics>(
+      stream: audio.playbackMetrics,
+      initialData: audio.currentMetrics,
+      builder: (context, snapshot) {
+        final metrics = snapshot.data ?? audio.currentMetrics;
+        final useLiveMetrics =
+            metrics.sourceId == currentNoteId || metrics.playing;
+        final duration = useLiveMetrics && metrics.duration.inMilliseconds > 0
+            ? metrics.duration
             : fallbackDuration;
         final ratio = duration.inMilliseconds == 0
             ? 0.0
-            : (state.position.inMilliseconds / duration.inMilliseconds)
-                .clamp(0.0, 1.0)
-                .toDouble();
-        return _MiniProgressSnapshot(ratio);
-      },
-      shouldRebuild: (previous, next) => previous != next,
-      builder: (context, snapshot) {
+            : ((useLiveMetrics ? metrics.position.inMilliseconds : 0) /
+                      duration.inMilliseconds)
+                  .clamp(0.0, 1.0)
+                  .toDouble();
         return LayoutBuilder(
           builder: (context, constraints) {
             const dotSize = 7.0;
             final trackWidth = constraints.maxWidth;
-            final left = (trackWidth - dotSize) * snapshot.progress;
+            final left = (trackWidth - dotSize) * ratio;
             return Stack(
               alignment: Alignment.centerLeft,
               children: [
@@ -343,7 +363,7 @@ class _MiniPlayerProgress extends StatelessWidget {
                   ),
                 ),
                 FractionallySizedBox(
-                  widthFactor: snapshot.progress,
+                  widthFactor: ratio,
                   child: Container(
                     height: 3,
                     decoration: BoxDecoration(
@@ -370,18 +390,4 @@ class _MiniPlayerProgress extends StatelessWidget {
       },
     );
   }
-}
-
-class _MiniProgressSnapshot {
-  const _MiniProgressSnapshot(this.progress);
-
-  final double progress;
-
-  @override
-  bool operator ==(Object other) {
-    return other is _MiniProgressSnapshot && other.progress == progress;
-  }
-
-  @override
-  int get hashCode => progress.hashCode;
 }

@@ -24,6 +24,8 @@ class AudioController extends ChangeNotifier
 
   final AudioEngine _engine;
   final NativeAudioService _recordingService;
+  final BehaviorSubject<PlaybackMetrics> _metrics =
+      BehaviorSubject<PlaybackMetrics>.seeded(PlaybackMetrics.empty);
   AudioPlaybackState _state = AudioPlaybackState.empty;
   int _operationToken = 0;
   bool _isDisposed = false;
@@ -37,6 +39,7 @@ class AudioController extends ChangeNotifier
 
   StreamSubscription<AudioEngineSnapshot>? _engineSub;
   StreamSubscription<EchoAudioEvent>? _engineEventSub;
+  static const _unsetMetricsQueueIndex = Object();
 
   static Future<AudioController> create({AudioEngine? engine}) async {
     if (engine != null) {
@@ -57,6 +60,12 @@ class AudioController extends ChangeNotifier
 
   @override
   AudioPlaybackState get state => _state;
+
+  @override
+  PlaybackMetrics get currentMetrics => _metrics.value;
+
+  @override
+  Stream<PlaybackMetrics> get playbackMetrics => _metrics.stream;
 
   Future<bool> requestMicrophonePermission() {
     return _recordingService.requestMicrophonePermission();
@@ -88,6 +97,7 @@ class AudioController extends ChangeNotifier
     _lastEngineUpdate = DateTime.now();
     _lastPositionTick = _lastEngineUpdate;
     final nextPhase = _mapPhase(snapshot);
+    final processingState = _mapProcessingState(snapshot);
     final resolvedPosition = _resolveSnapshotPosition(snapshot);
     _trackProgress(snapshot, resolvedPosition);
     _state = _state.copyWith(
@@ -102,6 +112,13 @@ class AudioController extends ChangeNotifier
       phase: nextPhase,
       interrupted: snapshot.interrupted,
       errorMessage: snapshot.errorMessage,
+    );
+    _emitMetrics(
+      position: resolvedPosition,
+      duration: snapshot.duration,
+      bufferedPosition: snapshot.bufferedPosition,
+      playing: snapshot.isPlaying,
+      processingState: processingState,
     );
     notifyListeners();
     _syncPositionTimer();
@@ -156,6 +173,10 @@ class AudioController extends ChangeNotifier
           interrupted: true,
           errorMessage: null,
         );
+        _emitMetrics(
+          playing: false,
+          processingState: PlaybackProcessingState.interrupted,
+        );
         notifyListeners();
         _syncPositionTimer();
         break;
@@ -167,6 +188,7 @@ class AudioController extends ChangeNotifier
               : AudioPlaybackPhase.paused,
           errorMessage: null,
         );
+        _emitMetrics(processingState: PlaybackProcessingState.ready);
         notifyListeners();
         _syncPositionTimer();
         break;
@@ -174,6 +196,7 @@ class AudioController extends ChangeNotifier
       case EchoAudioEventType.duckEnded:
       case EchoAudioEventType.becameNoisy:
         _state = _state.copyWith(errorMessage: null);
+        _emitMetrics();
         notifyListeners();
         _syncPositionTimer();
         break;
@@ -182,6 +205,10 @@ class AudioController extends ChangeNotifier
           isPlaying: false,
           phase: AudioPlaybackPhase.error,
           errorMessage: event.message ?? 'Playback error.',
+        );
+        _emitMetrics(
+          playing: false,
+          processingState: PlaybackProcessingState.error,
         );
         notifyListeners();
         _syncPositionTimer();
@@ -251,6 +278,26 @@ class AudioController extends ChangeNotifier
     }
   }
 
+  PlaybackProcessingState _mapProcessingState(AudioEngineSnapshot snapshot) {
+    if (snapshot.interrupted) {
+      return PlaybackProcessingState.interrupted;
+    }
+    switch (snapshot.phase) {
+      case AudioEnginePhase.idle:
+        return PlaybackProcessingState.idle;
+      case AudioEnginePhase.loading:
+        return PlaybackProcessingState.loading;
+      case AudioEnginePhase.buffering:
+        return PlaybackProcessingState.buffering;
+      case AudioEnginePhase.ready:
+        return PlaybackProcessingState.ready;
+      case AudioEnginePhase.completed:
+        return PlaybackProcessingState.completed;
+      case AudioEnginePhase.error:
+        return PlaybackProcessingState.error;
+    }
+  }
+
   @override
   Future<void> play({
     required String sourceId,
@@ -270,6 +317,15 @@ class AudioController extends ChangeNotifier
       phase: AudioPlaybackPhase.loading,
       interrupted: false,
       errorMessage: null,
+    );
+    _emitMetrics(
+      sourceId: sourceId,
+      queueIndex: null,
+      position: Duration.zero,
+      duration: duration ?? _state.duration,
+      bufferedPosition: Duration.zero,
+      playing: false,
+      processingState: PlaybackProcessingState.loading,
     );
     notifyListeners();
     _syncPositionTimer();
@@ -297,6 +353,10 @@ class AudioController extends ChangeNotifier
         isPlaying: false,
         phase: AudioPlaybackPhase.error,
         errorMessage: 'Unable to play this clip.',
+      );
+      _emitMetrics(
+        playing: false,
+        processingState: PlaybackProcessingState.error,
       );
       notifyListeners();
       _syncPositionTimer();
@@ -328,6 +388,15 @@ class AudioController extends ChangeNotifier
       interrupted: false,
       errorMessage: null,
     );
+    _emitMetrics(
+      sourceId: item.sourceId,
+      queueIndex: resolvedIndex,
+      position: startPosition ?? Duration.zero,
+      duration: item.duration ?? _state.duration,
+      bufferedPosition: Duration.zero,
+      playing: false,
+      processingState: PlaybackProcessingState.loading,
+    );
     notifyListeners();
     _syncPositionTimer();
     try {
@@ -352,6 +421,10 @@ class AudioController extends ChangeNotifier
         isPlaying: false,
         phase: AudioPlaybackPhase.error,
         errorMessage: 'Unable to play this clip.',
+      );
+      _emitMetrics(
+        playing: false,
+        processingState: PlaybackProcessingState.error,
       );
       notifyListeners();
       _syncPositionTimer();
@@ -390,6 +463,7 @@ class AudioController extends ChangeNotifier
       phase: AudioPlaybackPhase.paused,
       errorMessage: null,
     );
+    _emitMetrics(playing: false, processingState: PlaybackProcessingState.ready);
     notifyListeners();
     _syncPositionTimer();
   }
@@ -407,6 +481,7 @@ class AudioController extends ChangeNotifier
       phase: AudioPlaybackPhase.playing,
       errorMessage: null,
     );
+    _emitMetrics(playing: true, processingState: PlaybackProcessingState.ready);
     notifyListeners();
     _syncPositionTimer();
   }
@@ -424,6 +499,13 @@ class AudioController extends ChangeNotifier
       interrupted: false,
       errorMessage: null,
     );
+    _emitMetrics(
+      queueIndex: null,
+      position: Duration.zero,
+      bufferedPosition: Duration.zero,
+      playing: false,
+      processingState: PlaybackProcessingState.idle,
+    );
     notifyListeners();
     _syncPositionTimer();
   }
@@ -435,6 +517,7 @@ class AudioController extends ChangeNotifier
     }
     await _engine.seek(position);
     _state = _state.copyWith(position: position);
+    _emitMetrics(position: position);
     notifyListeners();
     _lastPositionTick = DateTime.now();
     _syncPositionTimer();
@@ -457,11 +540,87 @@ class AudioController extends ChangeNotifier
     final clamped = volume.clamp(0.0, 1.0).toDouble();
     _state = _state.copyWith(volume: clamped);
     await _engine.setVolume(clamped);
+    _emitMetrics();
     notifyListeners();
   }
 
   Future<Duration> getAudioDuration(String path) async {
     return _recordingService.getAudioDuration(path);
+  }
+
+  bool _isPositionAdvancing({
+    String? sourceId,
+    int? queueIndex,
+    bool? playing,
+  }) {
+    final resolvedSourceId = sourceId ?? _state.sourceId;
+    final resolvedQueueIndex = queueIndex ?? _state.queueIndex;
+    final isPlayingNow = playing ?? _state.isPlaying;
+    if (!isPlayingNow || resolvedSourceId == null) {
+      return false;
+    }
+    if (resolvedSourceId != _lastProgressSourceId ||
+        resolvedQueueIndex != _lastProgressQueueIndex) {
+      return false;
+    }
+    final last = _lastProgressAt;
+    if (last == null) {
+      return false;
+    }
+    return DateTime.now().difference(last) <= const Duration(milliseconds: 900);
+  }
+
+  void _emitMetrics({
+    String? sourceId,
+    Object? queueIndex = _unsetMetricsQueueIndex,
+    Duration? position,
+    Duration? duration,
+    Duration? bufferedPosition,
+    bool? playing,
+    PlaybackProcessingState? processingState,
+  }) {
+    if (_isDisposed || _metrics.isClosed) {
+      return;
+    }
+    final resolvedSourceId = sourceId ?? _state.sourceId;
+    final resolvedQueueIndex =
+        identical(queueIndex, _unsetMetricsQueueIndex)
+        ? _state.queueIndex
+        : queueIndex as int?;
+    final resolvedPosition = position ?? _state.position;
+    final resolvedDuration = duration ?? _state.duration;
+    final resolvedBuffered = bufferedPosition ?? _state.bufferedPosition;
+    final resolvedPlaying = playing ?? _state.isPlaying;
+    final resolvedProcessingState =
+        processingState ??
+        (_state.interrupted
+            ? PlaybackProcessingState.interrupted
+            : _state.phase == AudioPlaybackPhase.loading
+                ? PlaybackProcessingState.loading
+                : _state.phase == AudioPlaybackPhase.buffering
+                    ? PlaybackProcessingState.buffering
+                    : _state.phase == AudioPlaybackPhase.completed
+                        ? PlaybackProcessingState.completed
+                        : _state.phase == AudioPlaybackPhase.error
+                            ? PlaybackProcessingState.error
+                            : _state.phase == AudioPlaybackPhase.idle
+                                ? PlaybackProcessingState.idle
+                                : PlaybackProcessingState.ready);
+    final next = PlaybackMetrics(
+      sourceId: resolvedSourceId,
+      queueIndex: resolvedQueueIndex,
+      position: resolvedPosition,
+      duration: resolvedDuration,
+      bufferedPosition: resolvedBuffered,
+      playing: resolvedPlaying,
+      processingState: resolvedProcessingState,
+      isPositionAdvancing: _isPositionAdvancing(
+        sourceId: resolvedSourceId,
+        queueIndex: resolvedQueueIndex,
+        playing: resolvedPlaying,
+      ),
+    );
+    _metrics.add(next);
   }
 
   void _syncPositionTimer() {
@@ -507,7 +666,15 @@ class AudioController extends ChangeNotifier
     if (clamped == _state.position) {
       return;
     }
+    if (_state.sourceId != null &&
+        _state.sourceId == _lastProgressSourceId &&
+        _state.queueIndex == _lastProgressQueueIndex &&
+        clamped > _lastProgressPosition) {
+      _lastProgressPosition = clamped;
+      _lastProgressAt = now;
+    }
     _state = _state.copyWith(position: clamped);
+    _emitMetrics(position: clamped);
     notifyListeners();
   }
 
@@ -518,6 +685,7 @@ class AudioController extends ChangeNotifier
     _positionTimer?.cancel();
     _engineSub?.cancel();
     _engineEventSub?.cancel();
+    _metrics.close();
     _engine.dispose();
     super.dispose();
   }

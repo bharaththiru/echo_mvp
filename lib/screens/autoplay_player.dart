@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
 import '../models/voice_note.dart';
+import '../services/audio_playback_controller.dart';
 import '../services/autoplay_controller.dart';
 import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
@@ -110,6 +111,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
     final theme = Theme.of(context);
     final tokens = context.echo;
     final appState = AppScope.of(context);
+    final audio = appState.audio;
     final autoplay = _autoplay ?? appState.autoplay;
     final reduceMotion = appState.settings.reduceMotion;
     final hashtag = appState.hashtagById(widget.hashtagId);
@@ -226,208 +228,235 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
               note.authorId != null &&
               note.authorId!.isNotEmpty &&
               note.authorId != appState.userId;
-          final hasPlaybackStarted =
-              state.position > Duration.zero || state.isPlaying;
-          final isUiLoading =
-              (state.phase == AutoplayPhase.loading || state.isPreparing) &&
-              !hasPlaybackStarted;
-          final isUiBuffering = state.phase == AutoplayPhase.buffering;
-          final statusLabel = _statusLabel(state) ?? 'Ready';
-          final showSpinner = isUiLoading || isUiBuffering;
-          final isError = state.phase == AutoplayPhase.error;
           final buttonSize = state.handsFree ? 96.0 : 82.0;
           final noteTitle = _resolvedNoteTitle(note);
           final posterLabel = _resolvedPosterLabel(note);
-          final centerShowsSpinner = isUiBuffering;
-          final centerDisabled = centerShowsSpinner || state.isTransitioning;
 
-          return Column(
-            children: [
-              _PlayerHeader(
-                stationTitle: hashtag.name,
-                noteCountLabel: noteCountLabel,
-                onBack: () => context.pop(),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: EchoLayout.listPadding(
-                    context,
-                    bottom: 12,
-                    includeBottomSafeArea: true,
+          return StreamBuilder<PlaybackMetrics>(
+            stream: audio.playbackMetrics,
+            initialData: audio.currentMetrics,
+            builder: (context, metricsSnapshot) {
+              final metrics = metricsSnapshot.data ?? audio.currentMetrics;
+              final metricsMatchesCurrent = metrics.sourceId == note.id;
+              final isEnginePlaying = metricsMatchesCurrent
+                  ? metrics.playing
+                  : (state.isPlaying && state.currentNote?.id == note.id);
+              final isEngineBuffering = metricsMatchesCurrent &&
+                  (metrics.processingState == PlaybackProcessingState.loading ||
+                      metrics.processingState ==
+                          PlaybackProcessingState.buffering);
+              final hasPlaybackStarted = metricsMatchesCurrent
+                  ? (metrics.position > Duration.zero || metrics.playing)
+                  : (state.position > Duration.zero || state.isPlaying);
+              final isUiLoading =
+                  !isEnginePlaying &&
+                  ((metricsMatchesCurrent &&
+                          metrics.processingState ==
+                              PlaybackProcessingState.loading) ||
+                      ((state.phase == AutoplayPhase.loading ||
+                              state.isPreparing) &&
+                          !hasPlaybackStarted));
+              final showSpinner = isUiLoading || (isEngineBuffering && !isEnginePlaying);
+              final isError = state.phase == AutoplayPhase.error;
+              final statusLabel =
+                  _statusLabel(
+                    state,
+                    metrics: metrics,
+                    currentNoteId: note.id,
+                  ) ??
+                  'Ready';
+              final centerShowsSpinner = showSpinner && !isEnginePlaying;
+
+              return Column(
+                children: [
+                  _PlayerHeader(
+                    stationTitle: hashtag.name,
+                    noteCountLabel: noteCountLabel,
+                    onBack: () => context.pop(),
                   ),
-                  children: [
-                    SizedBox(height: EchoLayout.space(context, 8)),
-                    _StationAvatar(icon: hashtag.icon),
-                    SizedBox(height: EchoLayout.space(context, 22)),
-                    Text(
-                      noteTitle,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: tokens.textPrimary,
+                  Expanded(
+                    child: ListView(
+                      padding: EchoLayout.listPadding(
+                        context,
+                        bottom: 12,
+                        includeBottomSafeArea: true,
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      posterLabel,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: tokens.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      '${currentIndex + 1} of ${state.queue.length}',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: tokens.textTertiary,
-                      ),
-                    ),
-                    SizedBox(height: EchoLayout.space(context, 14)),
-                    _AutoplayProgress(
-                      autoplay: autoplay,
-                      fallbackDuration: note.duration,
-                      label: statusLabel,
-                      showSpinner: showSpinner,
-                      reduceMotion: reduceMotion,
-                      isError: isError,
-                    ),
-                    if (state.phase == AutoplayPhase.error &&
-                        state.errorMessage != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: EchoCard(
-                          padding: const EdgeInsets.all(14),
-                          radius: 16,
-                          color: tokens.surface2,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Playback issue',
-                                style: theme.textTheme.titleSmall,
+                      children: [
+                        SizedBox(height: EchoLayout.space(context, 8)),
+                        _StationAvatar(icon: hashtag.icon),
+                        SizedBox(height: EchoLayout.space(context, 22)),
+                        Text(
+                          noteTitle,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: tokens.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          posterLabel,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: tokens.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          '${currentIndex + 1} of ${state.queue.length}',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: tokens.textTertiary,
+                          ),
+                        ),
+                        SizedBox(height: EchoLayout.space(context, 14)),
+                        _AutoplayProgress(
+                          audio: audio,
+                          currentNoteId: note.id,
+                          fallbackDuration: note.duration,
+                          label: statusLabel,
+                          showSpinner: showSpinner,
+                          reduceMotion: reduceMotion,
+                          isError: isError,
+                        ),
+                        if (state.phase == AutoplayPhase.error &&
+                            state.errorMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: EchoCard(
+                              padding: const EdgeInsets.all(14),
+                              radius: 16,
+                              color: tokens.surface2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Playback issue',
+                                    style: theme.textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    state.errorMessage!,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: tokens.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  EchoSecondaryButton(
+                                    label: 'Retry',
+                                    onPressed: () => autoplay.restart(),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                state.errorMessage!,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: tokens.textSecondary,
+                            ),
+                          ),
+                        SizedBox(height: EchoLayout.space(context, 28)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              tooltip: state.isMuted
+                                  ? 'Unmute current note'
+                                  : 'Mute current note',
+                              onPressed: () => autoplay.toggleMute(),
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                foregroundColor: tokens.textPrimary,
+                              ),
+                              icon: Icon(
+                                state.isMuted ? Icons.volume_off : Icons.volume_up,
+                              ),
+                              iconSize: 28,
+                            ),
+                            const SizedBox(width: 14),
+                            SizedBox(
+                              height: buttonSize,
+                              width: buttonSize,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  shape: const CircleBorder(),
+                                  padding: EdgeInsets.zero,
+                                  backgroundColor: tokens.accentPrimary,
+                                  foregroundColor: theme.colorScheme.onPrimary,
+                                  elevation: 0,
+                                  shadowColor: Colors.transparent,
                                 ),
+                                onPressed: () => autoplay.togglePlayPause(),
+                                child: centerShowsSpinner
+                                    ? SizedBox(
+                                        height: 24,
+                                        width: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                theme.colorScheme.onPrimary,
+                                              ),
+                                        ),
+                                      )
+                                    : Icon(
+                                        isEnginePlaying
+                                            ? Icons.pause
+                                            : Icons.play_arrow,
+                                        size: 36,
+                                      ),
                               ),
-                              const SizedBox(height: 10),
-                              EchoSecondaryButton(
-                                label: 'Retry',
-                                onPressed: () => autoplay.restart(),
+                            ),
+                            const SizedBox(width: 14),
+                            IconButton(
+                              tooltip: 'Next note',
+                              onPressed: state.queue.length <= 1
+                                  ? null
+                                  : () => autoplay.skip(),
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                foregroundColor: tokens.textPrimary,
+                              ),
+                              icon: const Icon(Icons.skip_next),
+                              iconSize: 30,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Center(
+                          child: PopupMenuButton<String>(
+                            color: tokens.surface1,
+                            onSelected: (action) => _handleMenuAction(note, action),
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'hide',
+                                child: Text('Hide clip'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'report',
+                                child: Text('Report & hide'),
+                              ),
+                              PopupMenuItem(
+                                value: 'block',
+                                enabled: canBlock,
+                                child: const Text('Block user'),
                               ),
                             ],
-                          ),
-                        ),
-                      ),
-                    SizedBox(height: EchoLayout.space(context, 28)),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          tooltip: state.isMuted
-                              ? 'Unmute current note'
-                              : 'Mute current note',
-                          onPressed: () => autoplay.toggleMute(),
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            foregroundColor: tokens.textPrimary,
-                          ),
-                          icon: Icon(
-                            state.isMuted ? Icons.volume_off : Icons.volume_up,
-                          ),
-                          iconSize: 28,
-                        ),
-                        const SizedBox(width: 14),
-                        SizedBox(
-                          height: buttonSize,
-                          width: buttonSize,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              shape: const CircleBorder(),
-                              padding: EdgeInsets.zero,
-                              backgroundColor: tokens.accentPrimary,
-                              foregroundColor: theme.colorScheme.onPrimary,
-                              elevation: 0,
-                              shadowColor: Colors.transparent,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              child: Text(
+                                'Clip actions',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: tokens.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                            onPressed: centerDisabled
-                                ? null
-                                : () => autoplay.togglePlayPause(),
-                            child: centerShowsSpinner
-                                ? SizedBox(
-                                    height: 24,
-                                    width: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        theme.colorScheme.onPrimary,
-                                      ),
-                                    ),
-                                  )
-                                : Icon(
-                                    state.isPlaying
-                                        ? Icons.pause
-                                        : Icons.play_arrow,
-                                    size: 36,
-                                  ),
                           ),
-                        ),
-                        const SizedBox(width: 14),
-                        IconButton(
-                          tooltip: 'Next note',
-                          onPressed:
-                              state.queue.length <= 1 ? null : () => autoplay.skip(),
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            foregroundColor: tokens.textPrimary,
-                          ),
-                          icon: const Icon(Icons.skip_next),
-                          iconSize: 30,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Center(
-                      child: PopupMenuButton<String>(
-                        color: tokens.surface1,
-                        onSelected: (action) => _handleMenuAction(note, action),
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'hide',
-                            child: Text('Hide clip'),
-                          ),
-                          const PopupMenuItem(
-                            value: 'report',
-                            child: Text('Report & hide'),
-                          ),
-                          PopupMenuItem(
-                            value: 'block',
-                            enabled: canBlock,
-                            child: const Text('Block user'),
-                          ),
-                        ],
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          child: Text(
-                            'Clip actions',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: tokens.textSecondary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
@@ -785,7 +814,8 @@ bool _autoplayShouldRebuild(AutoplayState previous, AutoplayState next) {
 
 class _AutoplayProgress extends StatelessWidget {
   const _AutoplayProgress({
-    required this.autoplay,
+    required this.audio,
+    required this.currentNoteId,
     required this.fallbackDuration,
     required this.label,
     required this.showSpinner,
@@ -793,7 +823,8 @@ class _AutoplayProgress extends StatelessWidget {
     required this.isError,
   });
 
-  final AutoplayController autoplay;
+  final AudioPlaybackController audio;
+  final String currentNoteId;
   final Duration fallbackDuration;
   final String label;
   final bool showSpinner;
@@ -804,31 +835,26 @@ class _AutoplayProgress extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
-    return ListenableSelector<_ProgressSnapshot>(
-      listenable: autoplay,
-      selector: () {
-        final state = autoplay.state;
-        final duration = state.duration.inMilliseconds > 0
-            ? state.duration
+    return StreamBuilder<PlaybackMetrics>(
+      stream: audio.playbackMetrics,
+      initialData: audio.currentMetrics,
+      builder: (context, snapshot) {
+        final metrics = snapshot.data ?? audio.currentMetrics;
+        final useLiveMetrics =
+            metrics.sourceId == currentNoteId || metrics.playing;
+        final duration = useLiveMetrics && metrics.duration.inMilliseconds > 0
+            ? metrics.duration
             : fallbackDuration;
-        final buffered = state.bufferedPosition;
-        return _ProgressSnapshot(
-          position: state.position,
-          duration: duration,
-          buffered: buffered,
-        );
-      },
-      shouldRebuild: (previous, next) => previous != next,
-      builder: (context, progress) {
-        final duration = progress.duration;
+        final position = useLiveMetrics ? metrics.position : Duration.zero;
+        final buffered = useLiveMetrics ? metrics.bufferedPosition : Duration.zero;
         final ratio = duration.inMilliseconds == 0
             ? 0.0
-            : (progress.position.inMilliseconds / duration.inMilliseconds)
+            : (position.inMilliseconds / duration.inMilliseconds)
                 .clamp(0.0, 1.0)
                 .toDouble();
         final bufferedRatio = duration.inMilliseconds == 0
             ? 0.0
-            : (progress.buffered.inMilliseconds / duration.inMilliseconds)
+            : (buffered.inMilliseconds / duration.inMilliseconds)
                 .clamp(0.0, 1.0)
                 .toDouble();
         return Column(
@@ -846,7 +872,7 @@ class _AutoplayProgress extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  formatDuration(progress.position),
+                  formatDuration(position),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: tokens.textSecondary,
                   ),
@@ -864,29 +890,6 @@ class _AutoplayProgress extends StatelessWidget {
       },
     );
   }
-}
-
-class _ProgressSnapshot {
-  const _ProgressSnapshot({
-    required this.position,
-    required this.duration,
-    required this.buffered,
-  });
-
-  final Duration position;
-  final Duration duration;
-  final Duration buffered;
-
-  @override
-  bool operator ==(Object other) {
-    return other is _ProgressSnapshot &&
-        other.position == position &&
-        other.duration == duration &&
-        other.buffered == buffered;
-  }
-
-  @override
-  int get hashCode => Object.hash(position, duration, buffered);
 }
 
 int _resolvedStationNoteCount({
@@ -916,17 +919,31 @@ String _resolvedPosterLabel(VoiceNote note) {
   return username;
 }
 
-String? _statusLabel(AutoplayState state) {
+String? _statusLabel(
+  AutoplayState state, {
+  required PlaybackMetrics metrics,
+  required String currentNoteId,
+}) {
   if (state.transientMessage != null && state.transientMessage!.isNotEmpty) {
     return state.transientMessage;
   }
   if (state.errorMessage != null && state.errorMessage!.isNotEmpty) {
     return state.errorMessage;
   }
-  if (state.isBuffering) {
-    return state.statusText ?? 'Buffering...';
+  final metricsMatchCurrent = metrics.sourceId == currentNoteId;
+  final isEngineBuffering =
+      metricsMatchCurrent &&
+      (metrics.processingState == PlaybackProcessingState.loading ||
+          metrics.processingState == PlaybackProcessingState.buffering);
+  if (isEngineBuffering && !metrics.playing) {
+    return 'Buffering...';
   }
-  final hasStarted = state.position > Duration.zero || state.isPlaying;
+  if (isEngineBuffering && metrics.playing && !metrics.isPositionAdvancing) {
+    return 'Buffering...';
+  }
+  final hasStarted = metricsMatchCurrent
+      ? (metrics.position > Duration.zero || metrics.playing)
+      : (state.position > Duration.zero || state.isPlaying);
   if ((state.phase == AutoplayPhase.loading || state.isPreparing) &&
       !hasStarted) {
     return 'Loading clip...';
@@ -934,7 +951,7 @@ String? _statusLabel(AutoplayState state) {
   if (state.phase == AutoplayPhase.transitioning) {
     return 'Moving to next clip...';
   }
-  if (state.isPlaying) {
+  if (metricsMatchCurrent ? metrics.playing : state.isPlaying) {
     return 'Now listening';
   }
   if (state.phase == AutoplayPhase.paused) {

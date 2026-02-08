@@ -275,6 +275,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await _clearAllCaches();
     queue.add(const <MediaItem>[]);
     await _player.stop();
+    await _player.setLoopMode(LoopMode.off);
     final uri = _resolveUri(path);
     final media = MediaItem(
       id: sourceId,
@@ -301,6 +302,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _queueItems.clear();
     await _clearAllCaches();
     await _player.stop();
+    await _player.setLoopMode(LoopMode.all);
     final sources = <AudioSource>[];
     for (final item in items) {
       final media = _buildMediaItem(item);

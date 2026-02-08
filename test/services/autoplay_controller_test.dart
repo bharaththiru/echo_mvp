@@ -425,6 +425,42 @@ class FakeAudioPlaybackController extends ChangeNotifier
   AudioPlaybackState get state => _state;
 
   @override
+  PlaybackMetrics get currentMetrics => PlaybackMetrics(
+    sourceId: _state.sourceId,
+    queueIndex: _state.queueIndex,
+    position: _state.position,
+    duration: _state.duration,
+    bufferedPosition: _state.bufferedPosition,
+    playing: _state.isPlaying,
+    processingState: _processingFromPhase(_state.phase),
+    isPositionAdvancing: _state.isPlaying,
+  );
+
+  @override
+  Stream<PlaybackMetrics> get playbackMetrics =>
+      Stream<PlaybackMetrics>.value(currentMetrics);
+
+  PlaybackProcessingState _processingFromPhase(AudioPlaybackPhase phase) {
+    switch (phase) {
+      case AudioPlaybackPhase.idle:
+        return PlaybackProcessingState.idle;
+      case AudioPlaybackPhase.loading:
+        return PlaybackProcessingState.loading;
+      case AudioPlaybackPhase.playing:
+      case AudioPlaybackPhase.paused:
+        return PlaybackProcessingState.ready;
+      case AudioPlaybackPhase.buffering:
+        return PlaybackProcessingState.buffering;
+      case AudioPlaybackPhase.completed:
+        return PlaybackProcessingState.completed;
+      case AudioPlaybackPhase.interrupted:
+        return PlaybackProcessingState.interrupted;
+      case AudioPlaybackPhase.error:
+        return PlaybackProcessingState.error;
+    }
+  }
+
+  @override
   Future<void> play({
     required String sourceId,
     required String path,

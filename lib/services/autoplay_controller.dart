@@ -291,6 +291,10 @@ class AutoplayController extends ChangeNotifier {
   int _eventSerial = 0;
   Timer? _stallTimer;
   int _stallToken = 0;
+  String? _stallNoteId;
+  Duration _stallPosition = Duration.zero;
+  Duration _stallBuffered = Duration.zero;
+  DateTime? _stallObservedAt;
   DateTime? _lastQueueRefreshAt;
   DateTime? _lastPrefetchNoopAt;
   DateTime? _lastPrefetchLogAt;
@@ -350,7 +354,9 @@ class AutoplayController extends ChangeNotifier {
 
   static const _resolveTimeout = Duration(seconds: 8);
   static const _maxConsecutiveFailures = 3;
-  static const _stallTimeout = Duration(seconds: 10);
+  static const _stallTimeout = Duration(seconds: 5);
+  static const _stallPositionThreshold = Duration(milliseconds: 220);
+  static const _stallBufferedThreshold = Duration(milliseconds: 320);
   static const _queueRefreshCooldown = Duration(seconds: 30);
   static const _metadataBufferMin = 15;
   static const _metadataBufferTarget = 30;
@@ -990,7 +996,10 @@ class AutoplayController extends ChangeNotifier {
   }
 
   Future<void> togglePlayPause() async {
-    if (_state.isPreparing || _state.isTransitioning) {
+    final audioState = _audio.state;
+    final activeId = _resolveActiveId(audioState) ?? audioState.sourceId;
+    final hasActiveEngine = activeId != null && activeId.isNotEmpty;
+    if (_state.isTransitioning && !hasActiveEngine) {
       return;
     }
     if (_state.phase == AutoplayPhase.error) {
@@ -1003,7 +1012,8 @@ class AutoplayController extends ChangeNotifier {
       await _startAutoplay();
       return;
     }
-    if (_state.isPlaying) {
+    final isCurrentlyPlaying = audioState.isPlaying || _state.isPlaying;
+    if (isCurrentlyPlaying) {
       _setState(
         _state.copyWith(
           userPaused: true,
@@ -2632,16 +2642,19 @@ class AutoplayController extends ChangeNotifier {
     }
 
     var mappedPhase = _mapFromAudio(audioState);
+    final engineBuffering =
+        audioState.phase == AudioPlaybackPhase.loading ||
+        audioState.phase == AudioPlaybackPhase.buffering;
     final hasPositionProgress =
         audioState.position > Duration.zero ||
         audioState.position > _state.position ||
         _lastObservedPosition > Duration.zero;
     if (audioState.isPlaying &&
         (mappedPhase == AutoplayPhase.loading ||
+            mappedPhase == AutoplayPhase.buffering ||
             mappedPhase == AutoplayPhase.paused ||
             mappedPhase == AutoplayPhase.idle ||
-            mappedPhase == AutoplayPhase.completed) &&
-        hasPositionProgress) {
+            mappedPhase == AutoplayPhase.completed)) {
       mappedPhase = AutoplayPhase.playing;
     }
     final suppressPhase =
@@ -2700,9 +2713,12 @@ class AutoplayController extends ChangeNotifier {
     if (mappedPhase != previousPhase) {
       _log('phase $previousPhase -> $mappedPhase');
     }
-    _updateStallGuard(mappedPhase, resolved.id);
+    _updateStallGuard(resolved.id, audioState);
     _scheduleTransitionCue(audioState, resolved);
-    final statusText = mappedPhase == AutoplayPhase.buffering
+    final stalledWhilePlaying =
+        engineBuffering && audioState.isPlaying && !hasPositionProgress;
+    final statusText = (mappedPhase == AutoplayPhase.buffering ||
+            stalledWhilePlaying)
         ? audioState.statusText
         : null;
     final shouldKeepPreparing =
@@ -2807,16 +2823,41 @@ class AutoplayController extends ChangeNotifier {
     }
   }
 
-  void _updateStallGuard(AutoplayPhase phase, String noteId) {
-    if (_state.userPaused || _state.phase == AutoplayPhase.interrupted) {
+  void _updateStallGuard(String noteId, AudioPlaybackState audioState) {
+    if (_state.userPaused ||
+        _state.phase == AutoplayPhase.interrupted ||
+        !audioState.isPlaying) {
       _cancelStallGuard();
       return;
     }
-    if (phase == AutoplayPhase.loading || phase == AutoplayPhase.buffering) {
+    final engineBuffering =
+        audioState.phase == AudioPlaybackPhase.loading ||
+        audioState.phase == AudioPlaybackPhase.buffering;
+    if (!engineBuffering) {
+      _cancelStallGuard();
+      return;
+    }
+    final nextPosition = audioState.position;
+    final nextBuffered = audioState.bufferedPosition;
+    final noteChanged = _stallNoteId != noteId;
+    final advancedPosition =
+        nextPosition - _stallPosition >= _stallPositionThreshold;
+    final advancedBuffered =
+        nextBuffered - _stallBuffered >= _stallBufferedThreshold;
+    if (noteChanged ||
+        _stallObservedAt == null ||
+        advancedPosition ||
+        advancedBuffered) {
+      _stallNoteId = noteId;
+      _stallPosition = nextPosition;
+      _stallBuffered = nextBuffered;
+      _stallObservedAt = DateTime.now();
       _armStallGuard(noteId);
       return;
     }
-    _cancelStallGuard();
+    if (_stallTimer == null) {
+      _armStallGuard(noteId);
+    }
   }
 
   void _armStallGuard(String noteId) {
@@ -2827,14 +2868,33 @@ class AutoplayController extends ChangeNotifier {
         return;
       }
       if (_state.userPaused || _state.phase == AutoplayPhase.interrupted) {
+        _cancelStallGuard();
         return;
       }
-      if (_state.currentNote?.id != noteId) {
+      if (_state.currentNote?.id != noteId || _stallNoteId != noteId) {
+        _cancelStallGuard();
         return;
       }
-      final phase = _audio.state.phase;
-      if (phase != AudioPlaybackPhase.loading &&
-          phase != AudioPlaybackPhase.buffering) {
+      final audioState = _audio.state;
+      final phase = audioState.phase;
+      final stillBuffering =
+          audioState.isPlaying &&
+          (phase == AudioPlaybackPhase.loading ||
+              phase == AudioPlaybackPhase.buffering);
+      if (!stillBuffering) {
+        _cancelStallGuard();
+        return;
+      }
+      final advancedPosition =
+          audioState.position - _stallPosition >= _stallPositionThreshold;
+      final advancedBuffered =
+          audioState.bufferedPosition - _stallBuffered >=
+          _stallBufferedThreshold;
+      if (advancedPosition || advancedBuffered) {
+        _stallPosition = audioState.position;
+        _stallBuffered = audioState.bufferedPosition;
+        _stallObservedAt = DateTime.now();
+        _armStallGuard(noteId);
         return;
       }
       unawaited(
@@ -2852,6 +2912,11 @@ class AutoplayController extends ChangeNotifier {
   void _cancelStallGuard() {
     _stallTimer?.cancel();
     _stallTimer = null;
+    _stallToken += 1;
+    _stallNoteId = null;
+    _stallObservedAt = null;
+    _stallPosition = Duration.zero;
+    _stallBuffered = Duration.zero;
   }
 
   void _resetTransitionCue(String noteId) {
