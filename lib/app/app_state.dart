@@ -8,15 +8,14 @@ import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../data/seed_data.dart';
 import '../models/hashtag.dart';
 import '../models/voice_note.dart';
 import '../services/audio_controller.dart';
+import '../services/auth_service.dart';
 import '../services/autoplay_controller.dart';
 import '../services/autoplay_data_source.dart';
 import '../services/autoplay_feed_queue_builder.dart';
@@ -30,9 +29,8 @@ class AppState extends ChangeNotifier
     required SharedPreferences prefs,
     required this.settings,
     required this.audio,
-    required FirebaseAuth auth,
+    required AuthService authService,
     required FirebaseRepository repository,
-    required User? user,
     required String recordingsDirectory,
     required String audioCacheDirectory,
     required this.onboardingComplete,
@@ -40,9 +38,8 @@ class AppState extends ChangeNotifier
     required this.savedHashtags,
     required this.recentHashtagIds,
   }) : _prefs = prefs,
-        _auth = auth,
+        _authService = authService,
         _repository = repository,
-        _user = user,
         _recordingsDirectory = recordingsDirectory,
         _audioCacheDirectory = audioCacheDirectory,
         _idGenerator = IdGenerator();
@@ -74,11 +71,8 @@ class AppState extends ChangeNotifier
 
   final SharedPreferences _prefs;
   final IdGenerator _idGenerator;
-  final FirebaseAuth _auth;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
+  final AuthService _authService;
   final FirebaseRepository _repository;
-  late final StreamSubscription<User?> _authSubscription;
-  User? _user;
   final AudioController audio;
   late final AutoplayController autoplay;
   final String _recordingsDirectory;
@@ -112,13 +106,12 @@ class AppState extends ChangeNotifier
     final prefs = await SharedPreferences.getInstance();
     final settings = AppSettings.fromPrefs(prefs);
     final audio = await AudioController.create();
-    final auth = FirebaseAuth.instance;
+    final authService = AuthService.create(auth: FirebaseAuth.instance);
     final repository = FirebaseRepository(
       firestore: FirebaseFirestore.instance,
       storage: FirebaseStorage.instance,
       storageCdnBaseUrl: FirebaseConfig.storageCdnBaseUrl,
     );
-    final user = auth.currentUser;
     final recordingsDirectory = await _prepareRecordingsDirectory();
     final audioCacheDirectory = await _prepareAudioCacheDirectory();
     final onboardingComplete = prefs.getBool(_onboardingCompleteKey) ?? false;
@@ -177,9 +170,8 @@ class AppState extends ChangeNotifier
       prefs: prefs,
       settings: settings,
       audio: audio,
-      auth: auth,
+      authService: authService,
       repository: repository,
-      user: user,
       recordingsDirectory: recordingsDirectory,
       audioCacheDirectory: audioCacheDirectory,
       onboardingComplete: onboardingComplete,
@@ -204,9 +196,12 @@ class AppState extends ChangeNotifier
       noteIds: state._hiddenNoteIds,
       authorIds: state._blockedAuthorIds,
     );
-    state._bindAuth();
+    authService.bind(() {
+      state.refreshMyPosts(force: true);
+      state.notifyListeners();
+    });
     // Avoid blocking the first frame on network/auth work.
-    unawaited(state._maybeAutoSignIn());
+    unawaited(authService.maybeAutoSignIn());
     unawaited(state.refreshHashtags());
     unawaited(state.refreshMyPosts());
     unawaited(state._pruneAudioDiskCacheLru());
@@ -241,13 +236,17 @@ class AppState extends ChangeNotifier
     audioCacheDir.createSync(recursive: true);
     final audioCacheDirectory = audioCacheDir.path;
     final saved = hashtags.take(3).map((tag) => tag.name).toList();
+    final authService = AuthService.create(
+      auth: resolvedAuth,
+      initialUser: null,
+    );
+    authService.bindNoop();
     final state = AppState._(
       prefs: prefs,
       settings: resolvedSettings,
       audio: audio,
-      auth: resolvedAuth,
+      authService: authService,
       repository: resolvedRepository,
-      user: null,
       recordingsDirectory: recordingsDirectory,
       audioCacheDirectory: audioCacheDirectory,
       onboardingComplete: onboardingComplete,
@@ -261,7 +260,6 @@ class AppState extends ChangeNotifier
       audio: audio,
     );
     state.autoplay.syncSuppressed(noteIds: const [], authorIds: const []);
-    state._authSubscription = const Stream<User?>.empty().listen((_) {});
     state._hashtags
       ..clear()
       ..addAll(hashtags);
@@ -307,45 +305,15 @@ class AppState extends ChangeNotifier
     }
   }
 
-  Future<void> _maybeAutoSignIn() async {
-    if (!FirebaseConfig.skipAuth || _user != null) {
-      return;
-    }
-    final email = FirebaseConfig.devEmail;
-    final password = FirebaseConfig.devPassword;
-    if (email.isEmpty || password.isEmpty) {
-      return;
-    }
-    try {
-      final response = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      _user = response.user;
-    } on FirebaseAuthException {
-      return;
-    } catch (_) {
-      return;
-    }
-  }
+  bool get isAuthenticated => _authService.isAuthenticated;
 
-  void _bindAuth() {
-    _authSubscription = _auth.authStateChanges().listen((user) {
-      _user = user;
-      refreshMyPosts(force: true);
-      notifyListeners();
-    });
-  }
+  bool get skipAuth => _authService.skipAuth;
 
-  bool get isAuthenticated => _user != null;
+  String? get userEmail => _authService.userEmail;
 
-  bool get skipAuth => FirebaseConfig.skipAuth;
+  String? get userId => _authService.userId;
 
-  String? get userEmail => _user?.email;
-
-  String? get userId => _user?.uid;
-
-  bool get _isDevUnauthed => skipAuth && _user == null;
+  bool get _isDevUnauthed => _authService.isDevUnauthed;
 
   PendingPostDraft? get pendingPostDraft => _pendingPostDraft;
 
@@ -354,68 +322,18 @@ class AppState extends ChangeNotifier
   Future<UserCredential> signInWithPassword({
     required String email,
     required String password,
-  }) {
-    return _auth.signInWithEmailAndPassword(email: email, password: password);
-  }
+  }) => _authService.signInWithPassword(email: email, password: password);
 
   Future<UserCredential> signUp({
     required String email,
     required String password,
-  }) {
-    return _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-  }
+  }) => _authService.signUp(email: email, password: password);
 
-  Future<void> signOut() async {
-    await _auth.signOut();
-    await _googleSignIn.signOut();
-  }
+  Future<void> signOut() => _authService.signOut();
 
-  Future<UserCredential?> signInWithGoogle() async {
-    final account = await _googleSignIn.signIn();
-    if (account == null) {
-      return null;
-    }
-    final auth = await account.authentication;
-    final credential = GoogleAuthProvider.credential(
-      idToken: auth.idToken,
-      accessToken: auth.accessToken,
-    );
-    return _auth.signInWithCredential(credential);
-  }
+  Future<UserCredential?> signInWithGoogle() => _authService.signInWithGoogle();
 
-  Future<UserCredential?> signInWithApple() async {
-    final isAvailable = await SignInWithApple.isAvailable();
-    if (!isAvailable) {
-      throw FirebaseAuthException(
-        code: 'apple-sign-in-unavailable',
-        message: 'Sign in with Apple is not available on this device.',
-      );
-    }
-    final rawNonce = _generateNonce();
-    final nonce = _sha256ofString(rawNonce);
-    final credential = await SignInWithApple.getAppleIDCredential(
-      scopes: [
-        AppleIDAuthorizationScopes.email,
-        AppleIDAuthorizationScopes.fullName,
-      ],
-      nonce: nonce,
-    );
-    final idToken = credential.identityToken;
-    if (idToken == null) {
-      throw FirebaseAuthException(
-        code: 'apple-sign-in-failed',
-        message: 'Unable to retrieve Apple identity token.',
-      );
-    }
-    final oauthCredential = OAuthProvider('apple.com').credential(
-      idToken: idToken,
-      rawNonce: rawNonce,
-    );
-    return _auth.signInWithCredential(oauthCredential);
-  }
+  Future<UserCredential?> signInWithApple() => _authService.signInWithApple();
 
   List<Hashtag> get hashtags => List<Hashtag>.unmodifiable(_hashtags);
 
@@ -1845,27 +1763,11 @@ class AppState extends ChangeNotifier
 
   @override
   void dispose() {
-    _authSubscription.cancel();
+    _authService.dispose();
     autoplay.dispose();
     audio.dispose();
     super.dispose();
   }
-}
-
-String _generateNonce([int length = 32]) {
-  const charset =
-      '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
-  final random = Random.secure();
-  return List<String>.generate(
-    length,
-    (_) => charset[random.nextInt(charset.length)],
-  ).join();
-}
-
-String _sha256ofString(String input) {
-  final bytes = utf8.encode(input);
-  final digest = sha256.convert(bytes);
-  return digest.toString();
 }
 
 bool _sameList(List<String> left, List<String> right) {
