@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -16,17 +15,16 @@ import '../models/voice_note.dart';
 import '../services/audio_cache_service.dart';
 import '../services/audio_controller.dart';
 import '../services/auth_service.dart';
+import '../services/feed_service.dart';
 import '../services/moderation_service.dart';
 import '../services/skip_quota_service.dart';
 import '../services/autoplay_controller.dart';
 import '../services/autoplay_data_source.dart';
-import '../services/autoplay_feed_queue_builder.dart';
 import '../services/firebase_repository.dart';
 import '../utils/id_generator.dart';
 import 'firebase_config.dart';
 
-class AppState extends ChangeNotifier
-    implements AutoplayDataSource, AutoplayFeedQueueBuilder {
+class AppState extends ChangeNotifier implements AutoplayDataSource {
   AppState._({
     required SharedPreferences prefs,
     required this.settings,
@@ -35,17 +33,17 @@ class AppState extends ChangeNotifier
     required AudioCacheService audioCache,
     required SkipQuotaService skipQuotaService,
     required ModerationService moderationService,
+    required FeedService feedService,
     required FirebaseRepository repository,
     required String recordingsDirectory,
     required this.onboardingComplete,
     required this.onboardingInterests,
-    required this.savedHashtags,
-    required this.recentHashtagIds,
   }) : _prefs = prefs,
         _authService = authService,
         _audioCache = audioCache,
         _skipQuota = skipQuotaService,
         _moderation = moderationService,
+        _feed = feedService,
         _repository = repository,
         _recordingsDirectory = recordingsDirectory,
         _idGenerator = IdGenerator();
@@ -67,8 +65,6 @@ class AppState extends ChangeNotifier
   static const _postTimeout = Duration(seconds: 12);
   static const _postRateLimitWindow = Duration(hours: 1);
   static const _postRateLimitMax = 20;
-  static const _remoteFeedTransientCooldown = Duration(seconds: 45);
-  static const _remoteFeedPolicyCooldown = Duration(minutes: 10);
 
   final SharedPreferences _prefs;
   final IdGenerator _idGenerator;
@@ -76,31 +72,21 @@ class AppState extends ChangeNotifier
   final AudioCacheService _audioCache;
   final SkipQuotaService _skipQuota;
   final ModerationService _moderation;
+  final FeedService _feed;
   final FirebaseRepository _repository;
   final AudioController audio;
   late final AutoplayController autoplay;
   final String _recordingsDirectory;
-  final List<Hashtag> _hashtags = [];
-  final Map<String, List<VoiceNote>> _notesByHashtag = {};
-  final Map<String, List<VoiceNote>> _localDevNotesByHashtag = {};
-  final Map<String, bool> _notesRemoteAttempted = {};
-  final Map<String, bool> _notesLoading = {};
-  final Map<String, String?> _notesError = {};
-  List<VoiceNote> _myPosts = [];
-  bool _hashtagsLoading = false;
-  bool _myPostsLoading = false;
-  String? _hashtagsError;
-  String? _myPostsError;
   PendingPostDraft? _pendingPostDraft;
   Future<VoiceNote>? _postInFlight;
-  DateTime? _remoteFeedCooldownUntil;
 
   AppSettings settings;
   bool onboardingComplete;
   List<String> onboardingInterests;
-  List<String> savedHashtags;
-  List<String> recentHashtagIds;
   String? pendingRecordingPath;
+
+  List<String> get savedHashtags => _feed.savedHashtags;
+  List<String> get recentHashtagIds => _feed.recentHashtagIds;
 
   static Future<AppState> create() async {
     final prefs = await SharedPreferences.getInstance();
@@ -184,6 +170,16 @@ class AppState extends ChangeNotifier
       onSuppressAuthor: (id, {message}) =>
           stateRef!.autoplay.suppressAuthor(id, message: message),
     );
+    final feed = FeedService(
+      prefs: prefs,
+      repository: repository,
+      moderation: moderation,
+      userId: () => authService.userId,
+      isDevUnauthed: () => authService.isDevUnauthed,
+      onStateChanged: () => stateRef!.notifyListeners(),
+      initialSavedHashtags: savedHashtags,
+      initialRecentHashtagIds: recentHashtagIds,
+    );
     final state = AppState._(
       prefs: prefs,
       settings: settings,
@@ -192,19 +188,18 @@ class AppState extends ChangeNotifier
       audioCache: audioCache,
       skipQuotaService: skipQuota,
       moderationService: moderation,
+      feedService: feed,
       repository: repository,
       recordingsDirectory: recordingsDirectory,
       onboardingComplete: onboardingComplete,
       onboardingInterests: onboardingInterests,
-      savedHashtags: savedHashtags,
-      recentHashtagIds: recentHashtagIds,
     );
     stateRef = state;
     state.pendingRecordingPath = resolvedRecordingPath;
     state._pendingPostDraft = pendingDraft;
     state.autoplay = AutoplayController(
       dataSource: state,
-      feedQueueBuilder: state,
+      feedQueueBuilder: state._feed,
       audio: audio,
     );
     state.autoplay.syncSuppressed(
@@ -279,6 +274,16 @@ class AppState extends ChangeNotifier
       onSuppressAuthor: (id, {message}) =>
           stateRef!.autoplay.suppressAuthor(id, message: message),
     );
+    final feed = FeedService(
+      prefs: prefs,
+      repository: resolvedRepository,
+      moderation: moderation,
+      userId: () => authService.userId,
+      isDevUnauthed: () => authService.isDevUnauthed,
+      onStateChanged: () => stateRef!.notifyListeners(),
+      initialSavedHashtags: saved,
+      initialRecentHashtagIds: const [],
+    );
     final state = AppState._(
       prefs: prefs,
       settings: resolvedSettings,
@@ -287,31 +292,23 @@ class AppState extends ChangeNotifier
       audioCache: audioCache,
       skipQuotaService: skipQuota,
       moderationService: moderation,
+      feedService: feed,
       repository: resolvedRepository,
       recordingsDirectory: recordingsDirectory,
       onboardingComplete: onboardingComplete,
       onboardingInterests: saved,
-      savedHashtags: saved,
-      recentHashtagIds: const [],
     );
     stateRef = state;
     state.autoplay = AutoplayController(
       dataSource: state,
-      feedQueueBuilder: state,
+      feedQueueBuilder: state._feed,
       audio: audio,
     );
     state.autoplay.syncSuppressed(
       noteIds: moderation.hiddenNoteIds,
       authorIds: moderation.blockedAuthorIds,
     );
-    state._hashtags
-      ..clear()
-      ..addAll(hashtags);
-    state._notesByHashtag
-      ..clear()
-      ..addAll(notesByHashtag);
-    state._notesLoading.clear();
-    state._notesError.clear();
+    feed.initFromSnapshot(hashtags: hashtags, notesByHashtag: notesByHashtag);
     return state;
   }
 
@@ -370,618 +367,40 @@ class AppState extends ChangeNotifier
 
   Future<UserCredential?> signInWithApple() => _authService.signInWithApple();
 
-  List<Hashtag> get hashtags => List<Hashtag>.unmodifiable(_hashtags);
+  List<Hashtag> get hashtags => _feed.hashtags;
 
-  bool get hashtagsLoading => _hashtagsLoading;
+  bool get hashtagsLoading => _feed.hashtagsLoading;
 
-  String? get hashtagsError => _hashtagsError;
+  String? get hashtagsError => _feed.hashtagsError;
 
-  Hashtag? hashtagById(String id) {
-    for (final tag in _hashtags) {
-      if (tag.id == id) {
-        return tag;
-      }
-    }
-    return null;
-  }
+  Hashtag? hashtagById(String id) => _feed.hashtagById(id);
 
-  Future<void> refreshHashtags({bool force = false}) async {
-    if (_hashtagsLoading) {
-      return;
-    }
-    if (!force && _hashtags.isNotEmpty) {
-      return;
-    }
-    _hashtagsLoading = true;
-    _hashtagsError = null;
-    notifyListeners();
-    try {
-      final fetched = await _repository.fetchHashtags();
-      _hashtags
-        ..clear()
-        ..addAll(fetched);
-      _syncSavedHashtags();
-      _syncRecentHashtags();
-    } catch (_) {
-      _hashtagsError = 'Unable to load hashtags.';
-    } finally {
-      _hashtagsLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<void> refreshHashtags({bool force = false}) =>
+      _feed.refreshHashtags(force: force);
 
-  void _syncSavedHashtags() {
-    if (_hashtags.isEmpty) {
-      return;
-    }
-    final available = _hashtags.map((tag) => tag.name).toSet();
-    final filtered = savedHashtags.where(available.contains).toList();
-    if (filtered.isEmpty) {
-      savedHashtags = _hashtags.take(3).map((tag) => tag.name).toList();
-      _prefs.setStringList(_savedHashtagsKey, savedHashtags);
-      return;
-    }
-    if (filtered.length != savedHashtags.length) {
-      savedHashtags = filtered;
-      _prefs.setStringList(_savedHashtagsKey, savedHashtags);
-    }
-  }
+  List<Hashtag> recentHashtags({int limit = 6}) =>
+      _feed.recentHashtags(limit: limit);
 
-  void _syncRecentHashtags() {
-    if (_hashtags.isEmpty || recentHashtagIds.isEmpty) {
-      return;
-    }
-    final available = _hashtags.map((tag) => tag.id).toSet();
-    final filtered = recentHashtagIds.where(available.contains).toList();
-    if (filtered.length != recentHashtagIds.length) {
-      recentHashtagIds = filtered;
-      _prefs.setStringList(_recentHashtagIdsKey, recentHashtagIds);
-    }
-  }
+  List<VoiceNote> notesForHashtag(String hashtagId) =>
+      _feed.notesForHashtag(hashtagId);
 
-  List<Hashtag> recentHashtags({int limit = 6}) {
-    if (_hashtags.isEmpty || limit <= 0) {
-      return const [];
-    }
-    final byId = {for (final tag in _hashtags) tag.id: tag};
-    final seen = <String>{};
-    final resolved = <Hashtag>[];
-    for (final id in recentHashtagIds) {
-      final tag = byId[id];
-      if (tag == null || seen.contains(tag.id)) {
-        continue;
-      }
-      resolved.add(tag);
-      seen.add(tag.id);
-      if (resolved.length >= limit) {
-        return resolved;
-      }
-    }
-    if (resolved.isNotEmpty) {
-      return resolved;
-    }
-    final fallback = List<Hashtag>.from(_hashtags)
-      ..sort((a, b) {
-        final countOrder = b.noteCount.compareTo(a.noteCount);
-        if (countOrder != 0) {
-          return countOrder;
-        }
-        return a.name.compareTo(b.name);
-      });
-    if (fallback.length > limit) {
-      return fallback.sublist(0, limit);
-    }
-    return fallback;
-  }
+  bool isLoadingNotes(String hashtagId) => _feed.isLoadingNotes(hashtagId);
 
-  @override
-  Future<List<String>> fallbackStationIds({
-    required String currentStationId,
-    int limit = 6,
-  }) async {
-    final normalizedCurrent = currentStationId.trim();
-    if (limit <= 0) {
-      return const <String>[];
-    }
-    final resolved = <String>[];
-    final seen = <String>{};
-    bool addCandidate(String id) {
-      final normalized = id.trim();
-      if (normalized.isEmpty ||
-          normalized == normalizedCurrent ||
-          seen.contains(normalized)) {
-        return false;
-      }
-      final cachedNotes = _localFeedPage(
-        stationId: normalized,
-        limit: 1,
-        cursor: null,
-      );
-      if (cachedNotes.notes.isEmpty) {
-        return false;
-      }
-      resolved.add(normalized);
-      seen.add(normalized);
-      return resolved.length >= limit;
-    }
-
-    for (final id in recentHashtagIds) {
-      if (addCandidate(id)) {
-        return resolved;
-      }
-    }
-    for (final id in _notesByHashtag.keys) {
-      if (addCandidate(id)) {
-        return resolved;
-      }
-    }
-    for (final id in _localDevNotesByHashtag.keys) {
-      if (addCandidate(id)) {
-        return resolved;
-      }
-    }
-
-    if (_isRemoteFeedCoolingDown) {
-      return resolved;
-    }
-
-    for (final id in recentHashtagIds) {
-      final normalized = id.trim();
-      if (normalized.isEmpty ||
-          normalized == normalizedCurrent ||
-          seen.contains(normalized)) {
-        continue;
-      }
-      resolved.add(normalized);
-      seen.add(normalized);
-      if (resolved.length >= limit) {
-        return resolved;
-      }
-    }
-    final trending = List<Hashtag>.from(_hashtags)
-      ..sort((a, b) {
-        final byCount = b.noteCount.compareTo(a.noteCount);
-        if (byCount != 0) {
-          return byCount;
-        }
-        return a.name.compareTo(b.name);
-      });
-    for (final hashtag in trending) {
-      final id = hashtag.id.trim();
-      if (id.isEmpty || id == normalizedCurrent || seen.contains(id)) {
-        continue;
-      }
-      resolved.add(id);
-      seen.add(id);
-      if (resolved.length >= limit) {
-        break;
-      }
-    }
-    return resolved;
-  }
-
-  static const _localFeedCursorPrefix = 'local:';
-  static const _autoplayFeedWindow = 50;
-  bool get _isRemoteFeedCoolingDown {
-    final until = _remoteFeedCooldownUntil;
-    if (until == null) {
-      return false;
-    }
-    return DateTime.now().isBefore(until);
-  }
-
-  void _recordRemoteFeedFailure(Object error) {
-    final cooldown = _isPolicyFeedFailure(error)
-        ? _remoteFeedPolicyCooldown
-        : _remoteFeedTransientCooldown;
-    _remoteFeedCooldownUntil = DateTime.now().add(cooldown);
-  }
-
-  void _recordRemoteFeedSuccess() {
-    _remoteFeedCooldownUntil = null;
-  }
-
-  bool _isPolicyFeedFailure(Object error) {
-    if (error is FirebaseException) {
-      final code = error.code.toLowerCase();
-      return code == 'permission-denied' || code == 'failed-precondition';
-    }
-    final raw = error.toString().toLowerCase();
-    return raw.contains('permission-denied') ||
-        raw.contains('failed-precondition') ||
-        raw.contains('failed_precondition') ||
-        raw.contains('missing or insufficient permissions') ||
-        raw.contains('requires an index');
-  }
-
-  @override
-  Future<AutoplayFeedPage> loadPage({
-    required String stationId,
-    required int limit,
-    String? cursor,
-  }) async {
-    final normalizedStationId = stationId.trim();
-    if (normalizedStationId.isEmpty || limit <= 0) {
-      return const AutoplayFeedPage(
-        stationId: '',
-        notes: <VoiceNote>[],
-        nextCursor: null,
-        hasMore: false,
-      );
-    }
-    if (_isDevUnauthed) {
-      final local = _localFeedPage(
-        stationId: normalizedStationId,
-        limit: max(limit, _autoplayFeedWindow),
-        cursor: cursor,
-      );
-      final shuffled = _buildDeterministicFeedSlice(
-        notes: _filterNotes(local.notes),
-        stationId: normalizedStationId,
-        cursor: cursor,
-        take: limit,
-      );
-      return AutoplayFeedPage(
-        stationId: normalizedStationId,
-        notes: shuffled,
-        nextCursor: local.nextCursor,
-        hasMore: local.hasMore,
-      );
-    }
-    final window = max(limit, _autoplayFeedWindow);
-    if (_isRemoteFeedCoolingDown) {
-      final fallback = _localFeedPage(
-        stationId: normalizedStationId,
-        limit: window,
-        cursor: cursor,
-      );
-      final shuffled = _buildDeterministicFeedSlice(
-        notes: _filterNotes(fallback.notes),
-        stationId: normalizedStationId,
-        cursor: cursor,
-        take: limit,
-      );
-      return AutoplayFeedPage(
-        stationId: normalizedStationId,
-        notes: shuffled,
-        nextCursor: fallback.nextCursor,
-        hasMore: fallback.hasMore,
-      );
-    }
-    try {
-      final page = await _repository.fetchHashtagFeedPage(
-        hashtagId: normalizedStationId,
-        limit: window,
-        cursor: cursor,
-      );
-      _recordRemoteFeedSuccess();
-      final filtered = _filterNotes(page.notes);
-      final shuffled = _buildDeterministicFeedSlice(
-        notes: filtered,
-        stationId: normalizedStationId,
-        cursor: cursor,
-        take: limit,
-      );
-      if (shuffled.isEmpty && (cursor == null || cursor.isEmpty)) {
-        final fallback = _localFeedPage(
-          stationId: normalizedStationId,
-          limit: window,
-          cursor: cursor,
-        );
-        final fallbackShuffled = _buildDeterministicFeedSlice(
-          notes: _filterNotes(fallback.notes),
-          stationId: normalizedStationId,
-          cursor: cursor,
-          take: limit,
-        );
-        if (fallbackShuffled.isNotEmpty) {
-          return AutoplayFeedPage(
-            stationId: normalizedStationId,
-            notes: fallbackShuffled,
-            nextCursor: fallback.nextCursor,
-            hasMore: fallback.hasMore,
-          );
-        }
-      }
-      return AutoplayFeedPage(
-        stationId: normalizedStationId,
-        notes: shuffled,
-        nextCursor: page.nextCursor,
-        hasMore: page.hasMore,
-      );
-    } catch (error) {
-      _recordRemoteFeedFailure(error);
-      final fallback = _localFeedPage(
-        stationId: normalizedStationId,
-        limit: window,
-        cursor: cursor,
-      );
-      final shuffled = _buildDeterministicFeedSlice(
-        notes: _filterNotes(fallback.notes),
-        stationId: normalizedStationId,
-        cursor: cursor,
-        take: limit,
-      );
-      if (fallback.notes.isNotEmpty || cursor == null || cursor.isEmpty) {
-        return AutoplayFeedPage(
-          stationId: normalizedStationId,
-          notes: shuffled,
-          nextCursor: fallback.nextCursor,
-          hasMore: fallback.hasMore,
-        );
-      }
-      rethrow;
-    }
-  }
-
-  List<VoiceNote> _buildDeterministicFeedSlice({
-    required List<VoiceNote> notes,
-    required String stationId,
-    required String? cursor,
-    required int take,
-  }) {
-    if (notes.isEmpty || take <= 0) {
-      return const <VoiceNote>[];
-    }
-    if (notes.length <= 1) {
-      return notes.take(take).toList();
-    }
-    final seed = '${stationId.trim()}|${cursor ?? 'root'}';
-    final candidates = List<_FeedShuffleCandidate>.generate(notes.length, (
-      index,
-    ) {
-      final note = notes[index];
-      final hash = _stableFeedHash('$seed|${note.id}|$index');
-      return _FeedShuffleCandidate(note: note, hash: hash, sourceIndex: index);
-    })..sort((a, b) {
-      final byHash = a.hash.compareTo(b.hash);
-      if (byHash != 0) {
-        return byHash;
-      }
-      return a.sourceIndex.compareTo(b.sourceIndex);
-    });
-    final selected = <VoiceNote>[];
-    final usedIds = <String>{};
-    String? lastAuthor;
-    final pool = List<_FeedShuffleCandidate>.from(candidates);
-    while (selected.length < take && pool.isNotEmpty) {
-      int pick = -1;
-      for (var i = 0; i < pool.length; i++) {
-        final candidate = pool[i].note;
-        if (usedIds.contains(candidate.id)) {
-          continue;
-        }
-        final author = candidate.authorId;
-        final sameAuthor =
-            author != null &&
-            author.isNotEmpty &&
-            lastAuthor != null &&
-            author == lastAuthor;
-        if (sameAuthor) {
-          continue;
-        }
-        pick = i;
-        break;
-      }
-      if (pick == -1) {
-        for (var i = 0; i < pool.length; i++) {
-          final candidate = pool[i].note;
-          if (!usedIds.contains(candidate.id)) {
-            pick = i;
-            break;
-          }
-        }
-      }
-      if (pick == -1) {
-        break;
-      }
-      final chosen = pool.removeAt(pick).note;
-      if (!usedIds.add(chosen.id)) {
-        continue;
-      }
-      selected.add(chosen);
-      final author = chosen.authorId;
-      if (author != null && author.isNotEmpty) {
-        lastAuthor = author;
-      }
-    }
-    return selected;
-  }
-
-  int _stableFeedHash(String input) {
-    var hash = 0x811c9dc5;
-    for (final unit in input.codeUnits) {
-      hash ^= unit;
-      hash = (hash * 0x01000193) & 0x7fffffff;
-    }
-    return hash;
-  }
-
-  AutoplayFeedPage _localFeedPage({
-    required String stationId,
-    required int limit,
-    String? cursor,
-  }) {
-    final mergedById = <String, VoiceNote>{};
-    for (final note in _notesByHashtag[stationId] ?? const <VoiceNote>[]) {
-      mergedById[note.id] = note;
-    }
-    for (final note in _localDevNotesByHashtag[stationId] ?? const <VoiceNote>[]) {
-      mergedById[note.id] = note;
-    }
-    final sorted = _filterNotes(mergedById.values.toList())..sort((a, b) {
-      final byCreated = b.createdAt.compareTo(a.createdAt);
-      if (byCreated != 0) {
-        return byCreated;
-      }
-      return b.id.compareTo(a.id);
-    });
-    final start = _decodeLocalFeedCursor(cursor);
-    if (start >= sorted.length) {
-      return AutoplayFeedPage(
-        stationId: stationId,
-        notes: const <VoiceNote>[],
-        nextCursor: null,
-        hasMore: false,
-      );
-    }
-    final end = min(start + limit, sorted.length);
-    final notes = sorted.sublist(start, end);
-    final hasMore = end < sorted.length;
-    final nextCursor = hasMore ? '$_localFeedCursorPrefix$end' : null;
-    return AutoplayFeedPage(
-      stationId: stationId,
-      notes: notes,
-      nextCursor: nextCursor,
-      hasMore: hasMore,
-    );
-  }
-
-  int _decodeLocalFeedCursor(String? cursor) {
-    if (cursor == null || cursor.isEmpty) {
-      return 0;
-    }
-    if (!cursor.startsWith(_localFeedCursorPrefix)) {
-      return 0;
-    }
-    final rawOffset = cursor.substring(_localFeedCursorPrefix.length);
-    final offset = int.tryParse(rawOffset);
-    if (offset == null || offset < 0) {
-      return 0;
-    }
-    return offset;
-  }
-
-  List<VoiceNote> notesForHashtag(String hashtagId) {
-    final notes = _notesByHashtag[hashtagId] ?? <VoiceNote>[];
-    return List<VoiceNote>.from(_filterNotes(notes));
-  }
-
-  bool isLoadingNotes(String hashtagId) => _notesLoading[hashtagId] ?? false;
-
-  String? notesError(String hashtagId) => _notesError[hashtagId];
+  String? notesError(String hashtagId) => _feed.notesError(hashtagId);
 
   Future<void> loadNotesForHashtag(
     String hashtagId, {
     bool force = false,
-  }) async {
-    if (_notesLoading[hashtagId] == true) {
-      return;
-    }
-    if (!force && (_notesRemoteAttempted[hashtagId] ?? false)) {
-      return;
-    }
-    if (force) {
-      _notesRemoteAttempted[hashtagId] = false;
-    }
-    _notesLoading[hashtagId] = true;
-    _notesError[hashtagId] = null;
-    notifyListeners();
-    try {
-      final notes = await _repository.fetchNotes(hashtagId: hashtagId);
-      _notesByHashtag[hashtagId] = _mergeLocalDevNotes(hashtagId, notes);
-    } catch (_) {
-      final localNotes = _localDevNotesByHashtag[hashtagId] ?? const [];
-      if (localNotes.isNotEmpty) {
-        _notesByHashtag[hashtagId] = _mergeLocalDevNotes(hashtagId, const []);
-        _notesError[hashtagId] = null;
-      } else {
-        _notesError[hashtagId] = 'Unable to load notes.';
-      }
-    } finally {
-      _notesLoading[hashtagId] = false;
-      _notesRemoteAttempted[hashtagId] = true;
-      notifyListeners();
-    }
-  }
+  }) => _feed.loadNotesForHashtag(hashtagId, force: force);
 
-  List<VoiceNote> _filterNotes(List<VoiceNote> notes) =>
-      _moderation.filterNotes(notes);
+  List<VoiceNote> userPosts() => _feed.userPosts();
 
-  List<VoiceNote> _mergeLocalDevNotes(
-    String hashtagId,
-    List<VoiceNote> remote,
-  ) {
-    final local = _localDevNotesByHashtag[hashtagId] ?? const [];
-    if (local.isEmpty) {
-      return remote;
-    }
-    final mergedById = <String, VoiceNote>{};
-    for (final note in remote) {
-      mergedById[note.id] = note;
-    }
-    for (final note in local) {
-      mergedById[note.id] = note;
-    }
-    final merged = mergedById.values.toList();
-    merged.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return _filterNotes(merged);
-  }
+  bool get myPostsLoading => _feed.myPostsLoading;
 
-  List<VoiceNote> userPosts() {
-    final notes = List<VoiceNote>.from(_myPosts);
-    notes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return notes;
-  }
+  String? get myPostsError => _feed.myPostsError;
 
-  bool get myPostsLoading => _myPostsLoading;
-
-  String? get myPostsError => _myPostsError;
-
-  Future<void> refreshMyPosts({bool force = false}) async {
-    if (_myPostsLoading) {
-      return;
-    }
-    if (!force && _myPosts.isNotEmpty) {
-      return;
-    }
-    final currentUser = userId;
-    if (currentUser == null) {
-      if (_isDevUnauthed) {
-        final local = _localDevNotesByHashtag.values
-            .expand((notes) => notes)
-            .toList();
-        local.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        _myPosts = _filterNotes(local);
-      } else {
-        _myPosts = [];
-      }
-      _myPostsError = null;
-      notifyListeners();
-      return;
-    }
-    _myPostsLoading = true;
-    _myPostsError = null;
-    notifyListeners();
-    try {
-      final posts = await _repository.fetchNotes(
-        authorId: currentUser,
-        limit: 12,
-      );
-      final local = _localDevNotesByHashtag.values
-          .expand((notes) => notes)
-          .toList();
-      if (local.isEmpty) {
-        _myPosts = _filterNotes(posts);
-      } else {
-        final mergedById = <String, VoiceNote>{};
-        for (final note in posts) {
-          mergedById[note.id] = note;
-        }
-        for (final note in local) {
-          mergedById[note.id] = note;
-        }
-        final merged = mergedById.values.toList();
-        merged.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        _myPosts = _filterNotes(merged);
-      }
-    } catch (_) {
-      _myPostsError = 'Unable to load your posts.';
-    } finally {
-      _myPostsLoading = false;
-      notifyListeners();
-    }
-  }
+  Future<void> refreshMyPosts({bool force = false}) =>
+      _feed.refreshMyPosts(force: force);
 
   String createRecordingPath() {
     final id = _idGenerator.next();
@@ -1020,9 +439,8 @@ class AppState extends ChangeNotifier
 
   void setOnboardingInterests(List<String> interests) {
     onboardingInterests = List<String>.from(interests);
-    savedHashtags = List<String>.from(interests);
+    _feed.setSavedHashtags(interests);
     _prefs.setStringList(_onboardingInterestsKey, onboardingInterests);
-    _prefs.setStringList(_savedHashtagsKey, savedHashtags);
     notifyListeners();
   }
 
@@ -1068,35 +486,10 @@ class AppState extends ChangeNotifier
     notifyListeners();
   }
 
-  void addSavedHashtag(String tag) {
-    if (savedHashtags.contains(tag)) {
-      return;
-    }
-    savedHashtags = [...savedHashtags, tag];
-    _prefs.setStringList(_savedHashtagsKey, savedHashtags);
-    notifyListeners();
-  }
+  void addSavedHashtag(String tag) => _feed.addSavedHashtag(tag);
 
-  void markStationListened(String hashtagId) {
-    final normalized = hashtagId.trim();
-    if (normalized.isEmpty) {
-      return;
-    }
-    final reordered = [
-      normalized,
-      ...recentHashtagIds.where((id) => id != normalized),
-    ];
-    const maxRecent = 20;
-    final trimmed = reordered.length > maxRecent
-        ? reordered.sublist(0, maxRecent)
-        : reordered;
-    if (_sameList(recentHashtagIds, trimmed)) {
-      return;
-    }
-    recentHashtagIds = trimmed;
-    _prefs.setStringList(_recentHashtagIdsKey, recentHashtagIds);
-    notifyListeners();
-  }
+  void markStationListened(String hashtagId) =>
+      _feed.markStationListened(hashtagId);
 
   bool isAuthorBlocked(String? authorId) => _moderation.isAuthorBlocked(authorId);
   bool isNoteHidden(String noteId) => _moderation.isNoteHidden(noteId);
@@ -1321,91 +714,15 @@ class AppState extends ChangeNotifier
 
   String _postRateLimitScopeKey(String scope) => '$_postRateLimitKey:$scope';
 
-  void _removeNoteById(String noteId) {
-    if (noteId.isEmpty) {
-      return;
-    }
-    for (final entry in _notesByHashtag.entries) {
-      final updated =
-          entry.value.where((note) => note.id != noteId).toList();
-      _notesByHashtag[entry.key] = updated;
-    }
-    for (final entry in _localDevNotesByHashtag.entries) {
-      final updated =
-          entry.value.where((note) => note.id != noteId).toList();
-      _localDevNotesByHashtag[entry.key] = updated;
-    }
-    _myPosts = _myPosts.where((note) => note.id != noteId).toList();
-  }
+  void _removeNoteById(String noteId) => _feed.removeNoteById(noteId);
 
-  void _removeNotesByAuthor(String authorId) {
-    if (authorId.isEmpty) {
-      return;
-    }
-    for (final entry in _notesByHashtag.entries) {
-      final updated =
-          entry.value.where((note) => note.authorId != authorId).toList();
-      _notesByHashtag[entry.key] = updated;
-    }
-    for (final entry in _localDevNotesByHashtag.entries) {
-      final updated =
-          entry.value.where((note) => note.authorId != authorId).toList();
-      _localDevNotesByHashtag[entry.key] = updated;
-    }
-    _myPosts = _myPosts.where((note) => note.authorId != authorId).toList();
-  }
+  void _removeNotesByAuthor(String authorId) =>
+      _feed.removeNotesByAuthor(authorId);
 
-  void _cacheNote(VoiceNote note, {bool localOnly = false}) {
-    if (localOnly) {
-      final localExisting =
-          _localDevNotesByHashtag[note.hashtagId] ?? const <VoiceNote>[];
-      final localUpdated = List<VoiceNote>.from(localExisting);
-      localUpdated.removeWhere((item) => item.id == note.id);
-      localUpdated.insert(0, note);
-      _localDevNotesByHashtag[note.hashtagId] = localUpdated;
-    }
-    final existing = _notesByHashtag[note.hashtagId] ?? <VoiceNote>[];
-    final updated = List<VoiceNote>.from(existing);
-    updated.removeWhere((item) => item.id == note.id);
-    updated.insert(0, note);
-    _notesByHashtag[note.hashtagId] = updated;
-    final isMine = note.authorId == userId || (localOnly && _isDevUnauthed);
-    if (isMine) {
-      final mine = List<VoiceNote>.from(_myPosts);
-      mine.removeWhere((item) => item.id == note.id);
-      mine.insert(0, note);
-      _myPosts = mine;
-    }
-    notifyListeners();
-  }
+  void _cacheNote(VoiceNote note, {bool localOnly = false}) =>
+      _feed.cacheNote(note, localOnly: localOnly);
 
-  void _replaceNote(VoiceNote note) {
-    final localByTag = _localDevNotesByHashtag[note.hashtagId];
-    if (localByTag != null) {
-      final updatedLocal = List<VoiceNote>.from(localByTag);
-      final localIndex = updatedLocal.indexWhere((item) => item.id == note.id);
-      if (localIndex != -1) {
-        updatedLocal[localIndex] = note;
-        _localDevNotesByHashtag[note.hashtagId] = updatedLocal;
-      }
-    }
-    final byTag = _notesByHashtag[note.hashtagId];
-    if (byTag != null) {
-      final updated = List<VoiceNote>.from(byTag);
-      final index = updated.indexWhere((item) => item.id == note.id);
-      if (index != -1) {
-        updated[index] = note;
-        _notesByHashtag[note.hashtagId] = updated;
-      }
-    }
-    final mineIndex = _myPosts.indexWhere((item) => item.id == note.id);
-    if (mineIndex != -1) {
-      final updatedMine = List<VoiceNote>.from(_myPosts);
-      updatedMine[mineIndex] = note;
-      _myPosts = updatedMine;
-    }
-    notifyListeners();
-  }
+  void _replaceNote(VoiceNote note) => _feed.replaceNote(note);
 
   @override
   void dispose() {
@@ -1414,33 +731,6 @@ class AppState extends ChangeNotifier
     audio.dispose();
     super.dispose();
   }
-}
-
-bool _sameList(List<String> left, List<String> right) {
-  if (identical(left, right)) {
-    return true;
-  }
-  if (left.length != right.length) {
-    return false;
-  }
-  for (var i = 0; i < left.length; i++) {
-    if (left[i] != right[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-
-class _FeedShuffleCandidate {
-  const _FeedShuffleCandidate({
-    required this.note,
-    required this.hash,
-    required this.sourceIndex,
-  });
-
-  final VoiceNote note;
-  final int hash;
-  final int sourceIndex;
 }
 
 class PostException implements Exception {
