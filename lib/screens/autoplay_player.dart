@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -812,7 +814,11 @@ bool _autoplayShouldRebuild(AutoplayState previous, AutoplayState next) {
   return false;
 }
 
-class _AutoplayProgress extends StatelessWidget {
+// Drives the progress bar at the display refresh rate (60/120 Hz) by
+// extrapolating the last known playback position forward using wall-clock
+// elapsed time.  A vsync Ticker replaces the previous StreamBuilder-only
+// approach, which was capped at ~10 FPS by the engine's 100 ms throttle.
+class _AutoplayProgress extends StatefulWidget {
   const _AutoplayProgress({
     required this.audio,
     required this.currentNoteId,
@@ -832,62 +838,137 @@ class _AutoplayProgress extends StatelessWidget {
   final bool isError;
 
   @override
+  State<_AutoplayProgress> createState() => _AutoplayProgressState();
+}
+
+class _AutoplayProgressState extends State<_AutoplayProgress>
+    with SingleTickerProviderStateMixin {
+  late PlaybackMetrics _metrics;
+
+  // Wall-clock timestamp of the last metrics arrival used as the
+  // interpolation baseline, preventing drift relative to the engine.
+  late DateTime _metricsAt;
+
+  late Ticker _ticker;
+  StreamSubscription<PlaybackMetrics>? _metricsSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _metrics = widget.audio.currentMetrics;
+    _metricsAt = DateTime.now();
+    _metricsSub = widget.audio.playbackMetrics.listen(_onMetrics);
+    _ticker = createTicker(_onTick)..start();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AutoplayProgress oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.audio != widget.audio) {
+      _metricsSub?.cancel();
+      _metrics = widget.audio.currentMetrics;
+      _metricsAt = DateTime.now();
+      _metricsSub = widget.audio.playbackMetrics.listen(_onMetrics);
+    }
+  }
+
+  @override
+  void dispose() {
+    _metricsSub?.cancel();
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  void _onMetrics(PlaybackMetrics metrics) {
+    // Anchor the extrapolation baseline to the moment the engine reports.
+    _metrics = metrics;
+    _metricsAt = DateTime.now();
+    // The Ticker calls setState every frame while playing, so we only need
+    // an explicit rebuild here for non-playing state changes (pause, error…).
+    if (mounted && !metrics.playing) {
+      setState(() {});
+    }
+  }
+
+  // Called every vsync frame (~16 ms at 60 Hz).
+  void _onTick(Duration _) {
+    if (mounted && _metrics.playing) {
+      setState(() {});
+    }
+  }
+
+  // Linear extrapolation: lastKnownPosition + wallClockElapsed, clamped to
+  // duration.  Falls back to the raw engine position when paused or stalled
+  // (buffering) since no forward progress is expected.
+  Duration get _interpolatedPosition {
+    if (!_metrics.playing || !_metrics.isPositionAdvancing) {
+      return _metrics.position;
+    }
+    final elapsed = DateTime.now().difference(_metricsAt);
+    final extrapolated = _metrics.position + elapsed;
+    final dur = _metrics.duration;
+    if (dur.inMilliseconds > 0) {
+      return Duration(
+        milliseconds: min(extrapolated.inMilliseconds, dur.inMilliseconds),
+      );
+    }
+    return extrapolated;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
-    return StreamBuilder<PlaybackMetrics>(
-      stream: audio.playbackMetrics,
-      initialData: audio.currentMetrics,
-      builder: (context, snapshot) {
-        final metrics = snapshot.data ?? audio.currentMetrics;
-        final useLiveMetrics =
-            metrics.sourceId == currentNoteId || metrics.playing;
-        final duration = useLiveMetrics && metrics.duration.inMilliseconds > 0
-            ? metrics.duration
-            : fallbackDuration;
-        final position = useLiveMetrics ? metrics.position : Duration.zero;
-        final buffered = useLiveMetrics ? metrics.bufferedPosition : Duration.zero;
-        final ratio = duration.inMilliseconds == 0
-            ? 0.0
-            : (position.inMilliseconds / duration.inMilliseconds)
-                .clamp(0.0, 1.0)
-                .toDouble();
-        final bufferedRatio = duration.inMilliseconds == 0
-            ? 0.0
-            : (buffered.inMilliseconds / duration.inMilliseconds)
-                .clamp(0.0, 1.0)
-                .toDouble();
-        return Column(
+
+    // Only treat metrics as valid for this note when sourceId matches.
+    // The previous `|| metrics.playing` guard could show stale position
+    // data from the previous track for one frame during a transition.
+    final useLiveMetrics = _metrics.sourceId == widget.currentNoteId;
+    final duration = useLiveMetrics && _metrics.duration.inMilliseconds > 0
+        ? _metrics.duration
+        : widget.fallbackDuration;
+    final position = useLiveMetrics ? _interpolatedPosition : Duration.zero;
+    final buffered =
+        useLiveMetrics ? _metrics.bufferedPosition : Duration.zero;
+    final ratio = duration.inMilliseconds == 0
+        ? 0.0
+        : (position.inMilliseconds / duration.inMilliseconds)
+            .clamp(0.0, 1.0)
+            .toDouble();
+    final bufferedRatio = duration.inMilliseconds == 0
+        ? 0.0
+        : (buffered.inMilliseconds / duration.inMilliseconds)
+            .clamp(0.0, 1.0)
+            .toDouble();
+    return Column(
+      children: [
+        _NowListeningBar(
+          label: widget.label,
+          showSpinner: widget.showSpinner,
+          progress: ratio,
+          bufferedProgress: bufferedRatio,
+          reduceMotion: widget.reduceMotion,
+          isError: widget.isError,
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _NowListeningBar(
-              label: label,
-              showSpinner: showSpinner,
-              progress: ratio,
-              bufferedProgress: bufferedRatio,
-              reduceMotion: reduceMotion,
-              isError: isError,
+            Text(
+              formatDuration(position),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: tokens.textSecondary,
+              ),
             ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  formatDuration(position),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: tokens.textSecondary,
-                  ),
-                ),
-                Text(
-                  formatDuration(duration),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: tokens.textSecondary,
-                  ),
-                ),
-              ],
+            Text(
+              formatDuration(duration),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: tokens.textSecondary,
+              ),
             ),
           ],
-        );
-      },
+        ),
+      ],
     );
   }
 }
