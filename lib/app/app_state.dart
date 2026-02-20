@@ -16,6 +16,7 @@ import '../models/voice_note.dart';
 import '../services/audio_cache_service.dart';
 import '../services/audio_controller.dart';
 import '../services/auth_service.dart';
+import '../services/moderation_service.dart';
 import '../services/skip_quota_service.dart';
 import '../services/autoplay_controller.dart';
 import '../services/autoplay_data_source.dart';
@@ -33,6 +34,7 @@ class AppState extends ChangeNotifier
     required AuthService authService,
     required AudioCacheService audioCache,
     required SkipQuotaService skipQuotaService,
+    required ModerationService moderationService,
     required FirebaseRepository repository,
     required String recordingsDirectory,
     required this.onboardingComplete,
@@ -43,6 +45,7 @@ class AppState extends ChangeNotifier
         _authService = authService,
         _audioCache = audioCache,
         _skipQuota = skipQuotaService,
+        _moderation = moderationService,
         _repository = repository,
         _recordingsDirectory = recordingsDirectory,
         _idGenerator = IdGenerator();
@@ -57,8 +60,6 @@ class AppState extends ChangeNotifier
   static const _onboardingInterestsKey = 'onboarding_interests';
   static const _savedHashtagsKey = 'saved_hashtags';
   static const _recentHashtagIdsKey = 'recent_hashtag_ids';
-  static const _blockedAuthorIdsKey = 'blocked_author_ids';
-  static const _hiddenNoteIdsKey = 'hidden_note_ids';
   static const _postRateLimitKey = 'post_rate_limit';
   static const _pendingRecordingKey = 'pending_recording_path';
   static const _pendingPostDraftKey = 'pending_post_draft';
@@ -74,6 +75,7 @@ class AppState extends ChangeNotifier
   final AuthService _authService;
   final AudioCacheService _audioCache;
   final SkipQuotaService _skipQuota;
+  final ModerationService _moderation;
   final FirebaseRepository _repository;
   final AudioController audio;
   late final AutoplayController autoplay;
@@ -84,8 +86,6 @@ class AppState extends ChangeNotifier
   final Map<String, bool> _notesRemoteAttempted = {};
   final Map<String, bool> _notesLoading = {};
   final Map<String, String?> _notesError = {};
-  final Set<String> _blockedAuthorIds = <String>{};
-  final Set<String> _hiddenNoteIds = <String>{};
   List<VoiceNote> _myPosts = [];
   bool _hashtagsLoading = false;
   bool _myPostsLoading = false;
@@ -130,10 +130,6 @@ class AppState extends ChangeNotifier
             : suggestedHashtags.take(3).toList());
     final recentHashtagIds =
         prefs.getStringList(_recentHashtagIdsKey) ?? <String>[];
-    final blockedAuthors =
-        prefs.getStringList(_blockedAuthorIdsKey) ?? <String>[];
-    final hiddenNotes =
-        prefs.getStringList(_hiddenNoteIdsKey) ?? <String>[];
     final pendingRecordingPath = prefs.getString(_pendingRecordingKey);
     PendingPostDraft? pendingDraft;
     final draftRaw = prefs.getString(_pendingPostDraftKey);
@@ -172,6 +168,22 @@ class AppState extends ChangeNotifier
         prefs.remove(_pendingRecordingKey);
       }
     }
+    // Closures below capture `stateRef` by reference so they resolve correctly
+    // at call time even though ModerationService is created before `state`.
+    AppState? stateRef;
+    final moderation = ModerationService(
+      prefs: prefs,
+      repository: repository,
+      userId: () => authService.userId,
+      isDevUnauthed: () => authService.isDevUnauthed,
+      onNoteRemoved: (id) => stateRef!._removeNoteById(id),
+      onAuthorRemoved: (id) => stateRef!._removeNotesByAuthor(id),
+      onStateChanged: () => stateRef!.notifyListeners(),
+      onSuppressNote: (id, {message}) =>
+          stateRef!.autoplay.suppressNote(id, message: message),
+      onSuppressAuthor: (id, {message}) =>
+          stateRef!.autoplay.suppressAuthor(id, message: message),
+    );
     final state = AppState._(
       prefs: prefs,
       settings: settings,
@@ -179,6 +191,7 @@ class AppState extends ChangeNotifier
       authService: authService,
       audioCache: audioCache,
       skipQuotaService: skipQuota,
+      moderationService: moderation,
       repository: repository,
       recordingsDirectory: recordingsDirectory,
       onboardingComplete: onboardingComplete,
@@ -186,22 +199,17 @@ class AppState extends ChangeNotifier
       savedHashtags: savedHashtags,
       recentHashtagIds: recentHashtagIds,
     );
+    stateRef = state;
     state.pendingRecordingPath = resolvedRecordingPath;
     state._pendingPostDraft = pendingDraft;
-    state._blockedAuthorIds
-      ..clear()
-      ..addAll(blockedAuthors.where((id) => id.trim().isNotEmpty));
-    state._hiddenNoteIds
-      ..clear()
-      ..addAll(hiddenNotes.where((id) => id.trim().isNotEmpty));
     state.autoplay = AutoplayController(
       dataSource: state,
       feedQueueBuilder: state,
       audio: audio,
     );
     state.autoplay.syncSuppressed(
-      noteIds: state._hiddenNoteIds,
-      authorIds: state._blockedAuthorIds,
+      noteIds: moderation.hiddenNoteIds,
+      authorIds: moderation.blockedAuthorIds,
     );
     authService.bind(() {
       state.refreshMyPosts(force: true);
@@ -257,6 +265,20 @@ class AppState extends ChangeNotifier
       userId: () => authService.userId,
       isDevUnauthed: () => authService.isDevUnauthed,
     );
+    AppState? stateRef;
+    final moderation = ModerationService(
+      prefs: prefs,
+      repository: resolvedRepository,
+      userId: () => authService.userId,
+      isDevUnauthed: () => authService.isDevUnauthed,
+      onNoteRemoved: (id) => stateRef!._removeNoteById(id),
+      onAuthorRemoved: (id) => stateRef!._removeNotesByAuthor(id),
+      onStateChanged: () => stateRef!.notifyListeners(),
+      onSuppressNote: (id, {message}) =>
+          stateRef!.autoplay.suppressNote(id, message: message),
+      onSuppressAuthor: (id, {message}) =>
+          stateRef!.autoplay.suppressAuthor(id, message: message),
+    );
     final state = AppState._(
       prefs: prefs,
       settings: resolvedSettings,
@@ -264,6 +286,7 @@ class AppState extends ChangeNotifier
       authService: authService,
       audioCache: audioCache,
       skipQuotaService: skipQuota,
+      moderationService: moderation,
       repository: resolvedRepository,
       recordingsDirectory: recordingsDirectory,
       onboardingComplete: onboardingComplete,
@@ -271,12 +294,16 @@ class AppState extends ChangeNotifier
       savedHashtags: saved,
       recentHashtagIds: const [],
     );
+    stateRef = state;
     state.autoplay = AutoplayController(
       dataSource: state,
       feedQueueBuilder: state,
       audio: audio,
     );
-    state.autoplay.syncSuppressed(noteIds: const [], authorIds: const []);
+    state.autoplay.syncSuppressed(
+      noteIds: moderation.hiddenNoteIds,
+      authorIds: moderation.blockedAuthorIds,
+    );
     state._hashtags
       ..clear()
       ..addAll(hashtags);
@@ -868,18 +895,8 @@ class AppState extends ChangeNotifier
     }
   }
 
-  List<VoiceNote> _filterNotes(List<VoiceNote> notes) {
-    if (_blockedAuthorIds.isEmpty && _hiddenNoteIds.isEmpty) {
-      return notes;
-    }
-    return notes
-        .where(
-          (note) =>
-              !_hiddenNoteIds.contains(note.id) &&
-              !isAuthorBlocked(note.authorId),
-        )
-        .toList();
-  }
+  List<VoiceNote> _filterNotes(List<VoiceNote> notes) =>
+      _moderation.filterNotes(notes);
 
   List<VoiceNote> _mergeLocalDevNotes(
     String hashtagId,
@@ -1081,127 +1098,19 @@ class AppState extends ChangeNotifier
     notifyListeners();
   }
 
-  bool isAuthorBlocked(String? authorId) {
-    if (authorId == null || authorId.isEmpty) {
-      return false;
-    }
-    return _blockedAuthorIds.contains(authorId);
-  }
-
-  bool isNoteHidden(String noteId) {
-    if (noteId.isEmpty) {
-      return false;
-    }
-    return _hiddenNoteIds.contains(noteId);
-  }
+  bool isAuthorBlocked(String? authorId) => _moderation.isAuthorBlocked(authorId);
+  bool isNoteHidden(String noteId) => _moderation.isNoteHidden(noteId);
 
   Future<AbuseActionResult> reportClip({
     required VoiceNote note,
     required String reason,
     String? details,
-  }) async {
-    _hideNoteLocally(note);
-    final currentUser = userId;
-    if (currentUser == null || _isDevUnauthed) {
-      return const AbuseActionResult(
-        success: false,
-        message: 'Report saved locally.',
-      );
-    }
-    try {
-      await _repository.reportClip(
-        reporterUserId: currentUser,
-        clipId: note.id,
-        reason: reason,
-        details: details,
-      );
-      return const AbuseActionResult(
-        success: true,
-        message: 'Report submitted.',
-      );
-    } catch (_) {
-      return const AbuseActionResult(
-        success: false,
-        message: 'Report failed to send. Clip hidden locally.',
-      );
-    }
-  }
+  }) => _moderation.reportClip(note: note, reason: reason, details: details);
 
-  Future<AbuseActionResult> blockAuthor(VoiceNote note) async {
-    final authorId = note.authorId;
-    if (authorId == null || authorId.isEmpty) {
-      _hideNoteLocally(note);
-      return const AbuseActionResult(
-        success: false,
-        message: 'This clip cannot be blocked. Hidden locally instead.',
-      );
-    }
-    if (authorId == userId) {
-      return const AbuseActionResult(
-        success: false,
-        message: 'You cannot block yourself.',
-      );
-    }
-    final wasNew = _blockedAuthorIds.add(authorId);
-    _persistBlockedAuthors();
-    _removeNotesByAuthor(authorId);
-    unawaited(autoplay.suppressAuthor(authorId, message: 'User blocked.'));
-    notifyListeners();
+  Future<AbuseActionResult> blockAuthor(VoiceNote note) =>
+      _moderation.blockAuthor(note);
 
-    final currentUser = userId;
-    if (currentUser == null || _isDevUnauthed) {
-      return AbuseActionResult(
-        success: false,
-        message: wasNew
-            ? 'User blocked locally.'
-            : 'User already blocked locally.',
-      );
-    }
-    try {
-      await _repository.blockUser(
-        blockerUserId: currentUser,
-        blockedUserId: authorId,
-      );
-      return AbuseActionResult(
-        success: true,
-        message: wasNew ? 'User blocked.' : 'User already blocked.',
-      );
-    } catch (_) {
-      return AbuseActionResult(
-        success: false,
-        message: wasNew
-            ? 'Block saved locally.'
-            : 'User already blocked locally.',
-      );
-    }
-  }
-
-  AbuseActionResult hideClip(VoiceNote note) {
-    if (_hideNoteLocally(note)) {
-      return const AbuseActionResult(
-        success: true,
-        message: 'Clip hidden.',
-      );
-    }
-    return const AbuseActionResult(
-      success: true,
-      message: 'Clip already hidden.',
-    );
-  }
-
-  bool _hideNoteLocally(VoiceNote note) {
-    if (note.id.isEmpty) {
-      return false;
-    }
-    final wasNew = _hiddenNoteIds.add(note.id);
-    if (wasNew) {
-      _persistHiddenNotes();
-      _removeNoteById(note.id);
-      unawaited(autoplay.suppressNote(note.id, message: 'Clip hidden.'));
-      notifyListeners();
-    }
-    return wasNew;
-  }
+  AbuseActionResult hideClip(VoiceNote note) => _moderation.hideClip(note);
 
   Future<VoiceNote> postNote({
     required String recordingPath,
@@ -1412,25 +1321,6 @@ class AppState extends ChangeNotifier
 
   String _postRateLimitScopeKey(String scope) => '$_postRateLimitKey:$scope';
 
-  void _persistHiddenNotes() {
-    const maxEntries = 200;
-    final list = _hiddenNoteIds.where((id) => id.trim().isNotEmpty).toList();
-    if (list.length > maxEntries) {
-      final trimmed = list.sublist(list.length - maxEntries);
-      _hiddenNoteIds
-        ..clear()
-        ..addAll(trimmed);
-      _prefs.setStringList(_hiddenNoteIdsKey, trimmed);
-      return;
-    }
-    _prefs.setStringList(_hiddenNoteIdsKey, list);
-  }
-
-  void _persistBlockedAuthors() {
-    final list = _blockedAuthorIds.where((id) => id.trim().isNotEmpty).toList();
-    _prefs.setStringList(_blockedAuthorIdsKey, list);
-  }
-
   void _removeNoteById(String noteId) {
     if (noteId.isEmpty) {
       return;
@@ -1560,13 +1450,6 @@ class PostException implements Exception {
 
   @override
   String toString() => message;
-}
-
-class AbuseActionResult {
-  const AbuseActionResult({required this.success, required this.message});
-
-  final bool success;
-  final String message;
 }
 
 class PendingPostDraft {
