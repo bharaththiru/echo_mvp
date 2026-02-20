@@ -4,7 +4,6 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/seed_data.dart';
 import '../models/hashtag.dart';
 import '../models/voice_note.dart';
+import '../services/audio_cache_service.dart';
 import '../services/audio_controller.dart';
 import '../services/auth_service.dart';
 import '../services/autoplay_controller.dart';
@@ -30,18 +30,18 @@ class AppState extends ChangeNotifier
     required this.settings,
     required this.audio,
     required AuthService authService,
+    required AudioCacheService audioCache,
     required FirebaseRepository repository,
     required String recordingsDirectory,
-    required String audioCacheDirectory,
     required this.onboardingComplete,
     required this.onboardingInterests,
     required this.savedHashtags,
     required this.recentHashtagIds,
   }) : _prefs = prefs,
         _authService = authService,
+        _audioCache = audioCache,
         _repository = repository,
         _recordingsDirectory = recordingsDirectory,
-        _audioCacheDirectory = audioCacheDirectory,
         _idGenerator = IdGenerator();
 
   static const _themeModeKey = 'theme_mode';
@@ -65,18 +65,17 @@ class AppState extends ChangeNotifier
   static const _postTimeout = Duration(seconds: 12);
   static const _postRateLimitWindow = Duration(hours: 1);
   static const _postRateLimitMax = 20;
-  static const _audioDiskCacheMaxEntries = 300;
   static const _remoteFeedTransientCooldown = Duration(seconds: 45);
   static const _remoteFeedPolicyCooldown = Duration(minutes: 10);
 
   final SharedPreferences _prefs;
   final IdGenerator _idGenerator;
   final AuthService _authService;
+  final AudioCacheService _audioCache;
   final FirebaseRepository _repository;
   final AudioController audio;
   late final AutoplayController autoplay;
   final String _recordingsDirectory;
-  final String _audioCacheDirectory;
   final List<Hashtag> _hashtags = [];
   final Map<String, List<VoiceNote>> _notesByHashtag = {};
   final Map<String, List<VoiceNote>> _localDevNotesByHashtag = {};
@@ -90,7 +89,6 @@ class AppState extends ChangeNotifier
   bool _myPostsLoading = false;
   String? _hashtagsError;
   String? _myPostsError;
-  final Map<String, String> _audioPathCache = <String, String>{};
   PendingPostDraft? _pendingPostDraft;
   Future<VoiceNote>? _postInFlight;
   DateTime? _remoteFeedCooldownUntil;
@@ -113,7 +111,7 @@ class AppState extends ChangeNotifier
       storageCdnBaseUrl: FirebaseConfig.storageCdnBaseUrl,
     );
     final recordingsDirectory = await _prepareRecordingsDirectory();
-    final audioCacheDirectory = await _prepareAudioCacheDirectory();
+    final audioCache = await AudioCacheService.create(repository: repository);
     final onboardingComplete = prefs.getBool(_onboardingCompleteKey) ?? false;
     final onboardingInterests =
         prefs.getStringList(_onboardingInterestsKey) ?? <String>[];
@@ -171,9 +169,9 @@ class AppState extends ChangeNotifier
       settings: settings,
       audio: audio,
       authService: authService,
+      audioCache: audioCache,
       repository: repository,
       recordingsDirectory: recordingsDirectory,
-      audioCacheDirectory: audioCacheDirectory,
       onboardingComplete: onboardingComplete,
       onboardingInterests: onboardingInterests,
       savedHashtags: savedHashtags,
@@ -204,7 +202,7 @@ class AppState extends ChangeNotifier
     unawaited(authService.maybeAutoSignIn());
     unawaited(state.refreshHashtags());
     unawaited(state.refreshMyPosts());
-    unawaited(state._pruneAudioDiskCacheLru());
+    unawaited(audioCache.prune());
     return state;
   }
 
@@ -234,21 +232,24 @@ class AppState extends ChangeNotifier
       '$recordingsDirectory${Platform.pathSeparator}audio_cache',
     );
     audioCacheDir.createSync(recursive: true);
-    final audioCacheDirectory = audioCacheDir.path;
     final saved = hashtags.take(3).map((tag) => tag.name).toList();
     final authService = AuthService.create(
       auth: resolvedAuth,
       initialUser: null,
     );
     authService.bindNoop();
+    final audioCache = AudioCacheService.forTest(
+      repository: resolvedRepository,
+      cacheDirectory: audioCacheDir.path,
+    );
     final state = AppState._(
       prefs: prefs,
       settings: resolvedSettings,
       audio: audio,
       authService: authService,
+      audioCache: audioCache,
       repository: resolvedRepository,
       recordingsDirectory: recordingsDirectory,
-      audioCacheDirectory: audioCacheDirectory,
       onboardingComplete: onboardingComplete,
       onboardingInterests: saved,
       savedHashtags: saved,
@@ -278,15 +279,6 @@ class AppState extends ChangeNotifier
       await recordings.create(recursive: true);
     }
     return recordings.path;
-  }
-
-  static Future<String> _prepareAudioCacheDirectory() async {
-    final directory = await getApplicationDocumentsDirectory();
-    final cache = Directory('${directory.path}/audio_cache');
-    if (!await cache.exists()) {
-      await cache.create(recursive: true);
-    }
-    return cache.path;
   }
 
   static Future<bool> _recordingExists(String path) async {
@@ -1358,148 +1350,8 @@ class AppState extends ChangeNotifier
   }
 
   @override
-  Future<String?> ensureLocalAudioPath(VoiceNote note) async {
-    if (note.localPath != null && await File(note.localPath!).exists()) {
-      await _touchCachedFile(File(note.localPath!));
-      return note.localPath;
-    }
-    final cachedPath = _audioPathCache[note.id];
-    if (cachedPath != null && cachedPath.isNotEmpty) {
-      if (_isRemotePath(cachedPath)) {
-        return cachedPath;
-      }
-      final cachedFile = File(cachedPath);
-      if (await cachedFile.exists()) {
-        final size = await cachedFile.length();
-        if (size > 0) {
-          await _touchCachedFile(cachedFile);
-          return cachedPath;
-        }
-      }
-      _audioPathCache.remove(note.id);
-    }
-    if (note.storagePath.isEmpty) {
-      return note.localPath;
-    }
-    final diskPath = await _ensureAudioDownloadedToDisk(note);
-    if (diskPath != null && diskPath.isNotEmpty) {
-      _audioPathCache[note.id] = diskPath;
-      return diskPath;
-    }
-    try {
-      final url = await _repository.fetchAudioUrl(note.storagePath);
-      _audioPathCache[note.id] = url;
-      return url;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  bool _isRemotePath(String value) {
-    final uri = Uri.tryParse(value);
-    if (uri == null || !uri.hasScheme) {
-      return false;
-    }
-    final scheme = uri.scheme.toLowerCase();
-    return scheme == 'http' || scheme == 'https';
-  }
-
-  String _cachePathForStorage(String storagePath) {
-    final digest = sha1.convert(utf8.encode(storagePath)).toString();
-    final ext = _extensionForStoragePath(storagePath);
-    return '$_audioCacheDirectory${Platform.pathSeparator}$digest$ext';
-  }
-
-  String _extensionForStoragePath(String storagePath) {
-    final dot = storagePath.lastIndexOf('.');
-    if (dot < 0 || dot >= storagePath.length - 1) {
-      return '.m4a';
-    }
-    final ext = storagePath.substring(dot);
-    if (ext.length > 8 || ext.contains('/') || ext.contains('\\')) {
-      return '.m4a';
-    }
-    return ext;
-  }
-
-  Future<String?> _ensureAudioDownloadedToDisk(VoiceNote note) async {
-    if (note.storagePath.isEmpty) {
-      return null;
-    }
-    final cachePath = _cachePathForStorage(note.storagePath);
-    final file = File(cachePath);
-    if (await file.exists()) {
-      try {
-        final size = await file.length();
-        if (size > 0) {
-          await _touchCachedFile(file);
-          return file.path;
-        }
-        await file.delete();
-      } catch (_) {
-        // Attempt fresh download when cached file is invalid.
-      }
-    }
-    try {
-      final bytes = await _repository.downloadAudio(note.storagePath);
-      if (bytes.isEmpty) {
-        return null;
-      }
-      await file.parent.create(recursive: true);
-      await file.writeAsBytes(bytes, flush: true);
-      await _touchCachedFile(file);
-      _audioPathCache[note.id] = file.path;
-      unawaited(_pruneAudioDiskCacheLru());
-      return file.path;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> _touchCachedFile(File file) async {
-    try {
-      await file.setLastModified(DateTime.now().toUtc());
-    } catch (_) {
-      // Ignore file timestamp updates.
-    }
-  }
-
-  Future<void> _pruneAudioDiskCacheLru() async {
-    final dir = Directory(_audioCacheDirectory);
-    if (!await dir.exists()) {
-      return;
-    }
-    final entities = await dir.list(followLinks: false).toList();
-    final files = <_CachedDiskFile>[];
-    for (final entity in entities) {
-      if (entity is! File) {
-        continue;
-      }
-      try {
-        final stat = await entity.stat();
-        if (stat.type != FileSystemEntityType.file) {
-          continue;
-        }
-        files.add(_CachedDiskFile(file: entity, modified: stat.modified));
-      } catch (_) {
-        // Skip files that cannot be inspected.
-      }
-    }
-    if (files.length <= _audioDiskCacheMaxEntries) {
-      return;
-    }
-    files.sort((a, b) => a.modified.compareTo(b.modified));
-    final toDelete = files.length - _audioDiskCacheMaxEntries;
-    for (var i = 0; i < toDelete; i++) {
-      final path = files[i].file.path;
-      try {
-        await files[i].file.delete();
-      } catch (_) {
-        // Skip files that cannot be deleted.
-      }
-      _audioPathCache.removeWhere((_, value) => value == path);
-    }
-  }
+  Future<String?> ensureLocalAudioPath(VoiceNote note) =>
+      _audioCache.ensureLocalAudioPath(note);
 
   @override
   Future<SkipQuotaResult> consumeSkip() async {
@@ -1790,13 +1642,6 @@ class _SkipQuotaCache {
 
   final String date;
   final int remaining;
-}
-
-class _CachedDiskFile {
-  const _CachedDiskFile({required this.file, required this.modified});
-
-  final File file;
-  final DateTime modified;
 }
 
 class _FeedShuffleCandidate {
