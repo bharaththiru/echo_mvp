@@ -16,6 +16,7 @@ import '../models/voice_note.dart';
 import '../services/audio_cache_service.dart';
 import '../services/audio_controller.dart';
 import '../services/auth_service.dart';
+import '../services/skip_quota_service.dart';
 import '../services/autoplay_controller.dart';
 import '../services/autoplay_data_source.dart';
 import '../services/autoplay_feed_queue_builder.dart';
@@ -31,6 +32,7 @@ class AppState extends ChangeNotifier
     required this.audio,
     required AuthService authService,
     required AudioCacheService audioCache,
+    required SkipQuotaService skipQuotaService,
     required FirebaseRepository repository,
     required String recordingsDirectory,
     required this.onboardingComplete,
@@ -40,6 +42,7 @@ class AppState extends ChangeNotifier
   }) : _prefs = prefs,
         _authService = authService,
         _audioCache = audioCache,
+        _skipQuota = skipQuotaService,
         _repository = repository,
         _recordingsDirectory = recordingsDirectory,
         _idGenerator = IdGenerator();
@@ -54,8 +57,6 @@ class AppState extends ChangeNotifier
   static const _onboardingInterestsKey = 'onboarding_interests';
   static const _savedHashtagsKey = 'saved_hashtags';
   static const _recentHashtagIdsKey = 'recent_hashtag_ids';
-  static const _skipQuotaDateKey = 'skip_quota_date';
-  static const _skipQuotaRemainingKey = 'skip_quota_remaining';
   static const _blockedAuthorIdsKey = 'blocked_author_ids';
   static const _hiddenNoteIdsKey = 'hidden_note_ids';
   static const _postRateLimitKey = 'post_rate_limit';
@@ -72,6 +73,7 @@ class AppState extends ChangeNotifier
   final IdGenerator _idGenerator;
   final AuthService _authService;
   final AudioCacheService _audioCache;
+  final SkipQuotaService _skipQuota;
   final FirebaseRepository _repository;
   final AudioController audio;
   late final AutoplayController autoplay;
@@ -112,6 +114,12 @@ class AppState extends ChangeNotifier
     );
     final recordingsDirectory = await _prepareRecordingsDirectory();
     final audioCache = await AudioCacheService.create(repository: repository);
+    final skipQuota = SkipQuotaService(
+      prefs: prefs,
+      repository: repository,
+      userId: () => authService.userId,
+      isDevUnauthed: () => authService.isDevUnauthed,
+    );
     final onboardingComplete = prefs.getBool(_onboardingCompleteKey) ?? false;
     final onboardingInterests =
         prefs.getStringList(_onboardingInterestsKey) ?? <String>[];
@@ -170,6 +178,7 @@ class AppState extends ChangeNotifier
       audio: audio,
       authService: authService,
       audioCache: audioCache,
+      skipQuotaService: skipQuota,
       repository: repository,
       recordingsDirectory: recordingsDirectory,
       onboardingComplete: onboardingComplete,
@@ -242,12 +251,19 @@ class AppState extends ChangeNotifier
       repository: resolvedRepository,
       cacheDirectory: audioCacheDir.path,
     );
+    final skipQuota = SkipQuotaService(
+      prefs: prefs,
+      repository: resolvedRepository,
+      userId: () => authService.userId,
+      isDevUnauthed: () => authService.isDevUnauthed,
+    );
     final state = AppState._(
       prefs: prefs,
       settings: resolvedSettings,
       audio: audio,
       authService: authService,
       audioCache: audioCache,
+      skipQuotaService: skipQuota,
       repository: resolvedRepository,
       recordingsDirectory: recordingsDirectory,
       onboardingComplete: onboardingComplete,
@@ -1354,106 +1370,7 @@ class AppState extends ChangeNotifier
       _audioCache.ensureLocalAudioPath(note);
 
   @override
-  Future<SkipQuotaResult> consumeSkip() async {
-    if (_isDevUnauthed) {
-      return _consumeSkipLocal(scope: 'dev');
-    }
-    final currentUser = userId;
-    if (currentUser == null) {
-      return _consumeSkipLocal(scope: 'anon');
-    }
-    try {
-      final response = await _repository.consumeSkip(userId: currentUser);
-      final ok = response['ok'] == true;
-      final skipsLeft = _parseInt(response['skips_left']);
-      final date = response['local_date']?.toString() ?? _localDateKey();
-      _writeSkipCache(scope: currentUser, date: date, remaining: skipsLeft);
-      return SkipQuotaResult(
-        allowed: ok,
-        skipsLeft: skipsLeft,
-        message: ok ? null : 'No skips left today.',
-      );
-    } catch (_) {
-      return _consumeSkipFromCache(scope: currentUser);
-    }
-  }
-
-  SkipQuotaResult _consumeSkipLocal({required String scope}) {
-    final today = _localDateKey();
-    final cached = _readSkipCache(scope: scope);
-    final remaining = cached != null && cached.date == today
-        ? cached.remaining
-        : 3;
-    if (remaining <= 0) {
-      _writeSkipCache(scope: scope, date: today, remaining: 0);
-      return const SkipQuotaResult(
-        allowed: false,
-        skipsLeft: 0,
-        message: 'No skips left today.',
-      );
-    }
-    final nextRemaining = remaining - 1;
-    _writeSkipCache(scope: scope, date: today, remaining: nextRemaining);
-    return SkipQuotaResult(allowed: true, skipsLeft: nextRemaining);
-  }
-
-  SkipQuotaResult _consumeSkipFromCache({required String scope}) {
-    final cached = _readSkipCache(scope: scope);
-    if (cached == null) {
-      return const SkipQuotaResult(
-        allowed: false,
-        skipsLeft: 0,
-        message: 'Skip unavailable offline. Reconnect to refresh your quota.',
-      );
-    }
-    final today = _localDateKey();
-    if (cached.date != today) {
-      return SkipQuotaResult(
-        allowed: false,
-        skipsLeft: cached.remaining,
-        message: 'Skip unavailable offline. Reconnect to refresh your quota.',
-      );
-    }
-    if (cached.remaining <= 0) {
-      return const SkipQuotaResult(
-        allowed: false,
-        skipsLeft: 0,
-        message: 'No skips left today.',
-      );
-    }
-    final nextRemaining = cached.remaining - 1;
-    _writeSkipCache(scope: scope, date: cached.date, remaining: nextRemaining);
-    return SkipQuotaResult(allowed: true, skipsLeft: nextRemaining);
-  }
-
-  void _writeSkipCache({
-    required String scope,
-    required String date,
-    required int remaining,
-  }) {
-    _prefs.setString(_skipCacheKey(scope, _skipQuotaDateKey), date);
-    _prefs.setInt(_skipCacheKey(scope, _skipQuotaRemainingKey), remaining);
-  }
-
-  _SkipQuotaCache? _readSkipCache({required String scope}) {
-    final date = _prefs.getString(_skipCacheKey(scope, _skipQuotaDateKey));
-    final remaining =
-        _prefs.getInt(_skipCacheKey(scope, _skipQuotaRemainingKey));
-    if (date == null || remaining == null) {
-      return null;
-    }
-    return _SkipQuotaCache(date: date, remaining: remaining);
-  }
-
-  String _skipCacheKey(String scope, String key) => '$key:$scope';
-
-  String _localDateKey() {
-    final now = DateTime.now();
-    final year = now.year.toString().padLeft(4, '0');
-    final month = now.month.toString().padLeft(2, '0');
-    final day = now.day.toString().padLeft(2, '0');
-    return '$year-$month-$day';
-  }
+  Future<SkipQuotaResult> consumeSkip() => _skipQuota.consumeSkip();
 
   bool _isPostRateLimited(String scope) {
     final now = DateTime.now().toUtc();
@@ -1494,19 +1411,6 @@ class AppState extends ChangeNotifier
   }
 
   String _postRateLimitScopeKey(String scope) => '$_postRateLimitKey:$scope';
-
-  int _parseInt(Object? value) {
-    if (value is int) {
-      return value;
-    }
-    if (value is num) {
-      return value.toInt();
-    }
-    if (value is String) {
-      return int.tryParse(value) ?? 0;
-    }
-    return 0;
-  }
 
   void _persistHiddenNotes() {
     const maxEntries = 200;
@@ -1635,13 +1539,6 @@ bool _sameList(List<String> left, List<String> right) {
     }
   }
   return true;
-}
-
-class _SkipQuotaCache {
-  const _SkipQuotaCache({required this.date, required this.remaining});
-
-  final String date;
-  final int remaining;
 }
 
 class _FeedShuffleCandidate {
