@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
 import '../app/app_state.dart';
+import '../services/post_service.dart';
 import '../theme/echo_theme.dart';
 import '../models/hashtag.dart';
 import '../utils/time_format.dart';

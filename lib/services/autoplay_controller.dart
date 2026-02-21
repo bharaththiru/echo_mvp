@@ -2574,10 +2574,16 @@ class AutoplayController extends ChangeNotifier {
       _playbackQueueIndex = _playbackQueueIds.indexOf(activeId);
     }
     final resolvedCurrent = _state.currentNote;
+    // Include the loading phase so that AutoplayState position/phase are
+    // still synced at line 2729 while the engine has not yet resolved a
+    // sourceId (activeId == null).  Without this, the early-return at
+    // `!isCurrentActive` skips the _setState call, leaving AutoplayState
+    // frozen on the previous clip's position during initial buffering.
     final isCurrentActive = resolvedCurrent != null &&
         (activeId == null
             ? audioState.phase == AudioPlaybackPhase.playing ||
-                audioState.phase == AudioPlaybackPhase.buffering
+                audioState.phase == AudioPlaybackPhase.buffering ||
+                audioState.phase == AudioPlaybackPhase.loading
             : resolvedCurrent.id == activeId);
 
     if (resolvedCurrent != null && _positionNoteId != resolvedCurrent.id) {

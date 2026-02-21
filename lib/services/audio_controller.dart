@@ -413,6 +413,20 @@ class AudioController extends ChangeNotifier
         return;
       }
       await _engine.play();
+      if (token != _operationToken || _isDisposed) {
+        return;
+      }
+      // Optimistically mark as playing so the Ticker in the progress widget
+      // activates immediately, without waiting for the first engine snapshot
+      // (~100 ms throttle).  Mirrors what resume() does.
+      _state = _state.copyWith(
+        isPlaying: true,
+        phase: AudioPlaybackPhase.playing,
+        errorMessage: null,
+      );
+      _emitMetrics(playing: true, processingState: PlaybackProcessingState.ready);
+      notifyListeners();
+      _syncPositionTimer();
     } catch (_) {
       if (token != _operationToken || _isDisposed) {
         return;
