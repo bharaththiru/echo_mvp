@@ -570,12 +570,12 @@ class FirebaseRepository {
   }
 
   Future<Map<String, dynamic>> consumeSkip({required String userId}) async {
-    final localDate = _localDateKey();
+    final utcDate = _utcDateKey();
     final docRef = _firestore
         .collection('users')
         .doc(userId)
         .collection('daily_skip_usage')
-        .doc(localDate);
+        .doc(utcDate);
 
     return _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(docRef);
@@ -585,7 +585,7 @@ class FirebaseRepository {
         return {
           'ok': false,
           'skips_left': 0,
-          'local_date': localDate,
+          'utc_date': utcDate,
         };
       }
       final next = used + 1;
@@ -593,7 +593,7 @@ class FirebaseRepository {
         docRef,
         {
           'skips_used': next,
-          'local_date': localDate,
+          'utc_date': utcDate,
           'updated_at': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
@@ -601,7 +601,7 @@ class FirebaseRepository {
       return {
         'ok': true,
         'skips_left': 3 - next,
-        'local_date': localDate,
+        'utc_date': utcDate,
       };
     });
   }
@@ -797,8 +797,8 @@ class FirebaseRepository {
     return 0;
   }
 
-  String _localDateKey() {
-    final now = DateTime.now();
+  String _utcDateKey() {
+    final now = DateTime.now().toUtc();
     final year = now.year.toString().padLeft(4, '0');
     final month = now.month.toString().padLeft(2, '0');
     final day = now.day.toString().padLeft(2, '0');

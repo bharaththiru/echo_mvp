@@ -36,7 +36,7 @@ class SkipQuotaService {
       final response = await _repository.consumeSkip(userId: currentUser);
       final ok = response['ok'] == true;
       final skipsLeft = _parseInt(response['skips_left']);
-      final date = response['local_date']?.toString() ?? _localDateKey();
+      final date = response['utc_date']?.toString() ?? _utcDateKey();
       _writeSkipCache(scope: currentUser, date: date, remaining: skipsLeft);
       return SkipQuotaResult(
         allowed: ok,
@@ -49,7 +49,7 @@ class SkipQuotaService {
   }
 
   SkipQuotaResult _consumeSkipLocal({required String scope}) {
-    final today = _localDateKey();
+    final today = _utcDateKey();
     final cached = _readSkipCache(scope: scope);
     final remaining =
         cached != null && cached.date == today ? cached.remaining : 3;
@@ -75,7 +75,7 @@ class SkipQuotaService {
         message: 'Skip unavailable offline. Reconnect to refresh your quota.',
       );
     }
-    final today = _localDateKey();
+    final today = _utcDateKey();
     if (cached.date != today) {
       return SkipQuotaResult(
         allowed: false,
@@ -114,8 +114,8 @@ class SkipQuotaService {
 
   String _skipCacheKey(String scope, String key) => '$key:$scope';
 
-  String _localDateKey() {
-    final now = DateTime.now();
+  String _utcDateKey() {
+    final now = DateTime.now().toUtc();
     final year = now.year.toString().padLeft(4, '0');
     final month = now.month.toString().padLeft(2, '0');
     final day = now.day.toString().padLeft(2, '0');
