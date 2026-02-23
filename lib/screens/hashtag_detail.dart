@@ -100,7 +100,7 @@ class _HashtagDetailState extends State<HashtagDetail> {
           final listBottomPadding = miniPlayerVisible ? 196.0 : 124.0;
 
           final heroPanel = Padding(
-            padding: EchoLayout.listPadding(context, top: 6, bottom: 0),
+            padding: EchoLayout.listPadding(context, top: 10, bottom: 2),
             child: _StationHeroPanel(
               station: hashtag,
               noteCount: notes.length,
@@ -143,13 +143,25 @@ class _HashtagDetailState extends State<HashtagDetail> {
               itemBuilder: (context, index) {
                 if (index == 0) {
                   return Padding(
-                    padding: const EdgeInsets.fromLTRB(2, 14, 2, 10),
-                    child: Text(
-                      'Notes',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: tokens.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    padding: const EdgeInsets.fromLTRB(2, 18, 2, 10),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Recent notes',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: tokens.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${notes.length}',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: tokens.textTertiary,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 }
@@ -201,6 +213,15 @@ class _HashtagDetailState extends State<HashtagDetail> {
                     onBack: () => context.go('/listen'),
                   ),
                   heroPanel,
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: EchoLayout.contentHorizontalPadding(context),
+                    ),
+                    child: Divider(
+                      height: 1,
+                      color: tokens.borderSubtle.withValues(alpha: 0.7),
+                    ),
+                  ),
                   Expanded(child: notesContent),
                 ],
               ),
@@ -240,26 +261,40 @@ class _StationTopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          TextButton.icon(
+          IconButton(
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_back),
-            label: const Text('Back'),
-            style: TextButton.styleFrom(
-              backgroundColor: tokens.surface1,
+            tooltip: 'Back',
+            icon: const Icon(Icons.arrow_back_rounded),
+            style: IconButton.styleFrom(
+              backgroundColor: tokens.surface1.withValues(alpha: 0.7),
               foregroundColor: tokens.textPrimary,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: tokens.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'STATION',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: tokens.textTertiary,
+                    letterSpacing: 1.1,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: tokens.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -290,89 +325,88 @@ class _StationHeroPanel extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = context.echo;
     final circleSize =
-        EchoLayout.space(context, 178).clamp(146.0, 214.0).toDouble();
+        EchoLayout.space(context, 150).clamp(120.0, 186.0).toDouble();
 
-    return EchoCard(
-      radius: 30,
-      color: tokens.surface1,
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 18),
-      child: Column(
-        children: [
-          Text(
-            station.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: tokens.textPrimary,
-              fontWeight: FontWeight.w700,
+    return Column(
+      children: [
+        Container(
+          height: circleSize,
+          width: circleSize,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color.lerp(station.color, tokens.surface2, 0.24)!,
+                Color.lerp(tokens.surface1, station.color, 0.24)!,
+              ],
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '$noteCount ${noteCount == 1 ? 'note' : 'notes'}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: tokens.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _StationNavButton(
-                icon: Icons.chevron_left_rounded,
-                label: previousLabel ?? 'Previous',
-                onPressed: onPrevious,
-              ),
-              const Spacer(),
-              Container(
-                height: circleSize,
-                width: circleSize,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color.lerp(station.color, tokens.surface2, 0.18)!,
-                      Color.lerp(tokens.surface1, station.color, 0.34)!,
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.22),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  station.icon,
-                  size: circleSize * 0.38,
-                  color: tokens.textPrimary,
-                ),
-              ),
-              const Spacer(),
-              _StationNavButton(
-                icon: Icons.chevron_right_rounded,
-                label: nextLabel ?? 'Next',
-                onPressed: onNext,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.16),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
-          if (station.description.trim().isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              station.description,
-              textAlign: TextAlign.center,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: tokens.textSecondary,
-                height: 1.35,
+          child: Icon(
+            station.icon,
+            size: circleSize * 0.34,
+            color: tokens.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          station.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            color: tokens.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '$noteCount ${noteCount == 1 ? 'note' : 'notes'}',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: tokens.textSecondary,
+          ),
+        ),
+        if (station.description.trim().isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            station.description,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: tokens.textSecondary,
+              height: 1.35,
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: _StationNavButton(
+                icon: Icons.chevron_left_rounded,
+                label: previousLabel ?? 'Previous station',
+                onPressed: onPrevious,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _StationNavButton(
+                icon: Icons.chevron_right_rounded,
+                label: nextLabel ?? 'Next station',
+                onPressed: onNext,
               ),
             ),
           ],
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -393,33 +427,27 @@ class _StationNavButton extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = context.echo;
     final isEnabled = onPressed != null;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: label,
-          onPressed: onPressed,
-          style: IconButton.styleFrom(
-            backgroundColor: tokens.surface2.withValues(alpha: isEnabled ? 1 : 0.6),
-            foregroundColor: isEnabled ? tokens.textPrimary : tokens.textTertiary,
-          ),
-          iconSize: 28,
-          icon: Icon(icon),
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: isEnabled ? tokens.textSecondary : tokens.textTertiary,
+        textStyle: theme.textTheme.labelSmall,
+        minimumSize: const Size.fromHeight(40),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        side: BorderSide(
+          color: isEnabled
+              ? tokens.borderSubtle.withValues(alpha: 0.8)
+              : tokens.borderSubtle.withValues(alpha: 0.4),
         ),
-        const SizedBox(height: 4),
-        SizedBox(
-          width: 76,
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: isEnabled ? tokens.textSecondary : tokens.textTertiary,
-            ),
-          ),
-        ),
-      ],
+        backgroundColor: tokens.surface1.withValues(alpha: 0.4),
+        alignment: Alignment.center,
+      ),
     );
   }
 }
@@ -444,8 +472,7 @@ class _VoiceNoteRow extends StatelessWidget {
     final buttonFill = tokens.accentPrimary;
     final onButtonFill = theme.colorScheme.onPrimary;
     final loadingForeground = onButtonFill.withValues(alpha: 0.5);
-    final clipTintedSurface =
-        Color.lerp(tokens.surface1, const Color(0xFF42C0BD), 0.10)!;
+    final clipTintedSurface = tokens.surface1;
 
     return ListenableSelector<_NotePlaybackSnapshot>(
       listenable: audio,
@@ -474,8 +501,9 @@ class _VoiceNoteRow extends StatelessWidget {
       builder: (context, playback) {
         return EchoCard(
           padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-          radius: 18,
+          radius: 16,
           color: clipTintedSurface,
+          borderColor: tokens.borderSubtle.withValues(alpha: 0.6),
           child: Row(
             children: [
               Expanded(
@@ -500,7 +528,7 @@ class _VoiceNoteRow extends StatelessWidget {
                         color: tokens.textSecondary,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Text(
@@ -509,7 +537,15 @@ class _VoiceNoteRow extends StatelessWidget {
                             color: tokens.textTertiary,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            '•',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: tokens.textTertiary,
+                            ),
+                          ),
+                        ),
                         Text(
                           formatDuration(playback.duration),
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -538,7 +574,7 @@ class _VoiceNoteRow extends StatelessWidget {
                 tooltip: playback.isPlaying ? 'Pause note' : 'Play note',
                 onPressed: onPlay,
                 style: IconButton.styleFrom(
-                  backgroundColor: buttonFill,
+                  backgroundColor: buttonFill.withValues(alpha: 0.88),
                   foregroundColor: onButtonFill,
                 ),
                 icon: isPreparing
@@ -554,7 +590,7 @@ class _VoiceNoteRow extends StatelessWidget {
                       )
                     : Icon(
                         playback.isPlaying ? Icons.pause : Icons.play_arrow,
-                        size: 22,
+                        size: 20,
                       ),
               ),
             ],
@@ -584,14 +620,14 @@ class _AutoplayFloatingButton extends StatelessWidget {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.34),
+              color: Colors.black.withValues(alpha: 0.24),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
           ],
         ),
         child: SizedBox.square(
-          dimension: 72,
+          dimension: 64,
           child: FloatingActionButton(
             heroTag: heroTag,
             tooltip: 'Autoplay',
@@ -604,16 +640,7 @@ class _AutoplayFloatingButton extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.auto_awesome_rounded, color: onButtonFill, size: 20),
-                const SizedBox(height: 1),
-                Text(
-                  'AUTO',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: onButtonFill,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
-                  ),
-                ),
+                Icon(Icons.auto_awesome_rounded, color: onButtonFill, size: 22),
               ],
             ),
           ),
