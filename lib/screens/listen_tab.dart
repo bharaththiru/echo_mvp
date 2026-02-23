@@ -61,13 +61,28 @@ class _ListenTabState extends State<ListenTab> {
           elevation: 0,
           scrolledUnderElevation: 0,
           titleSpacing: contentPadding,
-          title: Text(
-            'Listen',
-            style: theme.textTheme.displaySmall?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Listen',
+                style: theme.textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              Text(
+                'Voice stations, curated',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: tokens.textTertiary,
+                  letterSpacing: 0.1,
+                  height: 1.3,
+                ),
+              ),
+            ],
           ),
-          toolbarHeight: EchoLayout.space(context, 56),
+          toolbarHeight: EchoLayout.space(context, 72),
         ),
         if (isLoading && allHashtags.isEmpty)
           const SliverFillRemaining(
@@ -106,6 +121,7 @@ class _ListenTabState extends State<ListenTab> {
                 child: GridView.builder(
                   primary: false,
                   scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(horizontal: contentPadding),
                   physics: const BouncingScrollPhysics(
                     parent: AlwaysScrollableScrollPhysics(),
                   ),
@@ -116,7 +132,6 @@ class _ListenTabState extends State<ListenTab> {
                         .toDouble(),
                     mainAxisSpacing: gridSpacing,
                     crossAxisSpacing: gridSpacing,
-                    childAspectRatio: 1.0,
                   ),
                   itemCount: allHashtags.length,
                   itemBuilder: (context, index) {
@@ -130,40 +145,39 @@ class _ListenTabState extends State<ListenTab> {
               ),
             ),
           ),
-          SliverPadding(
-            padding: EchoLayout.listPadding(
-              context,
-              top: 2,
-              bottom: 4,
-              includeBottomSafeArea: false,
-            ),
-            sliver: SliverToBoxAdapter(
-              child: _SectionHeading(
-                title: 'Recent',
-                subtitle: 'Stations based on your latest listening activity.',
+          if (recentStations.isNotEmpty) ...[
+            SliverPadding(
+              padding: EchoLayout.listPadding(
+                context,
+                top: 2,
+                bottom: 6,
+                includeBottomSafeArea: false,
+              ),
+              sliver: SliverToBoxAdapter(
+                child: _SectionHeading(title: 'Recent'),
               ),
             ),
-          ),
-          SliverPadding(
-            padding: EchoLayout.listPadding(
-              context,
-              top: 0,
-              bottom: 12,
-              includeBottomSafeArea: true,
+            SliverPadding(
+              padding: EchoLayout.listPadding(
+                context,
+                top: 0,
+                bottom: 12,
+                includeBottomSafeArea: true,
+              ),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final station = recentStations[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _RecentStationTile(
+                      station: station,
+                      onTap: () => _openStation(station),
+                    ),
+                  );
+                }, childCount: recentStations.length),
+              ),
             ),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final station = recentStations[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _RecentStationTile(
-                    station: station,
-                    onTap: () => _openStation(station),
-                  ),
-                );
-              }, childCount: recentStations.length),
-            ),
-          ),
+          ],
         ],
       ],
     );
@@ -171,10 +185,9 @@ class _ListenTabState extends State<ListenTab> {
 }
 
 class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({required this.title, required this.subtitle});
+  const _SectionHeading({required this.title});
 
   final String title;
-  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -183,18 +196,17 @@ class _SectionHeading extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: theme.textTheme.titleLarge?.copyWith(
-            color: tokens.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
+        Container(
+          height: 0.5,
+          color: tokens.textTertiary.withValues(alpha: 0.20),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 14),
         Text(
-          subtitle,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: tokens.textSecondary,
+          title.toUpperCase(),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: tokens.textTertiary,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.2,
           ),
         ),
       ],
@@ -212,12 +224,14 @@ class _StationGridCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
+
+    // Atmospheric gradient: station color at top-left fading to near-black at bottom-right
     final gradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        Color.lerp(hashtag.color, tokens.surface2, 0.18)!,
-        Color.lerp(tokens.surface1, hashtag.color, 0.35)!,
+        Color.lerp(hashtag.color, tokens.surface1, 0.35)!,
+        Color.lerp(tokens.bg, hashtag.color, 0.18)!,
       ],
     );
 
@@ -231,26 +245,18 @@ class _StationGridCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                height: 46,
-                width: 46,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: tokens.bg.withValues(alpha: 0.2),
-                  border: Border.all(
-                    color: tokens.textPrimary.withValues(alpha: 0.16),
-                    width: 1,
-                  ),
-                ),
-                child: Icon(
-                  hashtag.icon,
-                  size: 28,
-                  color: tokens.textPrimary,
-                ),
-              ),
-            ],
+          Container(
+            height: 46,
+            width: 46,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: tokens.bg.withValues(alpha: 0.28),
+            ),
+            child: Icon(
+              hashtag.icon,
+              size: 26,
+              color: tokens.textPrimary,
+            ),
           ),
           const Spacer(),
           Text(
@@ -259,19 +265,31 @@ class _StationGridCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleMedium?.copyWith(
               color: tokens.textPrimary,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.05,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Text(
             hashtag.description,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: tokens.textPrimary.withValues(alpha: 0.78),
+              color: tokens.textPrimary.withValues(alpha: 0.68),
               height: 1.35,
             ),
           ),
+          if (hashtag.noteCount > 0) ...[
+            const SizedBox(height: 5),
+            Text(
+              '${hashtag.noteCount} ${hashtag.noteCount == 1 ? 'note' : 'notes'}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: tokens.textPrimary.withValues(alpha: 0.48),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -292,8 +310,8 @@ class _RecentStationTile extends StatelessWidget {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        Color.lerp(station.color, tokens.surface2, 0.25)!,
-        Color.lerp(tokens.surface1, station.color, 0.45)!,
+        Color.lerp(station.color, tokens.surface1, 0.35)!,
+        Color.lerp(tokens.bg, station.color, 0.28)!,
       ],
     );
 
@@ -302,12 +320,12 @@ class _RecentStationTile extends StatelessWidget {
       radius: 18,
       color: tokens.surface1,
       overlayColor: EchoColorUtils.pressedOverlay(tokens.surface1, alpha: 0.12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       child: Row(
         children: [
           Container(
-            height: 48,
-            width: 48,
+            height: 50,
+            width: 50,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: circleGradient,
@@ -318,10 +336,11 @@ class _RecentStationTile extends StatelessWidget {
               size: 22,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   station.name,
@@ -329,17 +348,25 @@ class _RecentStationTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleSmall?.copyWith(
                     color: tokens.textPrimary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+                if (station.noteCount > 0)
+                  Text(
+                    '${station.noteCount} ${station.noteCount == 1 ? 'note' : 'notes'}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: tokens.textTertiary,
+                      fontSize: 12,
+                    ),
+                  ),
               ],
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Icon(
             Icons.play_arrow_rounded,
             size: 26,
-            color: tokens.textSecondary,
+            color: tokens.accentPrimary,
           ),
         ],
       ),

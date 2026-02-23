@@ -285,18 +285,20 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                           top: 0,
                           left: 0,
                           right: 0,
-                          height: EchoLayout.space(context, 340),
+                          height: EchoLayout.space(context, 380),
                           child: Center(
                             child: Container(
-                              width: 340,
-                              height: 340,
+                              width: 420,
+                              height: 420,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
                                   colors: [
-                                    tokens.accentPrimary.withValues(alpha: 0.07),
+                                    hashtag.color.withValues(alpha: 0.09),
+                                    tokens.accentPrimary.withValues(alpha: 0.04),
                                     Colors.transparent,
                                   ],
+                                  stops: const [0.0, 0.5, 1.0],
                                 ),
                               ),
                             ),
@@ -319,8 +321,12 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                             Text(
                               noteTitle,
                               textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.headlineSmall?.copyWith(
                                 color: tokens.textPrimary,
+                                fontWeight: FontWeight.w600,
+                                height: 1.28,
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -332,11 +338,21 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                               ),
                             ),
                             const SizedBox(height: 10),
-                            Text(
-                              '${currentIndex + 1} of ${state.queue.length}',
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: tokens.textTertiary,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: tokens.surface2,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${currentIndex + 1} of ${state.queue.length}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: tokens.textTertiary,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                             SizedBox(height: EchoLayout.space(context, 14)),
@@ -381,93 +397,114 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                 ),
                               ),
                             SizedBox(height: EchoLayout.space(context, 28)),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                IconButton(
-                                  tooltip: state.isMuted
-                                      ? 'Unmute current note'
-                                      : 'Mute current note',
-                                  onPressed: () => autoplay.toggleMute(),
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: Colors.transparent,
-                                    foregroundColor: state.isMuted
-                                        ? tokens.textPrimary
-                                        : tokens.textSecondary,
-                                  ),
-                                  icon: Icon(
-                                    state.isMuted
-                                        ? Icons.volume_off_rounded
-                                        : Icons.volume_up_rounded,
-                                  ),
-                                  iconSize: 26,
+                            Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: EchoLayout.horizontalPadding(context),
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 10,
                                 ),
-                                const SizedBox(width: 16),
-                                // Play/pause button with ambient glow when playing
-                                Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    boxShadow: isEnginePlaying
-                                        ? [
-                                            BoxShadow(
-                                              color: tokens.accentPrimary
-                                                  .withValues(alpha: 0.32),
-                                              blurRadius: 38,
-                                              spreadRadius: 2,
-                                            ),
-                                          ]
-                                        : [],
-                                  ),
-                                  child: SizedBox(
-                                    height: buttonSize,
-                                    width: buttonSize,
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        shape: const CircleBorder(),
-                                        padding: EdgeInsets.zero,
-                                        backgroundColor: tokens.accentPrimary,
-                                        foregroundColor: theme.colorScheme.onPrimary,
-                                        elevation: 0,
-                                        shadowColor: Colors.transparent,
+                                decoration: BoxDecoration(
+                                  color: tokens.surface1.withValues(alpha: 0.65),
+                                  borderRadius: BorderRadius.circular(36),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    IconButton(
+                                      tooltip: state.isMuted
+                                          ? 'Unmute current note'
+                                          : 'Mute current note',
+                                      onPressed: () => autoplay.toggleMute(),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: Colors.transparent,
+                                        foregroundColor: state.isMuted
+                                            ? tokens.textPrimary
+                                            : tokens.textSecondary,
                                       ),
-                                      onPressed: () => autoplay.togglePlayPause(),
-                                      child: centerShowsSpinner
-                                          ? SizedBox(
-                                              height: 24,
-                                              width: 24,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<Color>(
-                                                      theme.colorScheme.onPrimary,
-                                                    ),
-                                              ),
-                                            )
-                                          : Icon(
-                                              isEnginePlaying
-                                                  ? Icons.pause_rounded
-                                                  : Icons.play_arrow_rounded,
-                                              size: 38,
-                                            ),
+                                      icon: Icon(
+                                        state.isMuted
+                                            ? Icons.volume_off_rounded
+                                            : Icons.volume_up_rounded,
+                                      ),
+                                      iconSize: 26,
                                     ),
-                                  ),
+                                    const SizedBox(width: 16),
+                                    // Play/pause button with ambient glow when playing
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        boxShadow: isEnginePlaying
+                                            ? [
+                                                BoxShadow(
+                                                  color: tokens.accentPrimary
+                                                      .withValues(alpha: 0.36),
+                                                  blurRadius: 42,
+                                                  spreadRadius: 4,
+                                                ),
+                                              ]
+                                            : [],
+                                      ),
+                                      child: SizedBox(
+                                        height: buttonSize,
+                                        width: buttonSize,
+                                        child: ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            shape: const CircleBorder(),
+                                            padding: EdgeInsets.zero,
+                                            backgroundColor: tokens.accentPrimary,
+                                            foregroundColor:
+                                                theme.colorScheme.onPrimary,
+                                            elevation: 0,
+                                            shadowColor: Colors.transparent,
+                                          ),
+                                          onPressed: () =>
+                                              autoplay.togglePlayPause(),
+                                          child: centerShowsSpinner
+                                              ? SizedBox(
+                                                  height: 24,
+                                                  width: 24,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    valueColor:
+                                                        AlwaysStoppedAnimation<
+                                                          Color
+                                                        >(
+                                                          theme.colorScheme
+                                                              .onPrimary,
+                                                        ),
+                                                  ),
+                                                )
+                                              : Icon(
+                                                  isEnginePlaying
+                                                      ? Icons.pause_rounded
+                                                      : Icons.play_arrow_rounded,
+                                                  size: 38,
+                                                ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    IconButton(
+                                      tooltip: 'Next note',
+                                      onPressed: state.queue.length <= 1
+                                          ? null
+                                          : () => autoplay.skip(),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: Colors.transparent,
+                                        foregroundColor: state.queue.length <= 1
+                                            ? tokens.textTertiary
+                                            : tokens.textSecondary,
+                                      ),
+                                      icon: const Icon(Icons.skip_next_rounded),
+                                      iconSize: 30,
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 16),
-                                IconButton(
-                                  tooltip: 'Next note',
-                                  onPressed: state.queue.length <= 1
-                                      ? null
-                                      : () => autoplay.skip(),
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: Colors.transparent,
-                                    foregroundColor: state.queue.length <= 1
-                                        ? tokens.textTertiary
-                                        : tokens.textSecondary,
-                                  ),
-                                  icon: const Icon(Icons.skip_next_rounded),
-                                  iconSize: 30,
-                                ),
-                              ],
+                              ),
                             ),
                             const SizedBox(height: 8),
                             Center(
@@ -541,10 +578,12 @@ class _PlayerHeader extends StatelessWidget {
                 tooltip: 'Back',
                 onPressed: onBack,
                 style: IconButton.styleFrom(
-                  backgroundColor: Colors.transparent,
+                  backgroundColor: tokens.surface2,
                   foregroundColor: tokens.textPrimary,
+                  shape: const CircleBorder(),
+                  padding: const EdgeInsets.all(8),
                 ),
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
               ),
             ),
             Center(
@@ -631,8 +670,8 @@ class _StationAvatarState extends State<_StationAvatar>
 
   Widget _buildRing(double size, double value, double offset, EchoSemantic tokens) {
     final t = (value + offset) % 1.0;
-    final scale = 1.0 + t * 0.32;
-    final opacity = (1.0 - t) * 0.20;
+    final scale = 1.0 + t * 0.36;
+    final opacity = (1.0 - t) * 0.26;
     return Transform.scale(
       scale: scale,
       child: Opacity(
