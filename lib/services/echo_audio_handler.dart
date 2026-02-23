@@ -302,7 +302,7 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _queueItems.clear();
     await _clearAllCaches();
     await _player.stop();
-    await _player.setLoopMode(LoopMode.all);
+    await _player.setLoopMode(LoopMode.off);
     final sources = <AudioSource>[];
     for (final item in items) {
       final media = _buildMediaItem(item);
@@ -356,6 +356,13 @@ class EchoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> seekToIndex(int index, {Duration? position}) async {
     if (_queueMode) {
       await _player.seek(position ?? Duration.zero, index: index);
+      // Resume playback if the player is not already playing (e.g. after
+      // the queue completed or was paused).  skipToNext/skipToPrevious
+      // already call play(), so seekToIndex must do the same to avoid
+      // silent seeks when advancing tracks.
+      if (!_player.playing) {
+        await play();
+      }
       _broadcastState();
     }
   }

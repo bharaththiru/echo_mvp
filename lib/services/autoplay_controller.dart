@@ -1921,7 +1921,22 @@ class AutoplayController extends ChangeNotifier {
         _lastObservedPosition = Duration.zero;
         _positionResetCount = 0;
         await _audio.seekToIndex(0, position: Duration.zero);
-        await _audio.resume();
+        // seekToIndex now auto-resumes if player was not playing, but call
+        // resume() defensively to guarantee playback restarts.
+        if (!_audio.state.isPlaying) {
+          await _audio.resume();
+        }
+        // Clear transitioning so _handleAudioChanged can propagate the
+        // engine's playing state immediately.
+        _setState(
+          _state.copyWith(
+            phase: AutoplayPhase.playing,
+            isTransitioning: false,
+            isPreparing: false,
+            userPaused: false,
+            position: Duration.zero,
+          ),
+        );
         _log('loop restart queueIndex=0 note=$firstId');
         return;
       } catch (_) {

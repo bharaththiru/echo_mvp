@@ -455,7 +455,30 @@ class AudioController extends ChangeNotifier
 
   @override
   Future<void> seekToIndex(int index, {Duration? position}) async {
+    // Optimistically mark as playing so the UI reacts immediately, matching
+    // the behaviour of playQueue() and resume().  The engine's seekToIndex
+    // now also calls play() when the player is not already playing.
+    final wasCompleted = _state.phase == AudioPlaybackPhase.completed ||
+        _state.phase == AudioPlaybackPhase.paused ||
+        _state.phase == AudioPlaybackPhase.idle;
     await _engine.seekToIndex(index, position: position);
+    if (wasCompleted && !_isDisposed) {
+      _state = _state.copyWith(
+        isPlaying: true,
+        queueIndex: index,
+        position: position ?? Duration.zero,
+        phase: AudioPlaybackPhase.playing,
+        errorMessage: null,
+      );
+      _emitMetrics(
+        queueIndex: index,
+        position: position ?? Duration.zero,
+        playing: true,
+        processingState: PlaybackProcessingState.ready,
+      );
+      notifyListeners();
+      _syncPositionTimer();
+    }
   }
 
   @override
@@ -575,11 +598,16 @@ class AudioController extends ChangeNotifier
     }
     if (resolvedSourceId != _lastProgressSourceId ||
         resolvedQueueIndex != _lastProgressQueueIndex) {
-      return false;
+      // New source/index just started — optimistically assume advancing so
+      // the progress widget begins interpolating immediately instead of
+      // staying frozen until the first engine position tick arrives.
+      return isPlayingNow;
     }
     final last = _lastProgressAt;
     if (last == null) {
-      return false;
+      // Playing but no forward progress observed yet (very start of clip).
+      // Trust the isPlaying flag so the UI doesn't show a stale seek bar.
+      return isPlayingNow;
     }
     return DateTime.now().difference(last) <= const Duration(milliseconds: 900);
   }
