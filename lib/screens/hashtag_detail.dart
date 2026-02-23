@@ -99,23 +99,37 @@ class _HashtagDetailState extends State<HashtagDetail> {
               EchoLayout.space(context, miniPlayerVisible ? 126 : 26);
           final listBottomPadding = miniPlayerVisible ? 196.0 : 124.0;
 
-          Widget content;
+          final heroPanel = Padding(
+            padding: EchoLayout.listPadding(context, top: 6, bottom: 0),
+            child: _StationHeroPanel(
+              station: hashtag,
+              noteCount: notes.length,
+              previousLabel: previousStation?.name,
+              nextLabel: nextStation?.name,
+              onPrevious: previousStation == null
+                  ? null
+                  : () => _openStation(previousStation!),
+              onNext: nextStation == null ? null : () => _openStation(nextStation!),
+            ),
+          );
+
+          Widget notesContent;
           if (isLoading && notes.isEmpty) {
-            content = const Center(child: CircularProgressIndicator());
+            notesContent = const Center(child: CircularProgressIndicator());
           } else if (loadError != null && notes.isEmpty) {
-            content = _EmptyState(
+            notesContent = _EmptyState(
               title: 'Unable to load notes',
               subtitle: loadError,
               onRetry: () => appState.loadNotesForHashtag(hashtag.id, force: true),
             );
           } else if (notes.isEmpty) {
-            content = _EmptyState(
+            notesContent = _EmptyState(
               title: 'No notes yet',
               subtitle: 'Be the first to post in ${hashtag.name}.',
               onRetry: () => appState.loadNotesForHashtag(hashtag.id, force: true),
             );
           } else {
-            content = ListView.builder(
+            notesContent = ListView.builder(
               physics: const BouncingScrollPhysics(
                 parent: AlwaysScrollableScrollPhysics(),
               ),
@@ -125,22 +139,9 @@ class _HashtagDetailState extends State<HashtagDetail> {
                 bottom: listBottomPadding,
                 includeBottomSafeArea: true,
               ),
-              itemCount: notes.length * 2 + 3,
+              itemCount: notes.length * 2 + 2,
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  return _StationHeroPanel(
-                    station: hashtag,
-                    noteCount: notes.length,
-                    previousLabel: previousStation?.name,
-                    nextLabel: nextStation?.name,
-                    onPrevious: previousStation == null
-                        ? null
-                        : () => _openStation(previousStation!),
-                    onNext:
-                        nextStation == null ? null : () => _openStation(nextStation!),
-                  );
-                }
-                if (index == 1) {
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(2, 14, 2, 10),
                     child: Text(
@@ -152,10 +153,10 @@ class _HashtagDetailState extends State<HashtagDetail> {
                     ),
                   );
                 }
-                if (index == 2) {
+                if (index == 1) {
                   return const SizedBox(height: 2);
                 }
-                final rowIndex = index - 3;
+                final rowIndex = index - 2;
                 if (rowIndex.isOdd) {
                   return const SizedBox(height: 10);
                 }
@@ -199,7 +200,8 @@ class _HashtagDetailState extends State<HashtagDetail> {
                     title: hashtag.name,
                     onBack: () => context.go('/listen'),
                   ),
-                  Expanded(child: content),
+                  heroPanel,
+                  Expanded(child: notesContent),
                 ],
               ),
               Positioned(
