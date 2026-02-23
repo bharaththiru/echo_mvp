@@ -597,8 +597,10 @@ class NativeAudioEngine implements AudioEngine {
     if (_isDisposed) {
       return;
     }
-    // Native fallback does not support seeking; update UI position only.
+    // Optimistically update the snapshot so the scrubber moves immediately,
+    // then delegate to the native layer for the real seek.
     _emit(_snapshot.copyWith(position: position));
+    await _service.seekTo(position);
   }
 
   @override

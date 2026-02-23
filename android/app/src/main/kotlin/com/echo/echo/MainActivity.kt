@@ -48,6 +48,10 @@ class MainActivity : AudioServiceActivity() {
                     "isPlaying" -> result.success(player?.isPlaying ?: false)
                     "getPlaybackPosition" -> result.success(player?.currentPosition ?: 0)
                     "getPlaybackDuration" -> result.success(player?.duration ?: 0)
+                    "seekTo" -> {
+                        val positionMs = call.argument<Int>("positionMs") ?: 0
+                        result.success(seekTo(positionMs))
+                    }
                     "setPlaybackVolume" -> {
                         val volume = call.argument<Double>("volume") ?: 1.0
                         setPlaybackVolume(volume.toFloat())
@@ -166,6 +170,16 @@ class MainActivity : AudioServiceActivity() {
         } catch (ex: Exception) {
             player?.release()
             player = null
+            false
+        }
+    }
+
+    private fun seekTo(positionMs: Int): Boolean {
+        val p = player ?: return false
+        return try {
+            p.seekTo(positionMs)
+            true
+        } catch (ex: Exception) {
             false
         }
     }

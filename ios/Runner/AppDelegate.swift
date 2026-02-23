@@ -53,6 +53,13 @@ import UIKit
       case "getPlaybackDuration":
         let durationMs = Int((self.player?.duration ?? 0) * 1000)
         result(durationMs)
+      case "seekTo":
+        if let args = call.arguments as? [String: Any],
+           let positionMs = args["positionMs"] as? Int {
+          result(self.seekTo(positionMs: positionMs))
+        } else {
+          result(false)
+        }
       case "setPlaybackVolume":
         if let args = call.arguments as? [String: Any],
            let volume = args["volume"] as? Double {
@@ -167,6 +174,12 @@ import UIKit
     } catch {
       // Ignore deactivation failures.
     }
+    return true
+  }
+
+  private func seekTo(positionMs: Int) -> Bool {
+    guard let p = player else { return false }
+    p.currentTime = TimeInterval(positionMs) / 1000.0
     return true
   }
 
