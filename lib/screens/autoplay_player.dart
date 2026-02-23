@@ -277,181 +277,228 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                     onBack: () => context.pop(),
                   ),
                   Expanded(
-                    child: ListView(
-                      padding: EchoLayout.listPadding(
-                        context,
-                        bottom: 12,
-                        includeBottomSafeArea: true,
-                      ),
+                    child: Stack(
                       children: [
-                        SizedBox(height: EchoLayout.space(context, 8)),
-                        _StationAvatar(icon: hashtag.icon),
-                        SizedBox(height: EchoLayout.space(context, 22)),
-                        Text(
-                          noteTitle,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            color: tokens.textPrimary,
+                        // Fixed radial bloom behind the avatar area
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: EchoLayout.space(context, 340),
+                          child: Center(
+                            child: Container(
+                              width: 340,
+                              height: 340,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    tokens.accentPrimary.withValues(alpha: 0.07),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          posterLabel,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: tokens.textSecondary,
+                        ListView(
+                          padding: EchoLayout.listPadding(
+                            context,
+                            bottom: 12,
+                            includeBottomSafeArea: true,
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          '${currentIndex + 1} of ${state.queue.length}',
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: tokens.textTertiary,
-                          ),
-                        ),
-                        SizedBox(height: EchoLayout.space(context, 14)),
-                        _AutoplayProgress(
-                          audio: audio,
-                          currentNoteId: note.id,
-                          fallbackDuration: note.duration,
-                          label: statusLabel,
-                          showSpinner: showSpinner,
-                          reduceMotion: reduceMotion,
-                          isError: isError,
-                        ),
-                        if (state.phase == AutoplayPhase.error &&
-                            state.errorMessage != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: EchoCard(
-                              padding: const EdgeInsets.all(14),
-                              radius: 16,
-                              color: tokens.surface2,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Playback issue',
-                                    style: theme.textTheme.titleSmall,
+                          children: [
+                            SizedBox(height: EchoLayout.space(context, 8)),
+                            _StationAvatar(
+                              icon: hashtag.icon,
+                              isPlaying: isEnginePlaying,
+                              reduceMotion: reduceMotion,
+                            ),
+                            SizedBox(height: EchoLayout.space(context, 22)),
+                            Text(
+                              noteTitle,
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                color: tokens.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              posterLabel,
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: tokens.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              '${currentIndex + 1} of ${state.queue.length}',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: tokens.textTertiary,
+                              ),
+                            ),
+                            SizedBox(height: EchoLayout.space(context, 14)),
+                            _AutoplayProgress(
+                              audio: audio,
+                              currentNoteId: note.id,
+                              fallbackDuration: note.duration,
+                              label: statusLabel,
+                              showSpinner: showSpinner,
+                              reduceMotion: reduceMotion,
+                              isError: isError,
+                            ),
+                            if (state.phase == AutoplayPhase.error &&
+                                state.errorMessage != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: EchoCard(
+                                  padding: const EdgeInsets.all(14),
+                                  radius: 16,
+                                  color: tokens.surface2,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Playback issue',
+                                        style: theme.textTheme.titleSmall,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        state.errorMessage!,
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          color: tokens.textSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      EchoSecondaryButton(
+                                        label: 'Retry',
+                                        onPressed: () => autoplay.restart(),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    state.errorMessage!,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: tokens.textSecondary,
+                                ),
+                              ),
+                            SizedBox(height: EchoLayout.space(context, 28)),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                IconButton(
+                                  tooltip: state.isMuted
+                                      ? 'Unmute current note'
+                                      : 'Mute current note',
+                                  onPressed: () => autoplay.toggleMute(),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    foregroundColor: state.isMuted
+                                        ? tokens.textPrimary
+                                        : tokens.textSecondary,
+                                  ),
+                                  icon: Icon(
+                                    state.isMuted
+                                        ? Icons.volume_off_rounded
+                                        : Icons.volume_up_rounded,
+                                  ),
+                                  iconSize: 26,
+                                ),
+                                const SizedBox(width: 16),
+                                // Play/pause button with ambient glow when playing
+                                Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    boxShadow: isEnginePlaying
+                                        ? [
+                                            BoxShadow(
+                                              color: tokens.accentPrimary
+                                                  .withValues(alpha: 0.32),
+                                              blurRadius: 38,
+                                              spreadRadius: 2,
+                                            ),
+                                          ]
+                                        : [],
+                                  ),
+                                  child: SizedBox(
+                                    height: buttonSize,
+                                    width: buttonSize,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        shape: const CircleBorder(),
+                                        padding: EdgeInsets.zero,
+                                        backgroundColor: tokens.accentPrimary,
+                                        foregroundColor: theme.colorScheme.onPrimary,
+                                        elevation: 0,
+                                        shadowColor: Colors.transparent,
+                                      ),
+                                      onPressed: () => autoplay.togglePlayPause(),
+                                      child: centerShowsSpinner
+                                          ? SizedBox(
+                                              height: 24,
+                                              width: 24,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<Color>(
+                                                      theme.colorScheme.onPrimary,
+                                                    ),
+                                              ),
+                                            )
+                                          : Icon(
+                                              isEnginePlaying
+                                                  ? Icons.pause_rounded
+                                                  : Icons.play_arrow_rounded,
+                                              size: 38,
+                                            ),
                                     ),
                                   ),
-                                  const SizedBox(height: 10),
-                                  EchoSecondaryButton(
-                                    label: 'Retry',
-                                    onPressed: () => autoplay.restart(),
+                                ),
+                                const SizedBox(width: 16),
+                                IconButton(
+                                  tooltip: 'Next note',
+                                  onPressed: state.queue.length <= 1
+                                      ? null
+                                      : () => autoplay.skip(),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    foregroundColor: state.queue.length <= 1
+                                        ? tokens.textTertiary
+                                        : tokens.textSecondary,
+                                  ),
+                                  icon: const Icon(Icons.skip_next_rounded),
+                                  iconSize: 30,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Center(
+                              child: PopupMenuButton<String>(
+                                color: tokens.surface1,
+                                onSelected: (action) => _handleMenuAction(note, action),
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'hide',
+                                    child: Text('Hide clip'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'report',
+                                    child: Text('Report & hide'),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'block',
+                                    enabled: canBlock,
+                                    child: const Text('Block user'),
                                   ),
                                 ],
-                              ),
-                            ),
-                          ),
-                        SizedBox(height: EchoLayout.space(context, 28)),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            IconButton(
-                              tooltip: state.isMuted
-                                  ? 'Unmute current note'
-                                  : 'Mute current note',
-                              onPressed: () => autoplay.toggleMute(),
-                              style: IconButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                foregroundColor: tokens.textPrimary,
-                              ),
-                              icon: Icon(
-                                state.isMuted ? Icons.volume_off : Icons.volume_up,
-                              ),
-                              iconSize: 28,
-                            ),
-                            const SizedBox(width: 14),
-                            SizedBox(
-                              height: buttonSize,
-                              width: buttonSize,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  shape: const CircleBorder(),
-                                  padding: EdgeInsets.zero,
-                                  backgroundColor: tokens.accentPrimary,
-                                  foregroundColor: theme.colorScheme.onPrimary,
-                                  elevation: 0,
-                                  shadowColor: Colors.transparent,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(10),
+                                  child: Icon(
+                                    Icons.more_horiz_rounded,
+                                    size: 22,
+                                    color: tokens.textTertiary,
+                                  ),
                                 ),
-                                onPressed: () => autoplay.togglePlayPause(),
-                                child: centerShowsSpinner
-                                    ? SizedBox(
-                                        height: 24,
-                                        width: 24,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                theme.colorScheme.onPrimary,
-                                              ),
-                                        ),
-                                      )
-                                    : Icon(
-                                        isEnginePlaying
-                                            ? Icons.pause
-                                            : Icons.play_arrow,
-                                        size: 36,
-                                      ),
                               ),
-                            ),
-                            const SizedBox(width: 14),
-                            IconButton(
-                              tooltip: 'Next note',
-                              onPressed: state.queue.length <= 1
-                                  ? null
-                                  : () => autoplay.skip(),
-                              style: IconButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                foregroundColor: tokens.textPrimary,
-                              ),
-                              icon: const Icon(Icons.skip_next),
-                              iconSize: 30,
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 12),
-                        Center(
-                          child: PopupMenuButton<String>(
-                            color: tokens.surface1,
-                            onSelected: (action) => _handleMenuAction(note, action),
-                            itemBuilder: (context) => [
-                              const PopupMenuItem(
-                                value: 'hide',
-                                child: Text('Hide clip'),
-                              ),
-                              const PopupMenuItem(
-                                value: 'report',
-                                child: Text('Report & hide'),
-                              ),
-                              PopupMenuItem(
-                                value: 'block',
-                                enabled: canBlock,
-                                child: const Text('Block user'),
-                              ),
-                            ],
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              child: Text(
-                                'Clip actions',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: tokens.textSecondary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
                         ),
                       ],
                     ),
@@ -482,14 +529,9 @@ class _PlayerHeader extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = context.echo;
     return EchoHeaderShell(
-      padding: EchoLayout.pagePadding(context, top: 8, bottom: 8),
-      child: Container(
-        height: EchoLayout.space(context, 94).clamp(84.0, 108.0).toDouble(),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: tokens.surface1,
-          borderRadius: BorderRadius.circular(30),
-        ),
+      padding: EchoLayout.pagePadding(context, top: 4, bottom: 4),
+      child: SizedBox(
+        height: 52,
         child: Stack(
           children: [
             Align(
@@ -501,12 +543,12 @@ class _PlayerHeader extends StatelessWidget {
                   backgroundColor: Colors.transparent,
                   foregroundColor: tokens.textPrimary,
                 ),
-                icon: const Icon(Icons.arrow_back),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
               ),
             ),
             Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 44),
+                padding: const EdgeInsets.symmetric(horizontal: 48),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -514,16 +556,16 @@ class _PlayerHeader extends StatelessWidget {
                       stationTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleLarge?.copyWith(
+                      style: theme.textTheme.titleMedium?.copyWith(
                         color: tokens.textPrimary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       noteCountLabel,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: tokens.textSecondary,
+                        color: tokens.textTertiary,
                       ),
                     ),
                   ],
@@ -537,53 +579,138 @@ class _PlayerHeader extends StatelessWidget {
   }
 }
 
-class _StationAvatar extends StatelessWidget {
-  const _StationAvatar({required this.icon});
+class _StationAvatar extends StatefulWidget {
+  const _StationAvatar({
+    required this.icon,
+    required this.isPlaying,
+    required this.reduceMotion,
+  });
 
   final IconData icon;
+  final bool isPlaying;
+  final bool reduceMotion;
+
+  @override
+  State<_StationAvatar> createState() => _StationAvatarState();
+}
+
+class _StationAvatarState extends State<_StationAvatar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ring;
+
+  @override
+  void initState() {
+    super.initState();
+    _ring = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    );
+    if (widget.isPlaying && !widget.reduceMotion) {
+      _ring.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _StationAvatar old) {
+    super.didUpdateWidget(old);
+    final shouldAnimate = widget.isPlaying && !widget.reduceMotion;
+    if (shouldAnimate && !_ring.isAnimating) {
+      _ring.repeat();
+    } else if (!shouldAnimate && _ring.isAnimating) {
+      _ring.stop();
+      _ring.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ring.dispose();
+    super.dispose();
+  }
+
+  Widget _buildRing(double size, double value, double offset, EchoSemantic tokens) {
+    final t = (value + offset) % 1.0;
+    final scale = 1.0 + t * 0.32;
+    final opacity = (1.0 - t) * 0.20;
+    return Transform.scale(
+      scale: scale,
+      child: Opacity(
+        opacity: opacity.clamp(0.0, 1.0),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: tokens.accentPrimary,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.echo;
     final size = EchoLayout.space(context, 228).clamp(184.0, 254.0).toDouble();
-    final haloColor = tokens.accentPrimary.withValues(alpha: 0.2);
+    final haloColor = tokens.accentPrimary.withValues(alpha: 0.20);
 
-    return Center(
-      child: Container(
-        height: size,
-        width: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color.lerp(tokens.accentPrimary, tokens.surface1, 0.45)!,
-              tokens.surface2,
-            ],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.24),
-              blurRadius: 22,
-              offset: const Offset(0, 10),
-            ),
+    final disc = Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color.lerp(tokens.accentPrimary, tokens.surface1, 0.45)!,
+            tokens.surface2,
           ],
         ),
-        child: Center(
-          child: Container(
-            height: size * 0.42,
-            width: size * 0.42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: haloColor,
-            ),
-            child: Icon(
-              icon,
-              size: size * 0.22,
-              color: tokens.textPrimary,
-            ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.28),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
           ),
+        ],
+      ),
+      child: Center(
+        child: Container(
+          height: size * 0.42,
+          width: size * 0.42,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: haloColor,
+          ),
+          child: Icon(
+            widget.icon,
+            size: size * 0.22,
+            color: tokens.textPrimary,
+          ),
+        ),
+      ),
+    );
+
+    return Center(
+      child: SizedBox(
+        width: size * 1.5,
+        height: size * 1.5,
+        child: AnimatedBuilder(
+          animation: _ring,
+          builder: (context, child) {
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                if (widget.isPlaying && !widget.reduceMotion)
+                  _buildRing(size, _ring.value, 0.0, tokens),
+                if (widget.isPlaying && !widget.reduceMotion)
+                  _buildRing(size, _ring.value, 0.5, tokens),
+                child!,
+              ],
+            );
+          },
+          child: disc,
         ),
       ),
     );
@@ -650,25 +777,25 @@ class _NowListeningBar extends StatelessWidget {
         if (showStatus) const SizedBox(height: 10),
         LayoutBuilder(
           builder: (context, constraints) {
-            const dotSize = 10.0;
+            const dotSize = 12.0;
             final trackWidth = constraints.maxWidth;
             final left = (trackWidth - dotSize) * clamped;
             return Stack(
               alignment: Alignment.centerLeft,
               children: [
                 Container(
-                  height: 4,
+                  height: 6,
                   decoration: BoxDecoration(
-                    color: tokens.textSecondary.withValues(alpha: 0.22),
+                    color: tokens.textSecondary.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
                 FractionallySizedBox(
                   widthFactor: bufferedClamped,
                   child: Container(
-                    height: 4,
+                    height: 6,
                     decoration: BoxDecoration(
-                      color: tokens.textSecondary.withValues(alpha: 0.36),
+                      color: tokens.textSecondary.withValues(alpha: 0.32),
                       borderRadius: BorderRadius.circular(6),
                     ),
                   ),
@@ -676,7 +803,7 @@ class _NowListeningBar extends StatelessWidget {
                 FractionallySizedBox(
                   widthFactor: clamped,
                   child: Container(
-                    height: 4,
+                    height: 6,
                     decoration: BoxDecoration(
                       color: tokens.accentPrimary,
                       borderRadius: BorderRadius.circular(6),
@@ -746,8 +873,8 @@ class _PulseDotState extends State<_PulseDot>
   @override
   Widget build(BuildContext context) {
     final base = Container(
-      height: 10,
-      width: 10,
+      height: 12,
+      width: 12,
       decoration: BoxDecoration(
         color: widget.color,
         shape: BoxShape.circle,
