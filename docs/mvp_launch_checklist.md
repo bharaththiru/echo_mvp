@@ -6,8 +6,14 @@ This checklist covers everything that should be complete before shipping Echo to
 
 ## 🔴 Critical (Launch Blockers)
 
+### Known Bugs
+- [ ] **Fix non-atomic post upload** (`post_service.dart:255-298`) — Audio uploads to Firebase Storage first, then the Firestore document is created. If the Firestore write fails, the audio file is orphaned in Storage with no recovery path. Fix by writing the Firestore document first (with a `pending` status), then uploading, then marking it `published` — or use a Cloud Function to finalise the write.
+- [ ] **Fix onboarding permission flow** (`onboarding_screen.dart`) — Onboarding only shows 3 welcome cards with no microphone permission request. Users hit a permission denial on their first recording attempt. Add the permission prompt as a step in the onboarding flow.
+- [ ] **Fix post timeout race condition** (`post_service.dart:42-43`) — Upload timeout is 20s but the Firestore write timeout is 12s. An upload taking 13–20s succeeds but the user sees "post failed", leading silently to the orphan scenario above. Align timeouts or restructure so the Firestore write happens after a confirmed upload.
+- [ ] **Fix audio seeking on fallback engine** (`audio_engine.dart:596-602`) — When `NativeAudioEngine` is active (AudioService fallback), scrubbing the progress bar updates the UI only; the actual playback position does not change. Either implement real seeking or disable the scrub UI when on the fallback engine.
+
 ### Security & Firebase Rules
-- [ ] **Fix public audio read in Storage rules** — `storage.rules` currently allows anyone to read all audio files. Decide if that's intentional (public feed = public URLs) or if auth should be required, and document the decision.
+- [ ] **Audit public audio read in Storage rules** — `storage.rules` currently allows anyone to read all audio files. Decide if that's intentional (public feed = public URLs) or if auth should be required, and document the decision.
 - [ ] **Add server-side rate limiting** — `PostService` rate-limits on the client only (20 posts/hour). A determined user can bypass this. Add a Cloud Function or Firestore rule to enforce it server-side.
 - [ ] **Validate audio duration server-side** — The 12-second cap is enforced client-side and in Firestore rules (`duration <= 12`). Confirm the Firestore rule is deployed and tested with a malicious write.
 - [ ] **Review Firestore rules end-to-end** — Run the Firebase Rules Unit Test suite or manually test that unauthenticated users cannot write, users cannot read/write other users' private data, and reports are create-only.
