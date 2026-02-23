@@ -651,6 +651,18 @@ class FirebaseRepository {
     return storagePath;
   }
 
+  /// Deletes an audio file from Storage. Silently ignores errors so callers
+  /// can use this as a best-effort compensating action without disrupting the
+  /// primary error path.
+  Future<void> deleteAudio(String storagePath) async {
+    if (storagePath.isEmpty) return;
+    try {
+      await _storage.ref().child(storagePath).delete();
+    } catch (_) {
+      // Best-effort: deletion failure must not mask the original error.
+    }
+  }
+
   Future<String> fetchAudioUrl(String storagePath) async {
     final normalizedPath = storagePath.trim();
     if (normalizedPath.isEmpty) {
