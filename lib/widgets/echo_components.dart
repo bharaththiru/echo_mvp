@@ -32,6 +32,9 @@ class EchoCard extends StatelessWidget {
     final resolvedColor = color ?? tokens.surface1;
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(resolvedRadius),
+      side: borderColor == null
+          ? BorderSide.none
+          : BorderSide(color: borderColor!),
     );
     final content = Padding(padding: padding, child: child);
 
