@@ -17,7 +17,7 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  static const _pages = [
+  static const _contentPages = [
     _OnboardingPageData(
       title: 'Welcome to Echo.',
       body: 'A quiet place for short human voices.',
@@ -31,13 +31,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       title: 'Keep it gentle.',
       body:
           '12 seconds. Skips are limited to keep Echo listen-first. You can always mute a clip.',
-      microcopy: 'You can post too - only if you feel like it.',
+      microcopy: 'You can post too — only if you feel like it.',
     ),
   ];
+
+  // The permissions step is appended after the content pages.
+  static int get _totalPages => _contentPages.length + 1;
+  static int get _permissionsIndex => _contentPages.length; // = 3
 
   late final PageController _controller;
   int _currentIndex = 0;
   double _page = 0;
+
+  bool _micGranted = false;
+  bool _micRequesting = false;
 
   @override
   void initState() {
@@ -48,12 +55,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   void _handleScroll() {
     final nextPage = _controller.page;
-    if (nextPage == null) {
-      return;
-    }
-    if ((nextPage - _page).abs() < 0.001) {
-      return;
-    }
+    if (nextPage == null) return;
+    if ((nextPage - _page).abs() < 0.001) return;
     setState(() => _page = nextPage);
   }
 
@@ -70,23 +73,49 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     context.go('/listen');
   }
 
+  // Skip jumps to the permissions page so users always see the mic prompt.
+  void _skipToPermissions(bool reduceMotion) {
+    HapticFeedback.lightImpact();
+    if (reduceMotion) {
+      _controller.jumpToPage(_permissionsIndex);
+    } else {
+      _controller.animateToPage(
+        _permissionsIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
   Future<void> _onPrimaryCta(AppState appState, bool reduceMotion) async {
     HapticFeedback.lightImpact();
-    final isLast = _currentIndex == _pages.length - 1;
-    if (isLast) {
+    if (_currentIndex == _permissionsIndex) {
       _completeOnboarding(appState);
       return;
     }
     final nextIndex = _currentIndex + 1;
     if (reduceMotion) {
       _controller.jumpToPage(nextIndex);
-      return;
+    } else {
+      await _controller.animateToPage(
+        nextIndex,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      );
     }
-    await _controller.animateToPage(
-      nextIndex,
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-    );
+  }
+
+  Future<void> _requestMic() async {
+    if (_micRequesting || _micGranted) return;
+    setState(() => _micRequesting = true);
+    final appState = AppScope.of(context);
+    final granted = await appState.audio.requestMicrophonePermission();
+    if (!mounted) return;
+    setState(() {
+      _micGranted = granted;
+      _micRequesting = false;
+    });
+    if (granted) HapticFeedback.mediumImpact();
   }
 
   @override
@@ -97,20 +126,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         mediaQuery.disableAnimations ||
         mediaQuery.accessibleNavigation ||
         appState.settings.reduceMotion;
+
     final theme = Theme.of(context);
     final tokens = context.echo;
-    final buttonFill = tokens.accentPrimary;
-    final onButtonFill = theme.colorScheme.onPrimary;
     final overlayStyle = theme.brightness == Brightness.dark
         ? SystemUiOverlayStyle.light
         : SystemUiOverlayStyle.dark;
+
     final horizontalPadding = EchoLayout.contentHorizontalPadding(context);
-    final showSkip = _currentIndex < _pages.length - 1;
-    final buttonLabel = _currentIndex == _pages.length - 1
-        ? 'Choose a hashtag'
-        : 'Continue';
+    final isPermissionsPage = _currentIndex == _permissionsIndex;
+    // Skip is visible on all pages except the permissions page.
+    final showSkip = _currentIndex < _permissionsIndex;
+    final buttonLabel = isPermissionsPage ? 'Get started' : 'Continue';
     final semanticsLabel =
-        '$buttonLabel, page ${_currentIndex + 1} of ${_pages.length}';
+        '$buttonLabel, page ${_currentIndex + 1} of $_totalPages';
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlayStyle,
@@ -119,6 +148,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         body: SafeArea(
           child: Column(
             children: [
+              // ── Header ────────────────────────────────────────────────────
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   horizontalPadding,
@@ -137,67 +167,68 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                     ),
                     const Spacer(),
-                    if (showSkip)
-                      TextButton(
-                        onPressed: () => _completeOnboarding(appState),
-                        style: TextButton.styleFrom(
-                          textStyle: theme.textTheme.bodySmall?.copyWith(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                    // Animate skip in/out instead of hard show/hide.
+                    AnimatedOpacity(
+                      opacity: showSkip ? 1.0 : 0.0,
+                      duration: reduceMotion
+                          ? Duration.zero
+                          : const Duration(milliseconds: 200),
+                      child: IgnorePointer(
+                        ignoring: !showSkip,
+                        child: TextButton(
+                          onPressed: () => _skipToPermissions(reduceMotion),
+                          style: TextButton.styleFrom(
+                            foregroundColor: tokens.textSecondary,
+                            textStyle: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
+                          child: const Text('Skip'),
                         ),
-                        child: const Text('Skip'),
                       ),
+                    ),
                   ],
                 ),
               ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final availableHeight = constraints.maxHeight;
-                    final clampedHeight = availableHeight < 280
-                        ? availableHeight
-                        : availableHeight.clamp(280.0, 400.0);
-                    final minHeight = availableHeight > 0
-                        ? availableHeight
-                        : clampedHeight;
 
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(minHeight: minHeight),
-                        child: Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: horizontalPadding,
-                            ),
-                            child: SizedBox(
-                              height: clampedHeight,
-                              child: PageView.builder(
-                                controller: _controller,
-                                itemCount: _pages.length,
-                                onPageChanged: (index) {
-                                  setState(() {
-                                    _currentIndex = index;
-                                    _page = index.toDouble();
-                                  });
-                                },
-                                itemBuilder: (context, index) {
-                                  final page = _pages[index];
-                                  return _OnboardingCard(
-                                    data: page,
-                                    reduceMotion: reduceMotion,
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+              // ── PageView — fills all remaining vertical space ─────────────
+              //
+              // Previously, a SizedBox capped the PageView at 400 px, leaving
+              // dead space on tall screens. Now the PageView expands to fill
+              // the Expanded slot; each card handles overflow via its own
+              // internal SingleChildScrollView.
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                  child: PageView.builder(
+                    controller: _controller,
+                    itemCount: _totalPages,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentIndex = index;
+                        _page = index.toDouble();
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      if (index == _permissionsIndex) {
+                        return _PermissionPageCard(
+                          micGranted: _micGranted,
+                          micRequesting: _micRequesting,
+                          onRequestMic: _requestMic,
+                          reduceMotion: reduceMotion,
+                        );
+                      }
+                      return _OnboardingCard(
+                        data: _contentPages[index],
+                        reduceMotion: reduceMotion,
+                      );
+                    },
+                  ),
                 ),
               ),
+
+              // ── Footer ────────────────────────────────────────────────────
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   horizontalPadding,
@@ -210,7 +241,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   children: [
                     _DotsIndicator(
                       page: _page,
-                      count: _pages.length,
+                      count: _totalPages,
                       reduceMotion: reduceMotion,
                     ),
                     const SizedBox(height: 16),
@@ -219,33 +250,47 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       label: semanticsLabel,
                       child: SizedBox(
                         width: double.infinity,
-                        height: 54,
-                        child: ElevatedButton(
-                          onPressed: () =>
-                              _onPrimaryCta(appState, reduceMotion),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: buttonFill,
-                            foregroundColor: onButtonFill,
-                            elevation: 0,
-                            shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
+                        height: EchoLayout.buttonHeight(context),
+                        // AnimatedSwitcher cross-fades the label when it changes.
+                        child: AnimatedSwitcher(
+                          duration: reduceMotion
+                              ? Duration.zero
+                              : const Duration(milliseconds: 180),
+                          child: ElevatedButton(
+                            key: ValueKey(buttonLabel),
+                            onPressed: () =>
+                                _onPrimaryCta(appState, reduceMotion),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: tokens.accentPrimary,
+                              foregroundColor: theme.colorScheme.onPrimary,
+                              elevation: 0,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              textStyle: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.1,
+                              ),
                             ),
-                            textStyle: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.1,
-                            ),
+                            child: Text(buttonLabel),
                           ),
-                          child: Text(buttonLabel),
                         ),
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      'Audio-only. No camera.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: tokens.textSecondary,
-                        fontSize: 13,
+                    // Tagline fades out on the permissions page.
+                    AnimatedOpacity(
+                      opacity: isPermissionsPage ? 0.0 : 1.0,
+                      duration: reduceMotion
+                          ? Duration.zero
+                          : const Duration(milliseconds: 200),
+                      child: Text(
+                        'Audio-only. No camera.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: tokens.textSecondary,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
@@ -258,6 +303,219 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 }
+
+// ── Permission page card ───────────────────────────────────────────────────────
+
+class _PermissionPageCard extends StatelessWidget {
+  const _PermissionPageCard({
+    required this.micGranted,
+    required this.micRequesting,
+    required this.onRequestMic,
+    required this.reduceMotion,
+  });
+
+  final bool micGranted;
+  final bool micRequesting;
+  final VoidCallback onRequestMic;
+  final bool reduceMotion;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.echo;
+    final animDuration = reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 220);
+
+    return AnimatedContainer(
+      duration: animDuration,
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        color: tokens.surface1,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final minHeight = constraints.maxHeight > 48
+              ? constraints.maxHeight - 48
+              : 0.0;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: minHeight),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Mic icon — animates between states.
+                  AnimatedContainer(
+                    duration: reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 300),
+                    curve: Curves.easeOutBack,
+                    height: 56,
+                    width: 56,
+                    decoration: BoxDecoration(
+                      color: micGranted
+                          ? tokens.accentPrimary.withValues(alpha: 0.15)
+                          : tokens.surface2,
+                      shape: BoxShape.circle,
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: reduceMotion
+                          ? Duration.zero
+                          : const Duration(milliseconds: 250),
+                      transitionBuilder: (child, animation) => ScaleTransition(
+                        scale: animation,
+                        child: FadeTransition(opacity: animation, child: child),
+                      ),
+                      child: Icon(
+                        micGranted ? Icons.check_rounded : Icons.mic_rounded,
+                        key: ValueKey(micGranted),
+                        color: micGranted
+                            ? tokens.accentPrimary
+                            : tokens.textSecondary,
+                        size: 26,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Title
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      'Microphone access',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontSize: 30,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                        color: tokens.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Body
+                  Text(
+                    'Echo needs the microphone to record your voice. '
+                    'Listening works without it.',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontSize: 16,
+                      height: 1.45,
+                      fontWeight: FontWeight.w500,
+                      color: tokens.textPrimary.withValues(alpha: 0.88),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Permission action row — cross-fades between states.
+                  AnimatedSize(
+                    duration: animDuration,
+                    curve: Curves.easeOut,
+                    child: AnimatedSwitcher(
+                      duration: animDuration,
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      child: micGranted
+                          ? _GrantedBadge(tokens: tokens, key: const ValueKey('granted'))
+                          : SizedBox(
+                              key: const ValueKey('allow'),
+                              width: double.infinity,
+                              height: 48,
+                              child: OutlinedButton.icon(
+                                onPressed: micRequesting ? null : onRequestMic,
+                                icon: micRequesting
+                                    ? SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 1.5,
+                                          color: tokens.accentPrimary,
+                                        ),
+                                      )
+                                    : const Icon(Icons.mic_rounded, size: 18),
+                                label: Text(
+                                  micRequesting
+                                      ? 'Requesting…'
+                                      : 'Allow microphone',
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: tokens.accentPrimary,
+                                  side: BorderSide(
+                                    color: tokens.accentPrimary.withValues(
+                                      alpha: 0.45,
+                                    ),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      EchoRadii.button,
+                                    ),
+                                  ),
+                                  textStyle: theme.textTheme.bodyMedium
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Fine print
+                  Text(
+                    'You can change this any time in Settings.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 13.5,
+                      height: 1.4,
+                      color: tokens.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _GrantedBadge extends StatelessWidget {
+  const _GrantedBadge({super.key, required this.tokens});
+
+  final EchoSemantic tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: tokens.accentPrimary.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(EchoRadii.button),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_rounded, color: tokens.accentPrimary, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              'Microphone enabled',
+              style: TextStyle(
+                color: tokens.accentPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Content card ──────────────────────────────────────────────────────────────
 
 class _OnboardingCard extends StatelessWidget {
   const _OnboardingCard({required this.data, required this.reduceMotion});
@@ -286,12 +544,12 @@ class _OnboardingCard extends StatelessWidget {
       height: 1.4,
       color: tokens.textSecondary,
     );
-    final indicatorDuration = reduceMotion
+    final animDuration = reduceMotion
         ? Duration.zero
         : const Duration(milliseconds: 180);
 
     return AnimatedContainer(
-      duration: indicatorDuration,
+      duration: animDuration,
       curve: Curves.easeOut,
       decoration: BoxDecoration(
         color: tokens.surface1,
@@ -335,6 +593,8 @@ class _OnboardingCard extends StatelessWidget {
     );
   }
 }
+
+// ── Dots indicator ────────────────────────────────────────────────────────────
 
 class _DotsIndicator extends StatelessWidget {
   const _DotsIndicator({
@@ -381,6 +641,8 @@ class _DotsIndicator extends StatelessWidget {
     );
   }
 }
+
+// ── Data ──────────────────────────────────────────────────────────────────────
 
 class _OnboardingPageData {
   const _OnboardingPageData({

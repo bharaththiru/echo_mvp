@@ -130,6 +130,20 @@ class NativeAudioService {
     }
   }
 
+  Future<bool> seekTo(Duration position) async {
+    if (kIsWeb) {
+      return false;
+    }
+    try {
+      final result = await _channel.invokeMethod<bool>('seekTo', {
+        'positionMs': position.inMilliseconds,
+      });
+      return result ?? false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
   Future<void> setPlaybackVolume(double value) async {
     if (kIsWeb) {
       return;

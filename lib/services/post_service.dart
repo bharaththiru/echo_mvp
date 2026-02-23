@@ -286,8 +286,14 @@ class PostService {
           )
           .timeout(_postTimeout);
     } on TimeoutException {
+      // Firestore write failed — remove the already-uploaded Storage file so
+      // it does not become a permanent orphan.  This is best-effort: the
+      // internal catch inside deleteAudio ensures cleanup errors never mask
+      // the original failure reported to the caller.
+      unawaited(_repository.deleteAudio(storagePath));
       throw PostException('Post timed out. Please retry.');
     } catch (_) {
+      unawaited(_repository.deleteAudio(storagePath));
       throw PostException('Unable to publish right now.');
     }
     final updated = note.copyWith(localPath: recordingPath);
