@@ -24,11 +24,38 @@ class HashtagDetail extends StatefulWidget {
 
 class _HashtagDetailState extends State<HashtagDetail> {
   String? _loadingNoteId;
+  late final ScrollController _scrollController;
+  bool _heroCollapsed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final collapsed = _scrollController.offset > 10;
+    if (collapsed != _heroCollapsed) {
+      setState(() => _heroCollapsed = collapsed);
+    }
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final appState = AppScope.of(context);
+    // Mark the current station as recently visited here, not in _openStation,
+    // so that the notifyListeners() call happens after navigation is complete
+    // rather than during it (which can confuse go_router's refreshListenable).
+    appState.markStationListened(widget.hashtagId);
     if (appState.hashtags.isEmpty && !appState.hashtagsLoading) {
       appState.refreshHashtags();
     }
@@ -41,13 +68,19 @@ class _HashtagDetailState extends State<HashtagDetail> {
     if (oldWidget.hashtagId == widget.hashtagId) {
       return;
     }
+    // Reset all per-station UI state so the new station starts clean.
+    setState(() {
+      _heroCollapsed = false;
+      _loadingNoteId = null;
+    });
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
     final appState = AppScope.of(context);
     appState.loadNotesForHashtag(widget.hashtagId);
   }
 
   void _openStation(Hashtag hashtag) {
-    final appState = AppScope.of(context);
-    appState.markStationListened(hashtag.id);
     context.go('/hashtag/${hashtag.id}');
   }
 
@@ -130,6 +163,7 @@ class _HashtagDetailState extends State<HashtagDetail> {
             );
           } else {
             notesContent = ListView.builder(
+              controller: _scrollController,
               physics: const BouncingScrollPhysics(
                 parent: AlwaysScrollableScrollPhysics(),
               ),
@@ -212,15 +246,29 @@ class _HashtagDetailState extends State<HashtagDetail> {
                     title: hashtag.name,
                     onBack: () => context.go('/listen'),
                   ),
-                  heroPanel,
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: EchoLayout.contentHorizontalPadding(context),
-                    ),
-                    child: Divider(
-                      height: 1,
-                      color: tokens.borderSubtle.withValues(alpha: 0.7),
-                    ),
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: _heroCollapsed
+                        ? const SizedBox.shrink()
+                        : Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              heroPanel,
+                              Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal:
+                                      EchoLayout.contentHorizontalPadding(
+                                          context),
+                                ),
+                                child: Divider(
+                                  height: 1,
+                                  color: tokens.borderSubtle
+                                      .withValues(alpha: 0.7),
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                   Expanded(child: notesContent),
                 ],
