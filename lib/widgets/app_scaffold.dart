@@ -55,7 +55,6 @@ class _MiniPlayer extends StatelessWidget {
     final tokens = context.echo;
     final theme = Theme.of(context);
     final buttonFill = tokens.accentPrimary;
-    final miniPlayerColor = EchoColorUtils.darken(tokens.surface1, 0.08);
 
     return ListenableSelector<AutoplayState>(
       listenable: autoplay,
@@ -113,95 +112,158 @@ class _MiniPlayer extends StatelessWidget {
                     }
                     context.push('/player/$hashtagId');
                   },
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 7),
-                      decoration: BoxDecoration(
-                        color: miniPlayerColor,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
+                  // Outer container: carries shadow/glow outside the clip
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.42),
+                          blurRadius: 28,
+                          offset: const Offset(0, 8),
+                          spreadRadius: -2,
+                        ),
+                        if (isEnginePlaying)
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
+                            color: tokens.accentPrimary.withValues(alpha: 0.22),
+                            blurRadius: 34,
+                            spreadRadius: 0,
                           ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(14, 11, 10, 11),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color.lerp(
+                                  tokens.surface2,
+                                  tokens.accentPrimary,
+                                  0.05,
+                                )!.withValues(alpha: 0.93),
+                                tokens.surface1.withValues(alpha: 0.89),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isEnginePlaying
+                                  ? tokens.accentPrimary.withValues(alpha: 0.30)
+                                  : tokens.border.withValues(alpha: 0.55),
+                              width: 1.0,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              _MiniPulseDot(
-                                color: buttonFill,
-                                reduceMotion: appState.settings.reduceMotion,
-                                isActive: isEnginePlaying,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      hashtag?.name ?? 'Station',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.titleSmall?.copyWith(
-                                        color: tokens.textPrimary,
+                              Row(
+                                children: [
+                                  _MiniWaveIndicator(
+                                    color: buttonFill,
+                                    reduceMotion: appState.settings.reduceMotion,
+                                    isActive: isEnginePlaying,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          hashtag?.name ?? 'Station',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.titleSmall
+                                              ?.copyWith(
+                                            color: tokens.textPrimary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          note.transcriptPreview ?? statusText,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            color: tokens.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: state.isMuted
+                                        ? 'Unmute current note'
+                                        : 'Mute current note',
+                                    onPressed: () => autoplay.toggleMute(),
+                                    icon: Icon(
+                                      state.isMuted
+                                          ? Icons.volume_off_rounded
+                                          : Icons.volume_up_rounded,
+                                    ),
+                                    iconSize: 19,
+                                    constraints: const BoxConstraints.tightFor(
+                                      width: 40,
+                                      height: 40,
+                                    ),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      foregroundColor: state.isMuted
+                                          ? tokens.textPrimary
+                                          : tokens.textSecondary,
+                                    ),
+                                  ),
+                                  // Polished circular play/pause button
+                                  GestureDetector(
+                                    onTap: () => autoplay.togglePlayPause(),
+                                    child: Container(
+                                      width: 36,
+                                      height: 36,
+                                      margin: const EdgeInsets.only(right: 4),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: buttonFill,
+                                        boxShadow: isEnginePlaying
+                                            ? [
+                                                BoxShadow(
+                                                  color: buttonFill.withValues(
+                                                    alpha: 0.45,
+                                                  ),
+                                                  blurRadius: 10,
+                                                  spreadRadius: 0,
+                                                ),
+                                              ]
+                                            : null,
+                                      ),
+                                      child: Icon(
+                                        isEnginePlaying
+                                            ? Icons.pause_rounded
+                                            : Icons.play_arrow_rounded,
+                                        color: Colors.black,
+                                        size: 20,
                                       ),
                                     ),
-                                    const SizedBox(height: 1),
-                                    Text(
-                                      note.transcriptPreview ?? statusText,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: tokens.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                              IconButton(
-                                tooltip: state.isMuted
-                                    ? 'Unmute current note'
-                                    : 'Mute current note',
-                                onPressed: () => autoplay.toggleMute(),
-                                icon: Icon(
-                                  state.isMuted
-                                      ? Icons.volume_off
-                                      : Icons.volume_up,
-                                ),
-                                iconSize: 19,
-                                constraints: const BoxConstraints.tightFor(
-                                  width: 40,
-                                  height: 40,
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: isEnginePlaying ? 'Pause' : 'Play',
-                                onPressed: () => autoplay.togglePlayPause(),
-                                icon: Icon(
-                                  isEnginePlaying ? Icons.pause : Icons.play_arrow,
-                                ),
-                                iconSize: 20,
-                                constraints: const BoxConstraints.tightFor(
-                                  width: 40,
-                                  height: 40,
-                                ),
+                              const SizedBox(height: 10),
+                              _MiniPlayerProgress(
+                                audio: audio,
+                                currentNoteId: note.id,
+                                fallbackDuration: note.duration,
+                                trackColor: tokens.textSecondary
+                                    .withValues(alpha: 0.15),
+                                progressColor: buttonFill,
                               ),
                             ],
                           ),
-                          const SizedBox(height: 6),
-                          _MiniPlayerProgress(
-                            audio: audio,
-                            currentNoteId: note.id,
-                            fallbackDuration: note.duration,
-                            trackColor: tokens.textSecondary.withValues(alpha: 0.2),
-                            progressColor: buttonFill,
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -215,8 +277,9 @@ class _MiniPlayer extends StatelessWidget {
   }
 }
 
-class _MiniPulseDot extends StatefulWidget {
-  const _MiniPulseDot({
+/// Three-bar animated EQ wave indicator — standard music player active state.
+class _MiniWaveIndicator extends StatefulWidget {
+  const _MiniWaveIndicator({
     required this.color,
     required this.reduceMotion,
     required this.isActive,
@@ -227,34 +290,39 @@ class _MiniPulseDot extends StatefulWidget {
   final bool isActive;
 
   @override
-  State<_MiniPulseDot> createState() => _MiniPulseDotState();
+  State<_MiniWaveIndicator> createState() => _MiniWaveIndicatorState();
 }
 
-class _MiniPulseDotState extends State<_MiniPulseDot>
+class _MiniWaveIndicatorState extends State<_MiniWaveIndicator>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late final Animation<double> _animation;
+
+  static const _barWidth = 3.0;
+  static const _barGap = 2.5;
+  static const _minH = 3.0;
+  static const _maxH = 13.0;
+  // Phase offsets in radians for each bar (120° apart = organic ripple)
+  static const _phases = [0.0, 2 * pi / 3, 4 * pi / 3];
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 1100),
     );
-    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
     if (!widget.reduceMotion && widget.isActive) {
-      _controller.repeat(reverse: true);
+      _controller.repeat();
     }
   }
 
   @override
-  void didUpdateWidget(covariant _MiniPulseDot oldWidget) {
+  void didUpdateWidget(covariant _MiniWaveIndicator oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.reduceMotion || !widget.isActive) {
       _controller.stop();
     } else if (!_controller.isAnimating) {
-      _controller.repeat(reverse: true);
+      _controller.repeat();
     }
   }
 
@@ -266,27 +334,43 @@ class _MiniPulseDotState extends State<_MiniPulseDot>
 
   @override
   Widget build(BuildContext context) {
-    final base = Container(
-      height: 8,
-      width: 8,
-      decoration: BoxDecoration(
-        color: widget.color,
-        shape: BoxShape.circle,
+    const totalWidth = 3 * _barWidth + 2 * _barGap;
+    return SizedBox(
+      width: totalWidth,
+      height: _maxH,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          final t = _controller.value * 2 * pi;
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: List.generate(3, (i) {
+              final double h;
+              if (!widget.isActive) {
+                h = _minH;
+              } else if (widget.reduceMotion) {
+                // Static mid-height bars when reduce motion is on
+                h = _maxH * (0.45 + i * 0.15);
+              } else {
+                final wave = (sin(t + _phases[i]) + 1) / 2;
+                h = _minH + (_maxH - _minH) * wave;
+              }
+              return Padding(
+                padding: EdgeInsets.only(right: i < 2 ? _barGap : 0),
+                child: Container(
+                  width: _barWidth,
+                  height: h,
+                  decoration: BoxDecoration(
+                    color: widget.color,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              );
+            }),
+          );
+        },
       ),
-    );
-    if (widget.reduceMotion || !widget.isActive) {
-      return base;
-    }
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, _) {
-        final scale = lerpDouble(0.8, 1.1, _animation.value)!;
-        final opacity = lerpDouble(0.6, 1.0, _animation.value)!;
-        return Opacity(
-          opacity: opacity,
-          child: Transform.scale(scale: scale, child: base),
-        );
-      },
     );
   }
 }
@@ -349,14 +433,14 @@ class _MiniPlayerProgress extends StatelessWidget {
                   .toDouble();
         return LayoutBuilder(
           builder: (context, constraints) {
-            const dotSize = 7.0;
+            const dotSize = 9.0;
             final trackWidth = constraints.maxWidth;
             final left = (trackWidth - dotSize) * ratio;
             return Stack(
               alignment: Alignment.centerLeft,
               children: [
                 Container(
-                  height: 3,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: trackColor,
                     borderRadius: BorderRadius.circular(6),
@@ -365,7 +449,7 @@ class _MiniPlayerProgress extends StatelessWidget {
                 FractionallySizedBox(
                   widthFactor: ratio,
                   child: Container(
-                    height: 3,
+                    height: 4,
                     decoration: BoxDecoration(
                       color: progressColor,
                       borderRadius: BorderRadius.circular(6),
@@ -380,6 +464,13 @@ class _MiniPlayerProgress extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: progressColor,
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: progressColor.withValues(alpha: 0.55),
+                          blurRadius: 6,
+                          spreadRadius: 0,
+                        ),
+                      ],
                     ),
                   ),
                 ),
