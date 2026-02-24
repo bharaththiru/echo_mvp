@@ -649,47 +649,111 @@ class _VoiceNoteRow extends StatelessWidget {
   }
 }
 
-class _AutoplayFloatingButton extends StatelessWidget {
+class _AutoplayFloatingButton extends StatefulWidget {
   const _AutoplayFloatingButton({required this.onTap, required this.heroTag});
 
   final VoidCallback onTap;
   final String heroTag;
 
   @override
+  State<_AutoplayFloatingButton> createState() =>
+      _AutoplayFloatingButtonState();
+}
+
+class _AutoplayFloatingButtonState extends State<_AutoplayFloatingButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _press;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _press = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 90),
+      reverseDuration: const Duration(milliseconds: 220),
+    );
+    _scale = Tween<double>(begin: 1.0, end: 0.93).animate(
+      CurvedAnimation(parent: _press, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _press.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final tokens = context.echo;
-    final onButtonFill = theme.colorScheme.onPrimary;
+    final accent = tokens.accentPrimary;
+    final surface = tokens.surface1;
+
     return Semantics(
       button: true,
       label: 'Start autoplay',
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.24),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: SizedBox.square(
-          dimension: 64,
-          child: FloatingActionButton(
-            heroTag: heroTag,
-            tooltip: 'Autoplay',
-            onPressed: onTap,
-            backgroundColor: tokens.accentPrimary,
-            foregroundColor: onButtonFill,
-            elevation: 0,
-            highlightElevation: 0,
-            shape: const CircleBorder(),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.auto_awesome_rounded, color: onButtonFill, size: 22),
-              ],
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onTapDown: (_) => _press.forward(),
+        onTapUp: (_) => _press.reverse(),
+        onTapCancel: () => _press.reverse(),
+        child: ScaleTransition(
+          scale: _scale,
+          child: Hero(
+            tag: widget.heroTag,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  // Ambient accent glow — makes the button feel lit
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.18),
+                    blurRadius: 28,
+                    spreadRadius: 2,
+                  ),
+                  // Directional lift shadow — physical depth
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.44),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color.lerp(surface, accent, 0.14)!,
+                      Color.lerp(surface, accent, 0.05)!,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(
+                    color: accent.withValues(alpha: 0.20),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.auto_awesome_rounded, color: accent, size: 17),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Autoplay',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: tokens.textPrimary,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.1,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
