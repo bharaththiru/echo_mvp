@@ -20,9 +20,7 @@ class _ListenTabState extends State<ListenTab> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_loaded) {
-      return;
-    }
+    if (_loaded) return;
     _loaded = true;
     final appState = AppScope.of(context);
     if (appState.hashtags.isEmpty && !appState.hashtagsLoading) {
@@ -37,8 +35,7 @@ class _ListenTabState extends State<ListenTab> {
   }
 
   Future<void> _onRefresh() async {
-    final appState = AppScope.of(context);
-    await appState.refreshHashtags(force: true);
+    await AppScope.of(context).refreshHashtags(force: true);
   }
 
   @override
@@ -53,212 +50,188 @@ class _ListenTabState extends State<ListenTab> {
     final recentStations = appState.recentHashtags(limit: 6);
     final hasRecent = recentStations.isNotEmpty;
 
-    return Stack(
-      children: [
-        // ── Ambient background gradient ──
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(0.0, -0.6),
-                radius: 1.2,
-                colors: [
-                  tokens.accentPrimary.withValues(alpha: 0.05),
-                  tokens.bg,
-                ],
-                stops: const [0.0, 0.6],
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      color: tokens.accentPrimary,
+      backgroundColor: tokens.surface1,
+      child: CustomScrollView(
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        slivers: [
+          // ── Pinned title bar ──
+          SliverAppBar(
+            pinned: true,
+            automaticallyImplyLeading: false,
+            backgroundColor: tokens.bg,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            titleSpacing: contentPadding,
+            toolbarHeight: EchoLayout.space(context, 52),
+            title: Text(
+              'Listen',
+              style: theme.textTheme.displaySmall?.copyWith(
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
-        ),
-        // ── Scrollable content with pull-to-refresh ──
-        RefreshIndicator(
-          onRefresh: _onRefresh,
-          color: tokens.accentPrimary,
-          backgroundColor: tokens.surface1,
-          child: CustomScrollView(
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
-            slivers: [
-              // ── Header ──
-              SliverToBoxAdapter(
-                child: _ListenHeader(contentPadding: contentPadding),
-              ),
 
-              // ── Loading / error / empty states ──
-              if (isLoading && allHashtags.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (loadError != null && allHashtags.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: _EmptyState(
-                    title: 'Unable to load stations',
-                    subtitle: loadError,
-                    onRetry: _onRefresh,
-                  ),
-                )
-              else if (allHashtags.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: _EmptyState(
-                    title: 'No stations yet',
-                    subtitle: 'Stations will appear here once they are created.',
-                    onRetry: _onRefresh,
-                  ),
-                )
-              else ...[
-                // ── Recent stations (horizontal scroll with fade) ──
-                if (hasRecent) ...[
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(
-                      contentPadding,
-                      EchoLayout.space(context, 4),
-                      contentPadding,
-                      0,
-                    ),
-                    sliver: SliverToBoxAdapter(
-                      child: _SectionLabel(title: 'Recent'),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: EchoLayout.space(context, 56),
-                      child: ShaderMask(
-                        shaderCallback: (Rect bounds) {
-                          return LinearGradient(
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
+          // ── Ambient glow beneath title ──
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: EchoLayout.space(context, 48),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    top: -60,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        width: 320,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
                             colors: [
-                              Colors.white,
-                              Colors.white,
-                              Colors.white,
-                              Colors.white.withValues(alpha: 0.0),
+                              tokens.accentPrimary.withValues(alpha: 0.18),
+                              tokens.accentPrimary.withValues(alpha: 0.0),
                             ],
-                            stops: const [0.0, 0.05, 0.85, 1.0],
-                          ).createShader(bounds);
-                        },
-                        blendMode: BlendMode.dstIn,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: contentPadding,
-                            vertical: EchoLayout.space(context, 8),
                           ),
-                          itemCount: recentStations.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: 10),
-                          itemBuilder: (context, index) {
-                            final station = recentStations[index];
-                            return _RecentChip(
-                              station: station,
-                              onTap: () => _openStation(station),
-                            );
-                          },
                         ),
                       ),
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
 
-                // ── All stations heading ──
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(
-                    contentPadding,
-                    EchoLayout.space(context, hasRecent ? 18 : 4),
-                    contentPadding,
-                    EchoLayout.space(context, 10),
-                  ),
-                  sliver: SliverToBoxAdapter(
-                    child: _SectionLabel(
-                      title: 'Stations',
-                      trailing: Text(
-                        '${allHashtags.length}',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: tokens.textTertiary,
-                        ),
-                      ),
-                    ),
-                  ),
+          // ── Loading / error / empty states ──
+          if (isLoading && allHashtags.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (loadError != null && allHashtags.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: _EmptyState(
+                title: 'Unable to load stations',
+                subtitle: loadError,
+                onRetry: _onRefresh,
+              ),
+            )
+          else if (allHashtags.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: _EmptyState(
+                title: 'No stations yet',
+                subtitle: 'Stations will appear here once they are created.',
+                onRetry: _onRefresh,
+              ),
+            )
+          else ...[
+            // ── Recent stations (horizontal scroll) ──
+            if (hasRecent) ...[
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  contentPadding,
+                  0,
+                  contentPadding,
+                  0,
                 ),
-
-                // ── Station grid (vertical 2-column) ──
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(
-                    contentPadding,
-                    0,
-                    contentPadding,
-                    MediaQuery.paddingOf(context).bottom +
-                        EchoLayout.space(context, 20),
-                  ),
-                  sliver: SliverGrid(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: EchoLayout.space(context, 10),
-                      crossAxisSpacing: EchoLayout.space(context, 10),
-                      childAspectRatio: 0.88,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final hashtag = allHashtags[index];
-                        return _StationCard(
-                          hashtag: hashtag,
-                          onTap: () => _openStation(hashtag),
+                sliver: SliverToBoxAdapter(
+                  child: _SectionLabel(title: 'Recent'),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: EchoLayout.space(context, 56),
+                  child: ShaderMask(
+                    shaderCallback: (Rect bounds) {
+                      return const LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [Colors.white, Colors.white, Colors.transparent],
+                        stops: [0.0, 0.82, 1.0],
+                      ).createShader(bounds);
+                    },
+                    blendMode: BlendMode.dstIn,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: contentPadding,
+                        vertical: EchoLayout.space(context, 8),
+                      ),
+                      itemCount: recentStations.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (context, index) {
+                        final station = recentStations[index];
+                        return _RecentChip(
+                          station: station,
+                          onTap: () => _openStation(station),
                         );
                       },
-                      childCount: allHashtags.length,
                     ),
                   ),
                 ),
-              ],
+              ),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-}
 
-// ── Header with ambient glow ──
-
-class _ListenHeader extends StatelessWidget {
-  const _ListenHeader({required this.contentPadding});
-
-  final double contentPadding;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = context.echo;
-    final topSafe = MediaQuery.paddingOf(context).top;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        contentPadding,
-        topSafe + EchoLayout.space(context, 18),
-        contentPadding,
-        EchoLayout.space(context, 6),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Listen',
-            style: theme.textTheme.displaySmall?.copyWith(
-              fontWeight: FontWeight.w700,
+            // ── All stations heading ──
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                contentPadding,
+                EchoLayout.space(context, hasRecent ? 16 : 0),
+                contentPadding,
+                EchoLayout.space(context, 10),
+              ),
+              sliver: SliverToBoxAdapter(
+                child: _SectionLabel(
+                  title: 'Stations',
+                  trailing: Text(
+                    '${allHashtags.length}',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: tokens.textTertiary,
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Browse stations and discover voices.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: tokens.textSecondary,
+
+            // ── Station grid (vertical 2-column) ──
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                contentPadding,
+                0,
+                contentPadding,
+                MediaQuery.paddingOf(context).bottom +
+                    EchoLayout.space(context, 20),
+              ),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: EchoLayout.space(context, 10),
+                  crossAxisSpacing: EchoLayout.space(context, 10),
+                  childAspectRatio: 0.8,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final hashtag = allHashtags[index];
+                    return _StationCard(
+                      hashtag: hashtag,
+                      onTap: () => _openStation(hashtag),
+                    );
+                  },
+                  childCount: allHashtags.length,
+                ),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -296,7 +269,7 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// ── Recent station chip (compact horizontal) ──
+// ── Recent station chip ──
 
 class _RecentChip extends StatelessWidget {
   const _RecentChip({required this.station, required this.onTap});
@@ -308,11 +281,10 @@ class _RecentChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.echo;
-    final accentColor = Color.lerp(station.color, tokens.surface2, 0.35)!;
-    final noteLabel = '${station.noteCount}';
+    final chipColor = Color.lerp(station.color, tokens.surface2, 0.35)!;
 
     return Material(
-      color: accentColor,
+      color: chipColor,
       borderRadius: BorderRadius.circular(EchoRadii.pill),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -325,25 +297,13 @@ class _RecentChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                station.icon,
-                size: 16,
-                color: tokens.textPrimary,
-              ),
+              Icon(station.icon, size: 16, color: tokens.textPrimary),
               const SizedBox(width: 8),
               Text(
                 station.name,
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: tokens.textPrimary,
                   fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                noteLabel,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: tokens.textPrimary.withValues(alpha: 0.5),
-                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
@@ -354,7 +314,7 @@ class _RecentChip extends StatelessWidget {
   }
 }
 
-// ── Station card (vertical grid) ──
+// ── Station card ──
 
 class _StationCard extends StatelessWidget {
   const _StationCard({required this.hashtag, required this.onTap});
@@ -388,7 +348,6 @@ class _StationCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon with visible accent ring
           Container(
             height: 44,
             width: 44,
@@ -400,14 +359,9 @@ class _StationCard extends StatelessWidget {
                 width: 1,
               ),
             ),
-            child: Icon(
-              hashtag.icon,
-              size: 22,
-              color: tokens.textPrimary,
-            ),
+            child: Icon(hashtag.icon, size: 22, color: tokens.textPrimary),
           ),
           const Spacer(),
-          // Station name
           Text(
             hashtag.name,
             maxLines: 1,
@@ -418,7 +372,6 @@ class _StationCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          // Description
           Text(
             hashtag.description,
             maxLines: 2,
@@ -429,7 +382,6 @@ class _StationCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          // Note count
           Text(
             noteLabel,
             style: theme.textTheme.labelSmall?.copyWith(
@@ -468,11 +420,7 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.headphones_rounded,
-              size: 40,
-              color: tokens.textTertiary,
-            ),
+            Icon(Icons.headphones_rounded, size: 40, color: tokens.textTertiary),
             const SizedBox(height: 16),
             Text(
               title,
