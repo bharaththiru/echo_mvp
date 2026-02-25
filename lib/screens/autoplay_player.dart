@@ -240,35 +240,44 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
             initialData: audio.currentMetrics,
             builder: (context, metricsSnapshot) {
               final metrics = metricsSnapshot.data ?? audio.currentMetrics;
-              final metricsMatchesCurrent = metrics.sourceId == note.id;
+              // Read fresh autoplay state to avoid stale-closure issues.
+              // The ListenableSelector intentionally skips rebuilds for
+              // position-only changes (performance), but the StreamBuilder
+              // can fire independently. Using autoplay.state directly
+              // ensures phase, currentNote, etc. are always current.
+              final liveState = autoplay.state;
+              final liveNote = liveState.currentNote ?? note;
+              final metricsMatchesCurrent = metrics.sourceId == liveNote.id;
               final isEnginePlaying = metricsMatchesCurrent
                   ? metrics.playing
-                  : (state.isPlaying && state.currentNote?.id == note.id);
+                  : (liveState.isPlaying && liveState.currentNote?.id == liveNote.id);
               final isEngineBuffering = metricsMatchesCurrent &&
                   (metrics.processingState == PlaybackProcessingState.loading ||
                       metrics.processingState ==
                           PlaybackProcessingState.buffering);
               final hasPlaybackStarted = metricsMatchesCurrent
                   ? (metrics.position > Duration.zero || metrics.playing)
-                  : (state.position > Duration.zero || state.isPlaying);
+                  : (liveState.position > Duration.zero || liveState.isPlaying);
               final isUiLoading =
                   !isEnginePlaying &&
                   ((metricsMatchesCurrent &&
                           metrics.processingState ==
                               PlaybackProcessingState.loading) ||
-                      ((state.phase == AutoplayPhase.loading ||
-                              state.isPreparing) &&
+                      ((liveState.phase == AutoplayPhase.loading ||
+                              liveState.isPreparing) &&
                           !hasPlaybackStarted));
               final showSpinner = isUiLoading || (isEngineBuffering && !isEnginePlaying);
-              final isError = state.phase == AutoplayPhase.error;
+              final isError = liveState.phase == AutoplayPhase.error;
               final statusLabel =
                   _statusLabel(
-                    state,
+                    liveState,
                     metrics: metrics,
-                    currentNoteId: note.id,
+                    currentNoteId: liveNote.id,
                   ) ??
                   'Ready';
               final centerShowsSpinner = showSpinner && !isEnginePlaying;
+              final liveNoteIdx = liveState.queue.indexWhere((item) => item.id == liveNote.id);
+              final liveCurrentIndex = liveNoteIdx < 0 ? currentIndex : liveNoteIdx;
 
               return Column(
                 children: [
@@ -333,7 +342,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              '${currentIndex + 1} of ${state.queue.length}',
+                              '${liveCurrentIndex + 1} of ${liveState.queue.length}',
                               textAlign: TextAlign.center,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: tokens.textTertiary,
@@ -342,15 +351,15 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                             SizedBox(height: EchoLayout.space(context, 14)),
                             _AutoplayProgress(
                               audio: audio,
-                              currentNoteId: note.id,
-                              fallbackDuration: note.duration,
+                              currentNoteId: liveNote.id,
+                              fallbackDuration: liveNote.duration,
                               label: statusLabel,
                               showSpinner: showSpinner,
                               reduceMotion: reduceMotion,
                               isError: isError,
                             ),
-                            if (state.phase == AutoplayPhase.error &&
-                                state.errorMessage != null)
+                            if (liveState.phase == AutoplayPhase.error &&
+                                liveState.errorMessage != null)
                               Padding(
                                 padding: const EdgeInsets.only(top: 12),
                                 child: EchoCard(
@@ -366,7 +375,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
-                                        state.errorMessage!,
+                                        liveState.errorMessage!,
                                         style: theme.textTheme.bodySmall?.copyWith(
                                           color: tokens.textSecondary,
                                         ),
@@ -385,18 +394,18 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 IconButton(
-                                  tooltip: state.isMuted
+                                  tooltip: liveState.isMuted
                                       ? 'Unmute current note'
                                       : 'Mute current note',
                                   onPressed: () => autoplay.toggleMute(),
                                   style: IconButton.styleFrom(
                                     backgroundColor: Colors.transparent,
-                                    foregroundColor: state.isMuted
+                                    foregroundColor: liveState.isMuted
                                         ? tokens.textPrimary
                                         : tokens.textSecondary,
                                   ),
                                   icon: Icon(
-                                    state.isMuted
+                                    liveState.isMuted
                                         ? Icons.volume_off_rounded
                                         : Icons.volume_up_rounded,
                                   ),
@@ -455,12 +464,12 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                 const SizedBox(width: 16),
                                 IconButton(
                                   tooltip: 'Next note',
-                                  onPressed: state.queue.length <= 1
+                                  onPressed: liveState.queue.length <= 1
                                       ? null
                                       : () => autoplay.skip(),
                                   style: IconButton.styleFrom(
                                     backgroundColor: Colors.transparent,
-                                    foregroundColor: state.queue.length <= 1
+                                    foregroundColor: liveState.queue.length <= 1
                                         ? tokens.textTertiary
                                         : tokens.textSecondary,
                                   ),
@@ -473,7 +482,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                             Center(
                               child: PopupMenuButton<String>(
                                 color: tokens.surface1,
-                                onSelected: (action) => _handleMenuAction(note, action),
+                                onSelected: (action) => _handleMenuAction(liveNote, action),
                                 itemBuilder: (context) => [
                                   const PopupMenuItem(
                                     value: 'hide',
@@ -998,6 +1007,12 @@ class _AutoplayProgressState extends State<_AutoplayProgress>
       _metricsAt = DateTime.now();
       _metricsSub = widget.audio.playbackMetrics.listen(_onMetrics);
     }
+    // When the parent passes a new currentNoteId (note transition), reset
+    // the interpolation anchor so the progress bar doesn't momentarily
+    // show the old note's position.
+    if (oldWidget.currentNoteId != widget.currentNoteId) {
+      _metricsAt = DateTime.now();
+    }
   }
 
   @override
@@ -1008,12 +1023,16 @@ class _AutoplayProgressState extends State<_AutoplayProgress>
   }
 
   void _onMetrics(PlaybackMetrics metrics) {
+    final sourceChanged = _metrics.sourceId != metrics.sourceId;
+    final playingChanged = _metrics.playing != metrics.playing;
     // Anchor the extrapolation baseline to the moment the engine reports.
     _metrics = metrics;
     _metricsAt = DateTime.now();
     // The Ticker calls setState every frame while playing, so we only need
     // an explicit rebuild here for non-playing state changes (pause, error…).
-    if (mounted && !metrics.playing) {
+    // However, we must also rebuild on source or playing transitions so
+    // `useLiveMetrics` evaluates against the new sourceId immediately.
+    if (mounted && (!metrics.playing || sourceChanged || playingChanged)) {
       setState(() {});
     }
   }
