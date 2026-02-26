@@ -1,11 +1,9 @@
-import 'package:clerk_flutter/clerk_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_scaffold.dart';
-import '../widgets/echo_components.dart';
 
 class AuthScreen extends StatelessWidget {
   const AuthScreen({super.key});
@@ -16,15 +14,6 @@ class AuthScreen extends StatelessWidget {
     final mode = GoRouterState.of(context).uri.queryParameters['mode'];
     final next = GoRouterState.of(context).uri.queryParameters['next'];
     final isSignUp = mode == 'signup';
-
-    Future<void> handleSuccess() async {
-      if (!context.mounted) return;
-      if (next == 'post') {
-        context.pop();
-        return;
-      }
-      context.go('/listen');
-    }
 
     return AppScaffold(
       child: Padding(
@@ -38,16 +27,11 @@ class AuthScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Listening works without login. Posting requires an account.',
+              'Authentication is temporarily unavailable in this build. '
+              'You can continue as a guest.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: ClerkAuthCard(
-                initialMode: isSignUp ? ClerkAuthMode.signUp : ClerkAuthMode.signIn,
-                onSignedIn: handleSuccess,
-              ),
-            ),
+            const Spacer(),
             TextButton(
               onPressed: () {
                 if (next == 'post') {
