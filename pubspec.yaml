@@ -38,12 +38,11 @@ dependencies:
   path_provider: ^2.1.4
   shared_preferences: ^2.3.2
   firebase_core: ^4.4.0
-  firebase_auth: ^6.1.4
+  clerk_flutter: any
+  clerk_auth: any
+  flutter_dotenv: ^5.2.1
   cloud_firestore: ^6.1.2
   firebase_storage: ^13.0.6
-  google_sign_in: ^6.2.1
-  sign_in_with_apple: ^6.1.2
-  crypto: ^3.0.3
   just_audio: ^0.10.5
   audio_session: ^0.2.2
   audio_service: ^0.18.15

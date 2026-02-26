@@ -58,7 +58,7 @@ class _InboxTabState extends State<InboxTab> {
           child: ListView(
             padding: EchoLayout.listPadding(context),
             children: [
-              if (!appState.isAuthenticated && !appState.skipAuth)
+              if (!appState.isAuthenticated)
                 EchoCard(
                   padding: const EdgeInsets.all(16),
                   radius: 18,

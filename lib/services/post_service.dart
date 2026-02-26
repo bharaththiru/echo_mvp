@@ -19,7 +19,6 @@ class PostService {
     required AudioController audio,
     required String? Function() userId,
     required bool Function() isDevUnauthed,
-    required bool Function() skipAuth,
     required void Function() onStateChanged,
     required String recordingsDirectory,
     PendingPostDraft? initialDraft,
@@ -30,7 +29,6 @@ class PostService {
        _audio = audio,
        _userId = userId,
        _isDevUnauthed = isDevUnauthed,
-       _skipAuth = skipAuth,
        _onStateChanged = onStateChanged,
        _recordingsDirectory = recordingsDirectory,
        _pendingPostDraft = initialDraft,
@@ -50,7 +48,6 @@ class PostService {
   final AudioController _audio;
   final String? Function() _userId;
   final bool Function() _isDevUnauthed;
-  final bool Function() _skipAuth;
   final void Function() _onStateChanged;
   final String _recordingsDirectory;
   final IdGenerator _idGenerator = IdGenerator();
@@ -190,11 +187,6 @@ class PostService {
     final currentUser = _userId();
     if (currentUser == null) {
       if (!_isDevUnauthed()) {
-        if (_skipAuth()) {
-          throw PostException(
-            'Dev mode requires DEV_EMAIL and DEV_PASSWORD to post.',
-          );
-        }
         throw PostException('Sign in required to post.');
       }
     }

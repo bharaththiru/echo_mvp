@@ -38,16 +38,6 @@ Collections used:
   - `duration_seconds`, `storage_path`
   - `allow_replies`, `caption`, `status`
 
-### Dev ergonomics
-Skip auth gating and auto sign-in for local testing:
-```
-flutter run \
-  --dart-define=SKIP_AUTH=true \
-  --dart-define=DEV_EMAIL=you@example.com \
-  --dart-define=DEV_PASSWORD=your-password
-```
-`SKIP_AUTH` bypasses login UI; `DEV_EMAIL`/`DEV_PASSWORD` enable automatic sign-in so you can post.
-
 ## Notes
 - Recording and playback are implemented with native platform channels:
   - Android: MediaRecorder and MediaPlayer
@@ -62,6 +52,36 @@ Core packages:
 - shared_preferences
 - path_provider
 - firebase_core
-- firebase_auth
+- clerk_flutter
+- clerk_auth
 - cloud_firestore
 - firebase_storage
+
+## Clerk authentication setup
+
+Echo now uses Clerk as the identity provider for posting flows.
+
+### 1) Pass publishable key
+
+Use dart-define at run/build time:
+
+```bash
+flutter run --dart-define=CLERK_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+```
+
+Do not commit real keys to source control. `.env` is gitignored for local-only development.
+
+### 2) Behavior
+
+- Browsing stations and listening works as a guest.
+- After onboarding, users are routed to sign-up once.
+- Posting flows (record/upload) require Clerk sign-in.
+- Settings includes sign up/sign in, sign out, and delete-account entry points.
+
+### 3) OAuth platform notes
+
+If you enable Apple/Google in Clerk, complete redirect configuration in Clerk Dashboard plus platform manifests:
+- iOS: Bundle ID + URL schemes / universal links as required by Clerk provider setup.
+- Android: Intent filters for Clerk redirect URIs in `AndroidManifest.xml`.
+
+Follow `clerk_flutter` README for exact provider-specific values.

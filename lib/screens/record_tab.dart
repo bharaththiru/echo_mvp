@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../app/app_scope.dart';
 import '../theme/echo_theme.dart';
 import '../services/audio_controller.dart';
+import '../services/auth_gate.dart';
 import '../utils/responsive.dart';
 import '../widgets/echo_components.dart';
 
@@ -77,6 +78,10 @@ class _RecordTabState extends State<RecordTab> with WidgetsBindingObserver {
 
   Future<void> _startRecording() async {
     final appState = AppScope.of(context);
+    await requireAuth(context, () async {});
+    if (!mounted || !appState.isAuthenticated) {
+      return;
+    }
     appState.audio.stop();
     if (_permissionRequestInFlight || _isRecording || _finalizingRecording) {
       return;

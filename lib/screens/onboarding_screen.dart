@@ -70,7 +70,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   void _completeOnboarding(AppState appState) {
     appState.completeOnboarding();
-    context.go('/listen');
+    context.go('/auth?mode=signup');
   }
 
   // Skip jumps to the permissions page so users always see the mic prompt.
