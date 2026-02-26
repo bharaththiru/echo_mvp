@@ -73,7 +73,7 @@ The app currently pins:
 
 - `clerk_flutter: 0.0.8-beta`
 - `clerk_auth: 0.0.8-beta`
-- `clerk_backend_api: 0.0.8-beta`
+- `clerk_backend_api: 0.0.14-beta`
 
 Keep these pinned to exact patch versions while the SDK is stabilizing.
 
