@@ -392,7 +392,7 @@ class _StationHeroPanel extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.16),
+                color: tokens.shadow,
                 blurRadius: 16,
                 offset: const Offset(0, 8),
               ),
@@ -714,7 +714,7 @@ class _AutoplayFloatingButtonState extends State<_AutoplayFloatingButton>
                   ),
                   // Directional lift shadow — physical depth
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.44),
+                    color: tokens.shadowHeavy,
                     blurRadius: 14,
                     offset: const Offset(0, 5),
                   ),
