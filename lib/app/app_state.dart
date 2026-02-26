@@ -292,6 +292,8 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
 
   Future<void> signOut() => _authService.signOut();
 
+  Future<void> refreshAuthStatus() => _authService.refreshSession();
+
   Future<void> deleteAccount() => _authService.deleteAccount();
 
   String? currentClerkUserId() => _authService.userId;

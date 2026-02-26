@@ -59,7 +59,23 @@ Core packages:
 
 ## Clerk authentication setup
 
-Echo now uses Clerk as the identity provider for posting flows.
+Echo uses Clerk as the identity provider for posting flows.
+
+### Flutter SDK beta reference
+
+Clerk's official Flutter SDK is currently in public beta.
+
+- Frontend package: `clerk_flutter`
+- Server-side packages: `clerk_auth`, `clerk_backend_api`
+- Recommended beta version at time of writing: `0.0.8-beta`
+
+The app currently pins:
+
+- `clerk_flutter: 0.0.8-beta`
+- `clerk_auth: 0.0.8-beta`
+- `clerk_backend_api: 0.0.14-beta`
+
+Keep these pinned to exact patch versions while the SDK is stabilizing.
 
 ### 1) Pass publishable key
 
