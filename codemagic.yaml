@@ -6,7 +6,7 @@ workflows:
     environment:
       flutter: stable
       xcode: 16.4
-      cocoapods: 1.16.2
+      cocoapods: 1.15.2
       groups:
         - "Clerk Auth"
     cache:
@@ -39,14 +39,9 @@ workflows:
           set -euo pipefail
 
           # Clerk publishable key can come from app vars or the imported "Clerk Auth" group.
-          # Normalize to CLERK_PUBLISHABLE_KEY because Flutter reads that define in app code.
-          if [ -n "${CLERK_PUBLISHABLE_KEY:-}" ]; then
-            export CLERK_PUBLISHABLE_KEY
-            echo "Using CLERK_PUBLISHABLE_KEY from workflow/app variables."
-          elif [ -n "${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}" ]; then
-            export CLERK_PUBLISHABLE_KEY="$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
-            echo "Using NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY from group 'Clerk Auth'."
-          else
+          # App expects CLERK_PUBLISHABLE_KEY, but your group uses NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.
+          CLERK_KEY="${CLERK_PUBLISHABLE_KEY:-${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}}"
+          if [ -z "$CLERK_KEY" ]; then
             echo "Missing Clerk publishable key in workflow environment."
             echo "Expected one of: CLERK_PUBLISHABLE_KEY or NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
             echo "Codemagic UI: confirm group 'Clerk Auth' is attached to this workflow and variables are not restricted for this build context."
@@ -55,7 +50,12 @@ workflows:
 
           # Generate Xcode project settings only (no archive) so we can override flags cleanly.
           flutter build ios --release --no-codesign --config-only \
-            "--dart-define=CLERK_PUBLISHABLE_KEY=$CLERK_PUBLISHABLE_KEY"
+            "--dart-define=CLERK_PUBLISHABLE_KEY=$CLERK_KEY"
+          : "${CLERK_PUBLISHABLE_KEY:?CLERK_PUBLISHABLE_KEY is not set. Add it in Codemagic > App settings > Environment variables.}"
+
+          # Generate Xcode project settings only (no archive) so we can override flags cleanly.
+          flutter build ios --release --no-codesign --config-only \
+            --dart-define=CLERK_PUBLISHABLE_KEY="$CLERK_PUBLISHABLE_KEY"
 
           # Build with xcodebuild (removed unnecessary OTHER_*FLAGS overrides).
           xcodebuild \
