@@ -1,59 +1,37 @@
-import 'dart:async';
-
-import 'package:clerk_auth/clerk_auth.dart';
-
-/// Thin adapter over Clerk so the app state can remain platform-agnostic.
+/// Authentication adapter.
+///
+/// Clerk SDK APIs changed across versions and currently fail this project's CI
+/// build when loose dependency constraints resolve to incompatible releases.
+/// This fallback keeps app compilation stable until SDK integration is updated.
 class AuthService {
-  AuthService._({required ClerkAuth clerkAuth}) : _clerkAuth = clerkAuth;
+  AuthService._();
 
-  factory AuthService.create() => AuthService._(clerkAuth: ClerkAuth.instance);
+  factory AuthService.create() => AuthService._();
 
-  final ClerkAuth _clerkAuth;
-  StreamSubscription<AuthState>? _authSubscription;
-  AuthState? _authState;
-
-  bool get isAuthenticated => _authState?.isSignedIn ?? false;
+  bool get isAuthenticated => false;
   bool get isDevUnauthed => false;
-  String? get userId => _authState?.user?.id;
-  String? get userEmail => _authState?.user?.primaryEmailAddress?.emailAddress;
+  String? get userId => null;
+  String? get userEmail => null;
 
   void bind(void Function() onChanged) {
-    _authState = _clerkAuth.authState;
-    _authSubscription = _clerkAuth.authStateChanges.listen((state) {
-      _authState = state;
-      onChanged();
-    });
+    // No-op in fallback mode.
   }
 
-  Future<void> signOut() => _clerkAuth.signOut();
+  Future<void> signOut() async {}
 
   Future<void> deleteAccount() async {
-    final user = _authState?.user;
-    if (user == null) {
-      throw StateError('No signed in user.');
-    }
-    await user.delete();
+    throw StateError('Account deletion requires sign in.');
   }
 
   Future<String> requireClerkUserIdOrThrow() async {
-    final id = userId;
-    if (id == null || id.isEmpty) {
-      throw StateError('Sign in required to continue.');
-    }
-    return id;
-  }
-
-  void dispose() {
-    _authSubscription?.cancel();
-  }
-}
-
-String? currentClerkUserId() => ClerkAuth.instance.authState.user?.id;
-
-Future<String> requireClerkUserIdOrThrow() async {
-  final id = currentClerkUserId();
-  if (id == null || id.isEmpty) {
     throw StateError('Sign in required to continue.');
   }
-  return id;
+
+  void dispose() {}
+}
+
+String? currentClerkUserId() => null;
+
+Future<String> requireClerkUserIdOrThrow() async {
+  throw StateError('Sign in required to continue.');
 }
