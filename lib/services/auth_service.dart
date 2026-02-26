@@ -1,33 +1,120 @@
-/// Authentication adapter.
-///
-/// Clerk SDK APIs changed across versions and currently fail this project's CI
-/// build when loose dependency constraints resolve to incompatible releases.
-/// This fallback keeps app compilation stable until SDK integration is updated.
+import 'dart:async';
+import 'dart:io';
+
+import 'package:clerk_auth/clerk_auth.dart';
+import 'package:path_provider/path_provider.dart';
+
+import '../config/clerk_config.dart';
+
+/// Authentication adapter backed by Clerk.
 class AuthService {
-  AuthService._();
+  AuthService._() {
+    unawaited(_initialize());
+  }
 
   factory AuthService.create() => AuthService._();
 
-  bool get isAuthenticated => false;
-  bool get isDevUnauthed => false;
-  String? get userId => null;
-  String? get userEmail => null;
+  final List<void Function()> _listeners = <void Function()>[];
+  Auth? _auth;
+  bool _initializing = false;
 
-  void bind(void Function() onChanged) {
-    // No-op in fallback mode.
+  Future<void> _initialize() async {
+    if (_auth != null || _initializing) {
+      return;
+    }
+    _initializing = true;
+    try {
+      final supportDir = await getApplicationSupportDirectory();
+      final auth = Auth(
+        config: AuthConfig(publishableKey: ClerkConfig.publishableKey),
+        persistor: await DefaultPersistor.create(
+          storageDirectory: Directory(supportDir.path),
+        ),
+      );
+      await auth.initialize();
+      _auth = auth;
+      _notify();
+    } finally {
+      _initializing = false;
+    }
   }
 
-  Future<void> signOut() async {}
+  bool get isAuthenticated => _auth?.user != null;
+  bool get isDevUnauthed => false;
+
+  String? get userId {
+    final user = _auth?.user;
+    if (user == null) {
+      return null;
+    }
+    final dynamic dynamicUser = user;
+    return dynamicUser.id?.toString();
+  }
+
+  String? get userEmail {
+    final user = _auth?.user;
+    if (user == null) {
+      return null;
+    }
+    final dynamic dynamicUser = user;
+    return dynamicUser.primaryEmailAddress?.emailAddress?.toString() ??
+        dynamicUser.emailAddress?.toString();
+  }
+
+  void bind(void Function() onChanged) {
+    _listeners.add(onChanged);
+  }
+
+  Future<void> signOut() async {
+    await _initialize();
+    await _auth?.signOut();
+    _notify();
+  }
+
+  Future<void> refreshSession() async {
+    final auth = _auth;
+    _auth = null;
+    auth?.terminate();
+    await _initialize();
+  }
 
   Future<void> deleteAccount() async {
-    throw StateError('Account deletion requires sign in.');
+    await _initialize();
+    final user = _auth?.user;
+    if (user == null) {
+      throw StateError('Account deletion requires sign in.');
+    }
+    final dynamic dynamicUser = user;
+    final deleteCall = dynamicUser.delete;
+    if (deleteCall is Function) {
+      await deleteCall();
+      _notify();
+      return;
+    }
+    throw StateError('Delete account is not available for this Clerk SDK build.');
   }
 
   Future<String> requireClerkUserIdOrThrow() async {
-    throw StateError('Sign in required to continue.');
+    await _initialize();
+    final id = userId;
+    if (id == null || id.isEmpty) {
+      throw StateError('Sign in required to continue.');
+    }
+    return id;
   }
 
-  void dispose() {}
+  void dispose() {
+    final auth = _auth;
+    _auth = null;
+    auth?.terminate();
+    _listeners.clear();
+  }
+
+  void _notify() {
+    for (final listener in List<void Function()>.from(_listeners)) {
+      listener();
+    }
+  }
 }
 
 String? currentClerkUserId() => null;

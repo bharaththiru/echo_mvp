@@ -1,3 +1,4 @@
+import 'package:clerk_flutter/clerk_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -18,40 +19,73 @@ class AuthScreen extends StatelessWidget {
     return AppScaffold(
       child: Padding(
         padding: EchoLayout.pagePadding(context, top: 8, bottom: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              isSignUp ? 'Create account' : 'Sign in to post',
-              style: Theme.of(context).textTheme.displaySmall,
+        child: SafeArea(
+          child: ClerkErrorListener(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  isSignUp ? 'Create account' : 'Sign in to post',
+                  style: Theme.of(context).textTheme.displaySmall,
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ClerkAuthBuilder(
+                    signedInBuilder: (context, authState) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        appState.refreshAuthStatus();
+                      });
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 8),
+                          const ClerkUserButton(),
+                          const SizedBox(height: 12),
+                          Text(
+                            'You are signed in and can post to Echo.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const Spacer(),
+                          FilledButton(
+                            onPressed: () {
+                              if (next == 'post') {
+                                context.pop();
+                              } else {
+                                context.go('/listen');
+                              }
+                            },
+                            child: const Text('Continue'),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: () async {
+                              await appState.signOut();
+                              if (!context.mounted) return;
+                              context.go('/listen');
+                            },
+                            child: const Text('Sign out'),
+                          ),
+                        ],
+                      );
+                    },
+                    signedOutBuilder: (context, authState) {
+                      return const ClerkAuthentication();
+                    },
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    if (next == 'post') {
+                      context.pop();
+                    } else {
+                      context.go('/listen');
+                    }
+                  },
+                  child: const Text('Continue as guest'),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Authentication is temporarily unavailable in this build. '
-              'You can continue as a guest.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: () {
-                if (next == 'post') {
-                  context.pop();
-                } else {
-                  context.go('/listen');
-                }
-              },
-              child: const Text('Continue as guest'),
-            ),
-            if (appState.isAuthenticated)
-              OutlinedButton(
-                onPressed: () async {
-                  await appState.signOut();
-                  if (!context.mounted) return;
-                  context.go('/listen');
-                },
-                child: const Text('Sign out'),
-              ),
-          ],
+          ),
         ),
       ),
     );
