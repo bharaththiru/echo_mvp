@@ -7,6 +7,8 @@ workflows:
       flutter: stable
       xcode: 16.4
       cocoapods: 1.15.2
+      groups:
+        - "Clerk Auth"
     cache:
       cache_paths:
         - ~/.pub-cache
@@ -35,9 +37,20 @@ workflows:
       - name: Build iOS (Flutter, no codesign)
         script: |
           set -euo pipefail
+
+          # Clerk publishable key can come from app vars or the imported "Clerk Auth" group.
+          # App expects CLERK_PUBLISHABLE_KEY, but your group uses NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.
+          CLERK_KEY="${CLERK_PUBLISHABLE_KEY:-${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}}"
+          if [ -z "$CLERK_KEY" ]; then
+            echo "Missing Clerk publishable key in workflow environment."
+            echo "Expected one of: CLERK_PUBLISHABLE_KEY or NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
+            echo "Codemagic UI: confirm group 'Clerk Auth' is attached to this workflow and variables are not restricted for this build context."
+            exit 1
+          fi
+
           # Generate Xcode project settings only (no archive) so we can override flags cleanly.
           flutter build ios --release --no-codesign --config-only \
-            --dart-define=CLERK_PUBLISHABLE_KEY=$CLERK_PUBLISHABLE_KEY
+            "--dart-define=CLERK_PUBLISHABLE_KEY=$CLERK_KEY"
 
           # Build with xcodebuild (removed unnecessary OTHER_*FLAGS overrides).
           xcodebuild \
@@ -66,6 +79,16 @@ workflows:
             echo "Runner.app not found. Check build step output paths."
             exit 1
           fi
+
+          # Normalize output path so Codemagic artifact collection is stable.
+          NORMALIZED_APP_PATH=build/ios/iphoneos/Runner.app
+          if [ "$APP_PATH" != "$NORMALIZED_APP_PATH" ]; then
+            rm -rf "$NORMALIZED_APP_PATH"
+            mkdir -p "$(dirname "$NORMALIZED_APP_PATH")"
+            ditto "$APP_PATH" "$NORMALIZED_APP_PATH"
+            APP_PATH="$NORMALIZED_APP_PATH"
+          fi
+
           IPA_DIR=build/ios/ipa
 
           rm -rf "$IPA_DIR"
