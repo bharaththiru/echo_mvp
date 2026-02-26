@@ -115,7 +115,88 @@ class SettingsScreen extends StatelessWidget {
                       title: 'Report history',
                       subtitle: 'View your past reports',
                     ),
+
                     const SizedBox(height: 24),
+                    const EchoSectionTitle('Account'),
+                    const SizedBox(height: 12),
+                    EchoCard(
+                      padding: const EdgeInsets.all(16),
+                      radius: 18,
+                      color: tokens.surface2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            appState.isAuthenticated
+                                ? (appState.userEmail ?? 'Signed in')
+                                : 'Guest mode',
+                            style: theme.textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            appState.isAuthenticated
+                                ? 'You can sign out or delete your account.'
+                                : 'Sign in from here any time to post.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: tokens.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton(
+                            onPressed: () async {
+                              if (appState.isAuthenticated) {
+                                await appState.signOut();
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Signed out.')),
+                                );
+                                return;
+                              }
+                              context.push('/auth?mode=signup');
+                            },
+                            child: Text(
+                              appState.isAuthenticated ? 'Sign out' : 'Sign up / sign in',
+                            ),
+                          ),
+                          if (appState.isAuthenticated) ...[
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: () async {
+                                final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) {
+                                    return AlertDialog(
+                                      title: const Text('Delete account?'),
+                                      content: const Text(
+                                        'This permanently deletes your Echo account from Clerk.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.of(context).pop(false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.of(context).pop(true),
+                                          child: const Text('Delete'),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                );
+                                if (confirmed != true) {
+                                  return;
+                                }
+                                await appState.deleteAccount();
+                                if (!context.mounted) return;
+                                context.go('/listen');
+                              },
+                              child: const Text('Delete account'),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+
                     const EchoSectionTitle('Legal'),
                     const SizedBox(height: 12),
                     _LinkTile(title: 'Community guidelines'),

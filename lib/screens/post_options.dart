@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
 import '../app/app_state.dart';
+import '../services/auth_gate.dart';
 import '../services/post_service.dart';
 import '../theme/echo_theme.dart';
 import '../models/hashtag.dart';
@@ -71,22 +72,10 @@ class _PostOptionsState extends State<PostOptions> {
       return;
     }
 
-    if (!appState.isAuthenticated && !appState.skipAuth) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Sign in required to post.'),
-          action: SnackBarAction(
-            label: 'Sign in',
-            onPressed: () => context.push('/auth'),
-          ),
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isPosting = true);
-    try {
-      final note = await appState.postNote(
+    await requireAuth(context, () async {
+      setState(() => _isPosting = true);
+      try {
+        final note = await appState.postNote(
         recordingPath: recordingPath,
         hashtag: hashtag,
         allowReplies: _allowReplies,
@@ -106,25 +95,26 @@ class _PostOptionsState extends State<PostOptions> {
         ),
       );
       context.go('/listen');
-    } on PostException catch (error) {
-      if (!mounted) {
-        return;
+      } on PostException catch (error) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      } catch (_) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to post right now.')),
+        );
+      } finally {
+        if (mounted) {
+          setState(() => _isPosting = false);
+        }
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to post right now.')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isPosting = false);
-      }
-    }
+    });
   }
 
   @override
