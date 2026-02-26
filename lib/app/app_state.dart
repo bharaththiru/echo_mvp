@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -77,7 +76,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     final prefs = await SharedPreferences.getInstance();
     final settings = AppSettings.fromPrefs(prefs);
     final audio = await AudioController.create();
-    final authService = AuthService.create(auth: FirebaseAuth.instance);
+    final authService = AuthService.create();
     final repository = FirebaseRepository(
       firestore: FirebaseFirestore.instance,
       storage: FirebaseStorage.instance,
@@ -135,7 +134,6 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
       audio: audio,
       userId: () => authService.userId,
       isDevUnauthed: () => authService.isDevUnauthed,
-      skipAuth: () => authService.skipAuth,
       onStateChanged: () => stateRef!.notifyListeners(),
       recordingsDirectory: recordingsDirectory,
       initialDraft: startup.draft,
@@ -169,7 +167,6 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
       state.notifyListeners();
     });
     // Avoid blocking the first frame on network/auth work.
-    unawaited(authService.maybeAutoSignIn());
     unawaited(state.refreshHashtags());
     unawaited(state.refreshMyPosts());
     unawaited(audioCache.prune());
@@ -180,14 +177,12 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     required AudioController audio,
     required List<Hashtag> hashtags,
     required Map<String, List<VoiceNote>> notesByHashtag,
-    FirebaseAuth? auth,
     FirebaseRepository? repository,
     AppSettings? settings,
     bool onboardingComplete = true,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final resolvedSettings = settings ?? AppSettings.fromPrefs(prefs);
-    final resolvedAuth = auth ?? FirebaseAuth.instance;
     final resolvedRepository =
         repository ??
         FirebaseRepository(
@@ -203,11 +198,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     );
     audioCacheDir.createSync(recursive: true);
     final saved = hashtags.take(3).map((tag) => tag.name).toList();
-    final authService = AuthService.create(
-      auth: resolvedAuth,
-      initialUser: null,
-    );
-    authService.bindNoop();
+    final authService = AuthService.create();
     final audioCache = AudioCacheService.forTest(
       repository: resolvedRepository,
       cacheDirectory: audioCacheDir.path,
@@ -249,7 +240,6 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
       audio: audio,
       userId: () => authService.userId,
       isDevUnauthed: () => authService.isDevUnauthed,
-      skipAuth: () => authService.skipAuth,
       onStateChanged: () => stateRef!.notifyListeners(),
       recordingsDirectory: recordingsDirectory,
     );
@@ -291,7 +281,6 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
 
   bool get isAuthenticated => _authService.isAuthenticated;
 
-  bool get skipAuth => _authService.skipAuth;
 
   String? get userEmail => _authService.userEmail;
 
@@ -301,21 +290,15 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
 
   bool get isPosting => _post.isPosting;
 
-  Future<UserCredential> signInWithPassword({
-    required String email,
-    required String password,
-  }) => _authService.signInWithPassword(email: email, password: password);
-
-  Future<UserCredential> signUp({
-    required String email,
-    required String password,
-  }) => _authService.signUp(email: email, password: password);
-
   Future<void> signOut() => _authService.signOut();
 
-  Future<UserCredential?> signInWithGoogle() => _authService.signInWithGoogle();
+  Future<void> deleteAccount() => _authService.deleteAccount();
 
-  Future<UserCredential?> signInWithApple() => _authService.signInWithApple();
+  String? currentClerkUserId() => _authService.userId;
+
+  Future<String> requireClerkUserIdOrThrow() =>
+      _authService.requireClerkUserIdOrThrow();
+
 
   List<Hashtag> get hashtags => _feed.hashtags;
 

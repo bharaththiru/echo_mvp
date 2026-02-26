@@ -18,7 +18,6 @@ class ProfileTab extends StatelessWidget {
     final onButtonFill = theme.colorScheme.onPrimary;
     final appState = AppScope.of(context);
     final isAuthenticated = appState.isAuthenticated;
-    final skipAuth = appState.skipAuth;
     final userEmail = appState.userEmail;
     final savedHashtags = appState.savedHashtags;
     final myPosts = appState.userPosts();
@@ -73,11 +72,9 @@ class ProfileTab extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      skipAuth
-                          ? 'Dev mode: auth skipped'
-                          : userEmail != null
+                      userEmail != null
                           ? 'Signed in'
-                          : 'Sign in to sync your notes',
+                          : 'Sign in to post your voice notes',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: tokens.textSecondary,
                       ),
@@ -88,7 +85,7 @@ class ProfileTab extends StatelessWidget {
                           ? () async {
                               await appState.signOut();
                             }
-                          : () => context.go('/auth'),
+                          : () => context.go('/auth?mode=signup'),
                       child: Text(isAuthenticated ? 'Sign out' : 'Sign in'),
                     ),
                   ],
