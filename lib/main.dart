@@ -19,12 +19,22 @@ Future<void> main() async {
     // Optional local development fallback.
   });
 
+  final String clerkKey;
+  try {
+    clerkKey = ClerkConfig.publishableKey;
+  } catch (e) {
+    runApp(MaterialApp(
+      home: Scaffold(body: Center(child: Text('Config error: $e'))),
+    ));
+    return;
+  }
+
   final appState = await AppState.create();
   final lightTheme = buildEchoTheme(Brightness.light);
   final darkTheme = buildEchoTheme(Brightness.dark);
   runApp(
     ClerkAuth(
-      config: ClerkAuthConfig(publishableKey: ClerkConfig.publishableKey),
+      config: ClerkAuthConfig(publishableKey: clerkKey),
       child: AppScope(
         state: appState,
         child: EchoApp(
