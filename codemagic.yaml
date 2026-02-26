@@ -51,6 +51,11 @@ workflows:
           # Generate Xcode project settings only (no archive) so we can override flags cleanly.
           flutter build ios --release --no-codesign --config-only \
             "--dart-define=CLERK_PUBLISHABLE_KEY=$CLERK_KEY"
+          : "${CLERK_PUBLISHABLE_KEY:?CLERK_PUBLISHABLE_KEY is not set. Add it in Codemagic > App settings > Environment variables.}"
+
+          # Generate Xcode project settings only (no archive) so we can override flags cleanly.
+          flutter build ios --release --no-codesign --config-only \
+            --dart-define=CLERK_PUBLISHABLE_KEY="$CLERK_PUBLISHABLE_KEY"
 
           # Build with xcodebuild (removed unnecessary OTHER_*FLAGS overrides).
           xcodebuild \
