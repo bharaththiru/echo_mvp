@@ -38,24 +38,13 @@ workflows:
         script: |
           set -euo pipefail
 
-          # Clerk publishable key can come from app vars or the imported "Clerk Auth" group.
-          # App expects CLERK_PUBLISHABLE_KEY, but your group uses NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.
-          CLERK_KEY="${CLERK_PUBLISHABLE_KEY:-${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}}"
-          if [ -z "$CLERK_KEY" ]; then
-            echo "Missing Clerk publishable key in workflow environment."
-            echo "Expected one of: CLERK_PUBLISHABLE_KEY or NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
-            echo "Codemagic UI: confirm group 'Clerk Auth' is attached to this workflow and variables are not restricted for this build context."
-            exit 1
-          fi
+          # Use only the exact variable names configured in Codemagic.
+          : "${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is not set in Codemagic environment variables.}"
+          : "${CLERK_SECRET_KEY:?CLERK_SECRET_KEY is not set in Codemagic environment variables.}"
 
-          # Generate Xcode project settings only (no archive) so we can override flags cleanly.
+          # App expects CLERK_PUBLISHABLE_KEY as dart-define; map from NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.
           flutter build ios --release --no-codesign --config-only \
-            "--dart-define=CLERK_PUBLISHABLE_KEY=$CLERK_KEY"
-          : "${CLERK_PUBLISHABLE_KEY:?CLERK_PUBLISHABLE_KEY is not set. Add it in Codemagic > App settings > Environment variables.}"
-
-          # Generate Xcode project settings only (no archive) so we can override flags cleanly.
-          flutter build ios --release --no-codesign --config-only \
-            --dart-define=CLERK_PUBLISHABLE_KEY="$CLERK_PUBLISHABLE_KEY"
+            --dart-define=CLERK_PUBLISHABLE_KEY="$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
 
           # Build with xcodebuild (removed unnecessary OTHER_*FLAGS overrides).
           xcodebuild \
