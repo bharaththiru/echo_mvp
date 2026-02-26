@@ -5,6 +5,7 @@ class EchoColors {
   static const clearing = Color(0xFF141C18);
   static const pulse = Color(0xFF769586);
   static const fog = Color(0xFFB8C4BE);
+  static const ember = Color(0xFFC4877A);
 }
 
 class EchoRadii {
@@ -39,9 +40,6 @@ class EchoColorUtils {
 class EchoSemantic extends ThemeExtension<EchoSemantic> {
   const EchoSemantic({
     required this.bg,
-    required this.bgBaseNearBlack,
-    required this.bgGlowNavy,
-    required this.bgEdgeNearBlack,
     required this.surface1,
     required this.surface2,
     required this.surface3,
@@ -51,18 +49,16 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
     required this.textSecondary,
     required this.textTertiary,
     required this.accentPrimary,
-    required this.accentSecondary,
     required this.accentMuted,
     required this.danger,
     required this.dangerMuted,
     required this.overlay,
     required this.shadow,
+    required this.shadowMedium,
+    required this.shadowHeavy,
   });
 
   final Color bg;
-  final Color bgBaseNearBlack;
-  final Color bgGlowNavy;
-  final Color bgEdgeNearBlack;
   final Color surface1;
   final Color surface2;
   final Color surface3;
@@ -72,26 +68,22 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
   final Color textSecondary;
   final Color textTertiary;
   final Color accentPrimary;
-  final Color accentSecondary;
   final Color accentMuted;
   final Color danger;
   final Color dangerMuted;
   final Color overlay;
   final Color shadow;
+  final Color shadowMedium;
+  final Color shadowHeavy;
 
   factory EchoSemantic.fromBrightness(Brightness brightness) {
-    const bgBaseNearBlack = EchoColors.voidBg;
-    const bgGlow = EchoColors.voidBg;
     const neutral = EchoColors.clearing;
     final surface1 = neutral;
     final surface2 = Color.lerp(neutral, EchoColors.fog, 0.04)!;
     final surface3 = Color.lerp(neutral, EchoColors.fog, 0.08)!;
     final border = EchoColors.fog.withValues(alpha: 0.12);
     return EchoSemantic(
-      bg: bgBaseNearBlack,
-      bgBaseNearBlack: bgBaseNearBlack,
-      bgGlowNavy: bgGlow,
-      bgEdgeNearBlack: EchoColors.voidBg,
+      bg: EchoColors.voidBg,
       surface1: surface1,
       surface2: surface2,
       surface3: surface3,
@@ -101,21 +93,19 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
       textSecondary: EchoColors.fog.withValues(alpha: 0.72),
       textTertiary: EchoColors.fog.withValues(alpha: 0.55),
       accentPrimary: EchoColors.pulse,
-      accentSecondary: EchoColors.pulse,
       accentMuted: EchoColors.pulse.withValues(alpha: 0.18),
-      danger: EchoColors.pulse,
-      dangerMuted: EchoColors.pulse.withValues(alpha: 0.6),
-      overlay: bgBaseNearBlack.withValues(alpha: 0.9),
+      danger: EchoColors.ember,
+      dangerMuted: EchoColors.ember.withValues(alpha: 0.6),
+      overlay: EchoColors.voidBg.withValues(alpha: 0.9),
       shadow: Colors.black.withValues(alpha: 0.2),
+      shadowMedium: Colors.black.withValues(alpha: 0.3),
+      shadowHeavy: Colors.black.withValues(alpha: 0.44),
     );
   }
 
   @override
   EchoSemantic copyWith({
     Color? bg,
-    Color? bgBaseNearBlack,
-    Color? bgGlowNavy,
-    Color? bgEdgeNearBlack,
     Color? surface1,
     Color? surface2,
     Color? surface3,
@@ -125,18 +115,16 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
     Color? textSecondary,
     Color? textTertiary,
     Color? accentPrimary,
-    Color? accentSecondary,
     Color? accentMuted,
     Color? danger,
     Color? dangerMuted,
     Color? overlay,
     Color? shadow,
+    Color? shadowMedium,
+    Color? shadowHeavy,
   }) {
     return EchoSemantic(
       bg: bg ?? this.bg,
-      bgBaseNearBlack: bgBaseNearBlack ?? this.bgBaseNearBlack,
-      bgGlowNavy: bgGlowNavy ?? this.bgGlowNavy,
-      bgEdgeNearBlack: bgEdgeNearBlack ?? this.bgEdgeNearBlack,
       surface1: surface1 ?? this.surface1,
       surface2: surface2 ?? this.surface2,
       surface3: surface3 ?? this.surface3,
@@ -146,12 +134,13 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
       textSecondary: textSecondary ?? this.textSecondary,
       textTertiary: textTertiary ?? this.textTertiary,
       accentPrimary: accentPrimary ?? this.accentPrimary,
-      accentSecondary: accentSecondary ?? this.accentSecondary,
       accentMuted: accentMuted ?? this.accentMuted,
       danger: danger ?? this.danger,
       dangerMuted: dangerMuted ?? this.dangerMuted,
       overlay: overlay ?? this.overlay,
       shadow: shadow ?? this.shadow,
+      shadowMedium: shadowMedium ?? this.shadowMedium,
+      shadowHeavy: shadowHeavy ?? this.shadowHeavy,
     );
   }
 
@@ -162,11 +151,6 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
     }
     return EchoSemantic(
       bg: Color.lerp(bg, other.bg, t)!,
-      bgBaseNearBlack:
-          Color.lerp(bgBaseNearBlack, other.bgBaseNearBlack, t)!,
-      bgGlowNavy: Color.lerp(bgGlowNavy, other.bgGlowNavy, t)!,
-      bgEdgeNearBlack:
-          Color.lerp(bgEdgeNearBlack, other.bgEdgeNearBlack, t)!,
       surface1: Color.lerp(surface1, other.surface1, t)!,
       surface2: Color.lerp(surface2, other.surface2, t)!,
       surface3: Color.lerp(surface3, other.surface3, t)!,
@@ -176,12 +160,13 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       textTertiary: Color.lerp(textTertiary, other.textTertiary, t)!,
       accentPrimary: Color.lerp(accentPrimary, other.accentPrimary, t)!,
-      accentSecondary: Color.lerp(accentSecondary, other.accentSecondary, t)!,
       accentMuted: Color.lerp(accentMuted, other.accentMuted, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
       dangerMuted: Color.lerp(dangerMuted, other.dangerMuted, t)!,
       overlay: Color.lerp(overlay, other.overlay, t)!,
       shadow: Color.lerp(shadow, other.shadow, t)!,
+      shadowMedium: Color.lerp(shadowMedium, other.shadowMedium, t)!,
+      shadowHeavy: Color.lerp(shadowHeavy, other.shadowHeavy, t)!,
     );
   }
 }
@@ -366,11 +351,6 @@ ThemeData buildEchoTheme(Brightness _brightness) {
           return tokens.surface1;
         }),
         foregroundColor: WidgetStateProperty.resolveWith((states) {
-          final background = states.contains(WidgetState.disabled)
-              ? tokens.surface1.withValues(alpha: 0.6)
-              : states.contains(WidgetState.pressed)
-                  ? tokens.surface1
-                  : tokens.surface1;
           final resolved = tokens.textPrimary;
           if (states.contains(WidgetState.disabled)) {
             return resolved.withValues(alpha: 0.5);
@@ -412,11 +392,6 @@ ThemeData buildEchoTheme(Brightness _brightness) {
           return tokens.surface1;
         }),
         foregroundColor: WidgetStateProperty.resolveWith((states) {
-          final background = states.contains(WidgetState.disabled)
-              ? tokens.surface1.withValues(alpha: 0.4)
-              : states.contains(WidgetState.pressed)
-                  ? tokens.surface1
-                  : tokens.surface1;
           final resolved = tokens.textPrimary;
           if (states.contains(WidgetState.disabled)) {
             return resolved.withValues(alpha: 0.5);
@@ -444,11 +419,6 @@ ThemeData buildEchoTheme(Brightness _brightness) {
     iconButtonTheme: IconButtonThemeData(
       style: ButtonStyle(
         foregroundColor: WidgetStateProperty.resolveWith((states) {
-          final background = states.contains(WidgetState.disabled)
-              ? tokens.surface1.withValues(alpha: 0.5)
-              : states.contains(WidgetState.pressed)
-                  ? tokens.surface1
-                  : tokens.surface1;
           final resolved = tokens.textPrimary;
           if (states.contains(WidgetState.disabled)) {
             return resolved.withValues(alpha: 0.5);

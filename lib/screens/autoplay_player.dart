@@ -670,7 +670,7 @@ class _StationAvatarState extends State<_StationAvatar>
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.28),
+            color: tokens.shadowMedium,
             blurRadius: 28,
             offset: const Offset(0, 12),
           ),

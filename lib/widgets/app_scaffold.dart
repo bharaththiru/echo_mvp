@@ -118,7 +118,7 @@ class _MiniPlayer extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.42),
+                          color: tokens.shadowHeavy,
                           blurRadius: 28,
                           offset: const Offset(0, 8),
                           spreadRadius: -2,

@@ -48,80 +48,22 @@ class SettingsScreen extends StatelessWidget {
                   children: [
                     const EchoSectionTitle('Appearance'),
                     const SizedBox(height: 12),
-                    Text('Theme', style: theme.textTheme.bodySmall),
-                    const SizedBox(height: 8),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isCompact = constraints.maxWidth < 320;
-                        if (isCompact) {
-                          return Column(
-                            children: [
-                              _ThemeOption(
-                                label: 'Light',
-                                icon: Icons.wb_sunny,
-                                isSelected:
-                                    settings.themeMode == ThemeMode.light,
-                                onTap: () =>
-                                    appState.updateThemeMode(ThemeMode.light),
-                              ),
-                              const SizedBox(height: 12),
-                              _ThemeOption(
-                                label: 'Dark',
-                                icon: Icons.nightlight_round,
-                                isSelected:
-                                    settings.themeMode == ThemeMode.dark,
-                                onTap: () =>
-                                    appState.updateThemeMode(ThemeMode.dark),
-                              ),
-                              const SizedBox(height: 12),
-                              _ThemeOption(
-                                label: 'System',
-                                icon: Icons.desktop_windows,
-                                isSelected:
-                                    settings.themeMode == ThemeMode.system,
-                                onTap: () =>
-                                    appState.updateThemeMode(ThemeMode.system),
-                              ),
-                            ],
-                          );
-                        }
-                        return Row(
-                          children: [
-                            Expanded(
-                              child: _ThemeOption(
-                                label: 'Light',
-                                icon: Icons.wb_sunny,
-                                isSelected:
-                                    settings.themeMode == ThemeMode.light,
-                                onTap: () =>
-                                    appState.updateThemeMode(ThemeMode.light),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _ThemeOption(
-                                label: 'Dark',
-                                icon: Icons.nightlight_round,
-                                isSelected:
-                                    settings.themeMode == ThemeMode.dark,
-                                onTap: () =>
-                                    appState.updateThemeMode(ThemeMode.dark),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _ThemeOption(
-                                label: 'System',
-                                icon: Icons.desktop_windows,
-                                isSelected:
-                                    settings.themeMode == ThemeMode.system,
-                                onTap: () =>
-                                    appState.updateThemeMode(ThemeMode.system),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                    EchoCard(
+                      padding: const EdgeInsets.all(16),
+                      radius: 18,
+                      color: tokens.surface2,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.nightlight_round,
+                            size: 20,
+                            color: tokens.accentPrimary,
+                          ),
+                          const SizedBox(width: 12),
+                          Text('Dark mode',
+                              style: theme.textTheme.titleSmall),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 16),
                     _ToggleTile(
@@ -201,59 +143,6 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-class _ThemeOption extends StatelessWidget {
-  const _ThemeOption({
-    required this.label,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = context.echo;
-    final backgroundColor = tokens.surface1;
-    final foregroundColor = isSelected
-        ? tokens.accentPrimary
-        : tokens.textSecondary;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 24, color: foregroundColor),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: foregroundColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _ToggleTile extends StatelessWidget {
   const _ToggleTile({
