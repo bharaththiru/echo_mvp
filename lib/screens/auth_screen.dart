@@ -32,9 +32,11 @@ class AuthScreen extends StatelessWidget {
                 Expanded(
                   child: ClerkAuthBuilder(
                     signedInBuilder: (context, authState) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        appState.refreshAuthStatus();
-                      });
+                      if (!appState.isAuthenticated) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (context.mounted) appState.refreshAuthStatus();
+                        });
+                      }
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
