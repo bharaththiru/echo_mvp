@@ -3133,10 +3133,32 @@ class AutoplayController extends ChangeNotifier {
     if (_isDisposed) {
       return;
     }
+    final previous = _state;
     _state = next.copyWith(
       queueDepth: _playbackQueueIds.length,
       queueRemaining: _queueRemaining(),
     );
+    if (kDebugMode) {
+      final previousId = previous.currentNote?.id;
+      final nextId = _state.currentNote?.id;
+      final phaseChanged = previous.phase != _state.phase;
+      final noteChanged = previousId != nextId;
+      final flagsChanged = previous.isTransitioning != _state.isTransitioning ||
+          previous.isPreparing != _state.isPreparing ||
+          previous.isMuted != _state.isMuted;
+      final messageChanged = previous.errorMessage != _state.errorMessage ||
+          previous.statusText != _state.statusText ||
+          previous.transientMessage != _state.transientMessage;
+      if (phaseChanged || noteChanged || flagsChanged || messageChanged) {
+        _log(
+          'state phase=${previous.phase.name}->${_state.phase.name} note=$previousId->$nextId '
+          'prep=${previous.isPreparing}->${_state.isPreparing} '
+          'transition=${previous.isTransitioning}->${_state.isTransitioning} '
+          'muted=${previous.isMuted}->${_state.isMuted} '
+          'err=${_state.errorMessage ?? '-'} status=${_state.statusText ?? '-'}',
+        );
+      }
+    }
     notifyListeners();
   }
 

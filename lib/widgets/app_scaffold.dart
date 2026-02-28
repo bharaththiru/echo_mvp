@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../app/app_scope.dart';
 import '../services/audio_playback_controller.dart';
 import '../services/autoplay_controller.dart';
+import '../services/autoplay_ui_sync.dart';
 import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
 import 'listenable_selector.dart';
@@ -82,20 +83,13 @@ class _MiniPlayer extends StatelessWidget {
           initialData: audio.currentMetrics,
           builder: (context, snapshot) {
             final metrics = snapshot.data ?? audio.currentMetrics;
-            final metricsMatchCurrent = metrics.sourceId == note.id;
-            final isEnginePlaying = metricsMatchCurrent
-                ? metrics.playing
-                : (state.isPlaying && state.currentNote?.id == note.id);
-            final isEngineBuffering = metricsMatchCurrent &&
-                (metrics.processingState == PlaybackProcessingState.loading ||
-                    metrics.processingState == PlaybackProcessingState.buffering);
-            final statusText = isEngineBuffering && !isEnginePlaying
-                ? 'Buffering'
-                : isEnginePlaying
-                    ? 'Now listening'
-                    : state.phase == AutoplayPhase.paused
-                        ? 'Paused'
-                        : 'Ready';
+            final ui = resolveAutoplayUiSnapshot(
+              state: state,
+              metrics: metrics,
+              currentNoteId: note.id,
+            );
+            final isEnginePlaying = ui.isEnginePlaying;
+            final statusText = ui.statusLabel;
 
             return Positioned(
               left: 0,

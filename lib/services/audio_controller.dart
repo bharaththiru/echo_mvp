@@ -529,11 +529,25 @@ class AudioController extends ChangeNotifier
     if (!_state.isActive) {
       return;
     }
-    await _engine.seek(position);
-    _state = _state.copyWith(position: position);
-    _emitMetrics(position: position);
+    final target = _state.duration.inMilliseconds > 0
+        ? Duration(
+            milliseconds: position.inMilliseconds.clamp(
+              0,
+              _state.duration.inMilliseconds,
+            ),
+          )
+        : position;
+    final previousPosition = _state.position;
+    try {
+      await _engine.seek(target);
+      _state = _state.copyWith(position: target, errorMessage: null);
+      _emitMetrics(position: target);
+      _lastPositionTick = DateTime.now();
+    } catch (_) {
+      _state = _state.copyWith(position: previousPosition);
+      _emitMetrics(position: previousPosition);
+    }
     notifyListeners();
-    _lastPositionTick = DateTime.now();
     _syncPositionTimer();
   }
 
