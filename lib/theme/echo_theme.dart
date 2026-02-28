@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 
 class EchoColors {
-  static const voidBg = Color(0xFF080A09);
-  static const clearing = Color(0xFF141C18);
-  static const pulse = Color(0xFF769586);
-  static const fog = Color(0xFFB8C4BE);
-  static const ember = Color(0xFFC4877A);
+  static const voidBg = Color(0xFF060909);
+  static const abyss = Color(0xFF0B1210);
+  static const clearing = Color(0xFF111A17);
+  static const mossStone = Color(0xFF172421);
+  static const fernGlass = Color(0xFF1E2E2A);
+
+  static const fog = Color(0xFFC7D2CC);
+  static const mist = Color(0xFF9AA6A0);
+  static const haze = Color(0xFF7B8680);
+
+  static const pulse = Color(0xFF6FA592);
+  static const aurora = Color(0xFF5BB9B2);
+  static const ember = Color(0xFFD08B78);
+  static const starlight = Color(0xFFE6D9BF);
 }
 
 class EchoRadii {
@@ -40,104 +49,138 @@ class EchoColorUtils {
 class EchoSemantic extends ThemeExtension<EchoSemantic> {
   const EchoSemantic({
     required this.bg,
+    required this.bgLift,
     required this.surface1,
     required this.surface2,
     required this.surface3,
     required this.border,
     required this.borderSubtle,
+    required this.divider,
     required this.textPrimary,
     required this.textSecondary,
     required this.textTertiary,
+    required this.textDisabled,
     required this.accentPrimary,
+    required this.accentSecondary,
+    required this.accentWarm,
+    required this.highlight,
     required this.accentMuted,
     required this.danger,
     required this.dangerMuted,
     required this.overlay,
+    required this.scrim,
     required this.shadow,
     required this.shadowMedium,
     required this.shadowHeavy,
   });
 
   final Color bg;
+  final Color bgLift;
   final Color surface1;
   final Color surface2;
   final Color surface3;
   final Color border;
   final Color borderSubtle;
+  final Color divider;
   final Color textPrimary;
   final Color textSecondary;
   final Color textTertiary;
+  final Color textDisabled;
   final Color accentPrimary;
+  final Color accentSecondary;
+  final Color accentWarm;
+  final Color highlight;
   final Color accentMuted;
   final Color danger;
   final Color dangerMuted;
   final Color overlay;
+  final Color scrim;
   final Color shadow;
   final Color shadowMedium;
   final Color shadowHeavy;
 
   factory EchoSemantic.fromBrightness(Brightness brightness) {
-    const neutral = EchoColors.clearing;
-    final surface1 = neutral;
-    final surface2 = Color.lerp(neutral, EchoColors.fog, 0.04)!;
-    final surface3 = Color.lerp(neutral, EchoColors.fog, 0.08)!;
-    final border = EchoColors.fog.withValues(alpha: 0.12);
+    final surface1 = EchoColors.clearing;
+    final surface2 = EchoColors.mossStone;
+    final surface3 = EchoColors.fernGlass;
+    final border = EchoColors.fog.withValues(alpha: 0.10);
     return EchoSemantic(
       bg: EchoColors.voidBg,
+      bgLift: EchoColors.abyss,
       surface1: surface1,
       surface2: surface2,
       surface3: surface3,
       border: border,
-      borderSubtle: border.withValues(alpha: 0.5),
+      borderSubtle: EchoColors.fog.withValues(alpha: 0.06),
+      divider: EchoColors.fog.withValues(alpha: 0.08),
       textPrimary: EchoColors.fog,
-      textSecondary: EchoColors.fog.withValues(alpha: 0.72),
-      textTertiary: EchoColors.fog.withValues(alpha: 0.55),
+      textSecondary: EchoColors.mist,
+      textTertiary: EchoColors.haze,
+      textDisabled: EchoColors.fog.withValues(alpha: 0.38),
       accentPrimary: EchoColors.pulse,
+      accentSecondary: EchoColors.aurora,
+      accentWarm: EchoColors.ember,
+      highlight: EchoColors.starlight,
       accentMuted: EchoColors.pulse.withValues(alpha: 0.18),
       danger: EchoColors.ember,
       dangerMuted: EchoColors.ember.withValues(alpha: 0.6),
       overlay: EchoColors.voidBg.withValues(alpha: 0.9),
-      shadow: Colors.black.withValues(alpha: 0.2),
+      scrim: Colors.black.withValues(alpha: 0.6),
+      shadow: Colors.black.withValues(alpha: 0.22),
       shadowMedium: Colors.black.withValues(alpha: 0.3),
-      shadowHeavy: Colors.black.withValues(alpha: 0.44),
+      shadowHeavy: Colors.black.withValues(alpha: 0.45),
     );
   }
 
   @override
   EchoSemantic copyWith({
     Color? bg,
+    Color? bgLift,
     Color? surface1,
     Color? surface2,
     Color? surface3,
     Color? border,
     Color? borderSubtle,
+    Color? divider,
     Color? textPrimary,
     Color? textSecondary,
     Color? textTertiary,
+    Color? textDisabled,
     Color? accentPrimary,
+    Color? accentSecondary,
+    Color? accentWarm,
+    Color? highlight,
     Color? accentMuted,
     Color? danger,
     Color? dangerMuted,
     Color? overlay,
+    Color? scrim,
     Color? shadow,
     Color? shadowMedium,
     Color? shadowHeavy,
   }) {
     return EchoSemantic(
       bg: bg ?? this.bg,
+      bgLift: bgLift ?? this.bgLift,
       surface1: surface1 ?? this.surface1,
       surface2: surface2 ?? this.surface2,
       surface3: surface3 ?? this.surface3,
       border: border ?? this.border,
       borderSubtle: borderSubtle ?? this.borderSubtle,
+      divider: divider ?? this.divider,
       textPrimary: textPrimary ?? this.textPrimary,
       textSecondary: textSecondary ?? this.textSecondary,
       textTertiary: textTertiary ?? this.textTertiary,
+      textDisabled: textDisabled ?? this.textDisabled,
       accentPrimary: accentPrimary ?? this.accentPrimary,
+      accentSecondary: accentSecondary ?? this.accentSecondary,
+      accentWarm: accentWarm ?? this.accentWarm,
+      highlight: highlight ?? this.highlight,
       accentMuted: accentMuted ?? this.accentMuted,
       danger: danger ?? this.danger,
       dangerMuted: dangerMuted ?? this.dangerMuted,
       overlay: overlay ?? this.overlay,
+      scrim: scrim ?? this.scrim,
       shadow: shadow ?? this.shadow,
       shadowMedium: shadowMedium ?? this.shadowMedium,
       shadowHeavy: shadowHeavy ?? this.shadowHeavy,
@@ -151,19 +194,26 @@ class EchoSemantic extends ThemeExtension<EchoSemantic> {
     }
     return EchoSemantic(
       bg: Color.lerp(bg, other.bg, t)!,
+      bgLift: Color.lerp(bgLift, other.bgLift, t)!,
       surface1: Color.lerp(surface1, other.surface1, t)!,
       surface2: Color.lerp(surface2, other.surface2, t)!,
       surface3: Color.lerp(surface3, other.surface3, t)!,
       border: Color.lerp(border, other.border, t)!,
       borderSubtle: Color.lerp(borderSubtle, other.borderSubtle, t)!,
+      divider: Color.lerp(divider, other.divider, t)!,
       textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       textTertiary: Color.lerp(textTertiary, other.textTertiary, t)!,
+      textDisabled: Color.lerp(textDisabled, other.textDisabled, t)!,
       accentPrimary: Color.lerp(accentPrimary, other.accentPrimary, t)!,
+      accentSecondary: Color.lerp(accentSecondary, other.accentSecondary, t)!,
+      accentWarm: Color.lerp(accentWarm, other.accentWarm, t)!,
+      highlight: Color.lerp(highlight, other.highlight, t)!,
       accentMuted: Color.lerp(accentMuted, other.accentMuted, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
       dangerMuted: Color.lerp(dangerMuted, other.dangerMuted, t)!,
       overlay: Color.lerp(overlay, other.overlay, t)!,
+      scrim: Color.lerp(scrim, other.scrim, t)!,
       shadow: Color.lerp(shadow, other.shadow, t)!,
       shadowMedium: Color.lerp(shadowMedium, other.shadowMedium, t)!,
       shadowHeavy: Color.lerp(shadowHeavy, other.shadowHeavy, t)!,
@@ -180,20 +230,21 @@ ThemeData buildEchoTheme(Brightness _brightness) {
     brightness: resolvedBrightness,
     primary: tokens.accentPrimary,
     onPrimary: onButtonFill,
-    secondary: tokens.surface1,
-    onSecondary: tokens.textPrimary,
-    tertiary: tokens.surface2,
-    onTertiary: tokens.textPrimary,
-    error: tokens.danger,
-    onError: EchoColorUtils.onColor(tokens.danger),
+    secondary: tokens.accentSecondary,
+    onSecondary: tokens.bg,
+    tertiary: tokens.accentWarm,
+    onTertiary: tokens.bg,
+    error: tokens.accentWarm,
+    onError: tokens.bg,
     surface: tokens.surface1,
     onSurface: tokens.textPrimary,
     surfaceContainerHighest: tokens.surface2,
+    surfaceContainer: tokens.surface1,
     onSurfaceVariant: tokens.textSecondary,
-    outline: Colors.transparent,
-    outlineVariant: Colors.transparent,
-    shadow: Colors.black,
-    scrim: Colors.black,
+    outline: tokens.border,
+    outlineVariant: tokens.divider,
+    shadow: tokens.shadow,
+    scrim: tokens.scrim,
     inverseSurface: tokens.textPrimary,
     onInverseSurface: tokens.bg,
   );
@@ -632,4 +683,15 @@ extension EchoThemeX on BuildContext {
 
 class EchoGradients {
   static const Color background = EchoColors.voidBg;
+
+  static const LinearGradient appBackground = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      EchoColors.voidBg,
+      EchoColors.abyss,
+      EchoColors.voidBg,
+    ],
+    stops: [0.0, 0.45, 1.0],
+  );
 }
