@@ -36,6 +36,28 @@ class AppScaffold extends StatelessWidget {
         bottomNavigationBar: bottomNavigationBar,
         body: Stack(
           children: [
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: EchoGradients.appBackground,
+                ),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Container(
+                    width: 420,
+                    height: 300,
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        colors: [
+                          tokens.accentSecondary.withValues(alpha: 0.09),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
             SizedBox(width: double.infinity, child: child),
             if (showMiniPlayer) const _MiniPlayer(),
           ],
