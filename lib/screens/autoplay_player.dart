@@ -10,6 +10,7 @@ import '../app/app_scope.dart';
 import '../models/voice_note.dart';
 import '../services/audio_playback_controller.dart';
 import '../services/autoplay_controller.dart';
+import '../services/autoplay_ui_sync.dart';
 import '../theme/echo_theme.dart';
 import '../utils/responsive.dart';
 import '../utils/time_format.dart';
@@ -240,35 +241,14 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
             initialData: audio.currentMetrics,
             builder: (context, metricsSnapshot) {
               final metrics = metricsSnapshot.data ?? audio.currentMetrics;
-              final metricsMatchesCurrent = metrics.sourceId == note.id;
-              final isEnginePlaying = metricsMatchesCurrent
-                  ? metrics.playing
-                  : (state.isPlaying && state.currentNote?.id == note.id);
-              final isEngineBuffering = metricsMatchesCurrent &&
-                  (metrics.processingState == PlaybackProcessingState.loading ||
-                      metrics.processingState ==
-                          PlaybackProcessingState.buffering);
-              final hasPlaybackStarted = metricsMatchesCurrent
-                  ? (metrics.position > Duration.zero || metrics.playing)
-                  : (state.position > Duration.zero || state.isPlaying);
-              final isUiLoading =
-                  !isEnginePlaying &&
-                  ((metricsMatchesCurrent &&
-                          metrics.processingState ==
-                              PlaybackProcessingState.loading) ||
-                      ((state.phase == AutoplayPhase.loading ||
-                              state.isPreparing) &&
-                          !hasPlaybackStarted));
-              final showSpinner = isUiLoading || (isEngineBuffering && !isEnginePlaying);
+              final ui = resolveAutoplayUiSnapshot(
+                state: state,
+                metrics: metrics,
+                currentNoteId: note.id,
+              );
               final isError = state.phase == AutoplayPhase.error;
-              final statusLabel =
-                  _statusLabel(
-                    state,
-                    metrics: metrics,
-                    currentNoteId: note.id,
-                  ) ??
-                  'Ready';
-              final centerShowsSpinner = showSpinner && !isEnginePlaying;
+              final statusLabel = ui.statusLabel;
+              final centerShowsSpinner = ui.showSpinner && !ui.isEnginePlaying;
 
               return Column(
                 children: [
@@ -312,7 +292,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                             SizedBox(height: EchoLayout.space(context, 8)),
                             _StationAvatar(
                               icon: hashtag.icon,
-                              isPlaying: isEnginePlaying,
+                              isPlaying: ui.isEnginePlaying,
                               reduceMotion: reduceMotion,
                             ),
                             SizedBox(height: EchoLayout.space(context, 22)),
@@ -345,7 +325,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                               currentNoteId: note.id,
                               fallbackDuration: note.duration,
                               label: statusLabel,
-                              showSpinner: showSpinner,
+                              showSpinner: ui.showSpinner,
                               reduceMotion: reduceMotion,
                               isError: isError,
                             ),
@@ -407,7 +387,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                 Container(
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    boxShadow: isEnginePlaying
+                                    boxShadow: ui.isEnginePlaying
                                         ? [
                                             BoxShadow(
                                               color: tokens.accentPrimary
@@ -444,7 +424,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                               ),
                                             )
                                           : Icon(
-                                              isEnginePlaying
+                                              ui.isEnginePlaying
                                                   ? Icons.pause_rounded
                                                   : Icons.play_arrow_rounded,
                                               size: 38,
@@ -1126,48 +1106,4 @@ String _resolvedPosterLabel(VoiceNote note) {
     return 'Anonymous';
   }
   return username;
-}
-
-String? _statusLabel(
-  AutoplayState state, {
-  required PlaybackMetrics metrics,
-  required String currentNoteId,
-}) {
-  if (state.transientMessage != null && state.transientMessage!.isNotEmpty) {
-    return state.transientMessage;
-  }
-  if (state.errorMessage != null && state.errorMessage!.isNotEmpty) {
-    return state.errorMessage;
-  }
-  final metricsMatchCurrent = metrics.sourceId == currentNoteId;
-  final isEngineBuffering =
-      metricsMatchCurrent &&
-      (metrics.processingState == PlaybackProcessingState.loading ||
-          metrics.processingState == PlaybackProcessingState.buffering);
-  if (isEngineBuffering && !metrics.playing) {
-    return 'Buffering...';
-  }
-  if (isEngineBuffering && metrics.playing && !metrics.isPositionAdvancing) {
-    return 'Buffering...';
-  }
-  final hasStarted = metricsMatchCurrent
-      ? (metrics.position > Duration.zero || metrics.playing)
-      : (state.position > Duration.zero || state.isPlaying);
-  if ((state.phase == AutoplayPhase.loading || state.isPreparing) &&
-      !hasStarted) {
-    return 'Loading clip...';
-  }
-  if (state.phase == AutoplayPhase.transitioning) {
-    return 'Moving to next clip...';
-  }
-  if (metricsMatchCurrent ? metrics.playing : state.isPlaying) {
-    return 'Now listening';
-  }
-  if (state.phase == AutoplayPhase.paused) {
-    return 'Paused';
-  }
-  if (state.phase == AutoplayPhase.completed && state.statusText != null) {
-    return state.statusText;
-  }
-  return state.statusText;
 }

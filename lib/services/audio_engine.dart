@@ -597,10 +597,38 @@ class NativeAudioEngine implements AudioEngine {
     if (_isDisposed) {
       return;
     }
-    // Optimistically update the snapshot so the scrubber moves immediately,
-    // then delegate to the native layer for the real seek.
-    _emit(_snapshot.copyWith(position: position));
-    await _service.seekTo(position);
+    final previousPosition = _snapshot.position;
+    final targetPosition = _clampPosition(position, _snapshot.duration);
+    // Optimistically update the snapshot so the scrubber moves immediately.
+    _emit(_snapshot.copyWith(position: targetPosition));
+
+    final applied = await _service.seekTo(targetPosition);
+    if (!applied) {
+      _emit(_snapshot.copyWith(position: previousPosition));
+      return;
+    }
+
+    try {
+      final confirmed = await _service.getPlaybackPosition();
+      _emit(
+        _snapshot.copyWith(
+          position: _clampPosition(confirmed, _snapshot.duration),
+        ),
+      );
+    } catch (_) {
+      // Keep optimistic position if confirmation fetch fails.
+    }
+  }
+
+  Duration _clampPosition(Duration position, Duration duration) {
+    if (duration.inMilliseconds <= 0) {
+      return position;
+    }
+    final clampedMs = position.inMilliseconds.clamp(
+      0,
+      duration.inMilliseconds,
+    );
+    return Duration(milliseconds: clampedMs);
   }
 
   @override
