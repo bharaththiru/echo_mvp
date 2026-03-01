@@ -18,7 +18,7 @@ class AppScaffold extends StatelessWidget {
     super.key,
     required this.child,
     this.bottomNavigationBar,
-    this.showMiniPlayer = true,
+    this.showMiniPlayer = false,
   });
 
   final Widget child;
