@@ -29,7 +29,7 @@ class BottomNavShell extends StatelessWidget {
         currentIndex: navigationShell.currentIndex,
         onTap: (index) => _onTap(context, index),
       ),
-      showMiniPlayer: navigationShell.currentIndex != 1,
+      showMiniPlayer: navigationShell.currentIndex == 0,
       child: navigationShell,
     );
   }
