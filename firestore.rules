@@ -11,6 +11,54 @@ service cloud.firestore {
         && (resource.data.expires_at == null || resource.data.expires_at > request.time);
     }
 
+    function postRateLimitDocPath(userId) {
+      return /databases/$(database)/documents/users/$(userId)/post_rate_limits/hourly;
+    }
+
+    function noteDocPath(noteId) {
+      return /databases/$(database)/documents/voice_notes/$(noteId);
+    }
+
+    function isRateLimitCounterWrite(userId) {
+      let next = request.resource.data;
+      return request.auth.uid == userId
+        && next.count is int
+        && next.count >= 1
+        && next.count <= 20
+        && next.last_note_id is string
+        && next.last_note_id.size() > 0
+        && next.updated_at == request.time
+        && existsAfter(noteDocPath(next.last_note_id))
+        && getAfter(noteDocPath(next.last_note_id)).data.author_id == userId;
+    }
+
+    function isVoiceNoteRateLimited(userId, noteId) {
+      let counterPath = postRateLimitDocPath(userId);
+      let hadCounter = exists(counterPath);
+      let hasCounterAfter = existsAfter(counterPath);
+      let nextCounter = hasCounterAfter ? getAfter(counterPath).data : null;
+      let previousCounter = hadCounter ? get(counterPath).data : null;
+      let oneHourAgo = request.time - duration.value(1, 'h');
+      let windowReset = !hadCounter || previousCounter.window_start == null || previousCounter.window_start <= oneHourAgo;
+
+      return hasCounterAfter
+        && nextCounter != null
+        && nextCounter.last_note_id == noteId
+        && nextCounter.count is int
+        && nextCounter.count >= 1
+        && nextCounter.count <= 20
+        && nextCounter.window_start is timestamp
+        && (
+          windowReset
+            ? (nextCounter.window_start == request.time && nextCounter.count == 1)
+            : (nextCounter.window_start == previousCounter.window_start
+                && previousCounter.count is int
+                && previousCounter.count >= 1
+                && previousCounter.count < 20
+                && nextCounter.count == previousCounter.count + 1)
+        );
+    }
+
     match /hashtags/{tagId} {
       allow read: if resource.data.is_active != false;
       allow write: if false;
@@ -23,7 +71,8 @@ service cloud.firestore {
         && request.resource.data.status == 'active'
         && request.resource.data.duration_seconds > 0
         && request.resource.data.duration_seconds <= 12
-        && request.resource.data.storage_path.matches('^' + request.auth.uid + '/.*');
+        && request.resource.data.storage_path.matches('^' + request.auth.uid + '/.*')
+        && isVoiceNoteRateLimited(request.auth.uid, noteId);
       allow update, delete: if isSignedIn()
         && resource.data.author_id == request.auth.uid;
     }
@@ -45,6 +94,14 @@ service cloud.firestore {
 
       match /blocks/{blockedUserId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      match /post_rate_limits/{docId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow create, update: if docId == 'hourly'
+          && isSignedIn()
+          && isRateLimitCounterWrite(userId);
+        allow delete: if false;
       }
     }
   }

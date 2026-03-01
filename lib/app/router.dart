@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../screens/autoplay_player.dart';
 import '../screens/auth_screen.dart';
 import '../screens/hashtag_detail.dart';
-import '../screens/inbox_tab.dart';
 import '../screens/listen_tab.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/post_options.dart';
@@ -64,14 +63,6 @@ class AppRouter {
                 GoRoute(
                   path: '/record',
                   builder: (context, state) => const RecordTab(),
-                ),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: '/inbox',
-                  builder: (context, state) => const InboxTab(),
                 ),
               ],
             ),

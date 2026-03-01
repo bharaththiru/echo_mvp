@@ -61,8 +61,7 @@ class BottomNavBar extends StatelessWidget {
     final items = [
       _NavItem('Listen', Icons.headphones, 0),
       _NavItem('Record', Icons.mic, 1),
-      _NavItem('Inbox', Icons.inbox, 2),
-      _NavItem('Profile', Icons.person, 3),
+      _NavItem('Profile', Icons.person, 2),
     ];
 
     return Padding(

@@ -33,6 +33,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
     required ModerationService moderationService,
     required FeedService feedService,
     required PostService postService,
+    required FirebaseRepository repository,
     required this.onboardingComplete,
     required this.onboardingInterests,
   }) : _prefs = prefs,
@@ -41,7 +42,8 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
         _skipQuota = skipQuotaService,
         _moderation = moderationService,
         _feed = feedService,
-        _post = postService;
+        _post = postService,
+        _repository = repository;
 
   static const _themeModeKey = 'theme_mode';
   static const _moodTintKey = 'mood_tint';
@@ -61,6 +63,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
   final ModerationService _moderation;
   final FeedService _feed;
   final PostService _post;
+  final FirebaseRepository _repository;
   final AudioController audio;
   late final AutoplayController autoplay;
 
@@ -149,6 +152,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
       moderationService: moderation,
       feedService: feed,
       postService: post,
+      repository: repository,
       onboardingComplete: onboardingComplete,
       onboardingInterests: onboardingInterests,
     );
@@ -253,6 +257,7 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
       moderationService: moderation,
       feedService: feed,
       postService: post,
+      repository: resolvedRepository,
       onboardingComplete: onboardingComplete,
       onboardingInterests: saved,
     );
@@ -294,7 +299,15 @@ class AppState extends ChangeNotifier implements AutoplayDataSource {
 
   Future<void> refreshAuthStatus() => _authService.refreshSession();
 
-  Future<void> deleteAccount() => _authService.deleteAccount();
+  Future<void> deleteAccount() async {
+    final currentUserId = await _authService.requireClerkUserIdOrThrow();
+    await _repository.purgeOwnAccountData(userId: currentUserId);
+    clearPendingPostDraft();
+    clearPendingRecording();
+    await _authService.deleteAccount();
+    await _feed.refreshMyPosts(force: true);
+    notifyListeners();
+  }
 
   String? currentClerkUserId() => _authService.userId;
 
