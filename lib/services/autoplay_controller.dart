@@ -317,6 +317,7 @@ class AutoplayController extends ChangeNotifier {
   DateTime? _lastFailureAt;
   DateTime? _lastAutoResumeAt;
   final Map<String, int> _fastRetryAttemptsByNote = <String, int>{};
+  final Map<String, int> _autoResumeCountByClip = <String, int>{};
   Duration _feedBackoffDelay = Duration.zero;
   DateTime? _nextFeedRetryAt;
 
@@ -380,6 +381,7 @@ class AutoplayController extends ChangeNotifier {
   static const _fastRetryMaxDelayMs = 720;
   static const _feedBackoffInitial = Duration(seconds: 2);
   static const _feedBackoffMax = Duration(seconds: 30);
+  static const _maxAutoResumesPerClip = 3;
   static const _fallbackStationLimit = 6;
 
   Future<void> _enqueueEvent(
@@ -1149,6 +1151,7 @@ class AutoplayController extends ChangeNotifier {
     _lastFailureAt = null;
     _lastAutoResumeAt = null;
     _fastRetryAttemptsByNote.clear();
+    _autoResumeCountByClip.clear();
     _feedBackoffDelay = Duration.zero;
     _nextFeedRetryAt = null;
     _lastPrefetchNoopAt = null;
@@ -2697,7 +2700,12 @@ class AutoplayController extends ChangeNotifier {
             _lastAutoResumeAt == null ||
             now.difference(_lastAutoResumeAt!) >=
                 const Duration(milliseconds: 900);
-        if (canAutoResume) {
+        // Cap auto-resume attempts per clip to prevent a fight loop with
+        // the system repeatedly reclaiming audio focus.
+        final clipId = resolved.id;
+        final resumeCount = _autoResumeCountByClip[clipId] ?? 0;
+        if (canAutoResume && resumeCount < _maxAutoResumesPerClip) {
+          _autoResumeCountByClip[clipId] = resumeCount + 1;
           _lastAutoResumeAt = now;
           unawaited(
             _enqueueEvent(
@@ -2727,11 +2735,17 @@ class AutoplayController extends ChangeNotifier {
             stalledWhilePlaying)
         ? audioState.statusText
         : null;
-    final shouldKeepPreparing =
-        mappedPhase == AutoplayPhase.loading &&
+    // Keep isPreparing alive while the engine hasn't resolved a playable
+    // state yet.  Without this, an engine snapshot arriving while
+    // _buildInitialQueue is still resolving paths would clear isPreparing
+    // and leave the UI in a brief limbo (no spinner, no playing indicator).
+    final shouldKeepPreparing = _state.isPreparing &&
         !audioState.isPlaying &&
         audioState.position <= Duration.zero &&
-        _state.position <= Duration.zero;
+        _state.position <= Duration.zero &&
+        (mappedPhase == AutoplayPhase.loading ||
+            mappedPhase == AutoplayPhase.idle ||
+            mappedPhase == AutoplayPhase.buffering);
     _setState(
       _state.copyWith(
         phase: mappedPhase,
@@ -2743,7 +2757,7 @@ class AutoplayController extends ChangeNotifier {
         errorMessage: mappedPhase == AutoplayPhase.error
             ? audioState.errorMessage
             : null,
-        isPreparing: shouldKeepPreparing ? _state.isPreparing : false,
+        isPreparing: shouldKeepPreparing ? true : false,
         isTransitioning: false,
         isMuted: isMuted,
       ),
@@ -3082,6 +3096,7 @@ class AutoplayController extends ChangeNotifier {
     _lastFailureAt = null;
     _lastAutoResumeAt = null;
     _fastRetryAttemptsByNote.clear();
+    _autoResumeCountByClip.clear();
     _feedBackoffDelay = Duration.zero;
     _nextFeedRetryAt = null;
     _lastPrefetchNoopAt = null;

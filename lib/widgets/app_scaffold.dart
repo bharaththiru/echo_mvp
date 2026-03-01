@@ -386,6 +386,12 @@ bool _miniPlayerShouldRebuild(AutoplayState previous, AutoplayState next) {
   if (previous.isMuted != next.isMuted) {
     return true;
   }
+  if (previous.userPaused != next.userPaused) {
+    return true;
+  }
+  if (previous.hashtagId != next.hashtagId) {
+    return true;
+  }
   return false;
 }
 
@@ -411,8 +417,10 @@ class _MiniPlayerProgress extends StatelessWidget {
       initialData: audio.currentMetrics,
       builder: (context, snapshot) {
         final metrics = snapshot.data ?? audio.currentMetrics;
-        final useLiveMetrics =
-            metrics.sourceId == currentNoteId || metrics.playing;
+        // Only use live metrics when sourceId matches the current note.
+        // The previous `|| metrics.playing` guard leaked stale position
+        // from the departing track for a frame during transitions.
+        final useLiveMetrics = metrics.sourceId == currentNoteId;
         final duration = useLiveMetrics && metrics.duration.inMilliseconds > 0
             ? metrics.duration
             : fallbackDuration;
@@ -611,8 +619,9 @@ class _MiniPlayerTracker extends StatelessWidget {
       initialData: audio.currentMetrics,
       builder: (context, snapshot) {
         final metrics = snapshot.data ?? audio.currentMetrics;
-        final useLiveMetrics =
-            metrics.sourceId == currentNoteId || metrics.playing;
+        // Match only by sourceId to avoid leaking the previous track's
+        // position/duration during transitions.
+        final useLiveMetrics = metrics.sourceId == currentNoteId;
         final duration = useLiveMetrics && metrics.duration.inMilliseconds > 0
             ? metrics.duration
             : fallbackDuration;

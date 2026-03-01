@@ -137,7 +137,10 @@ class AudioController extends ChangeNotifier
       _lastProgressSourceId = sourceId;
       _lastProgressQueueIndex = queueIndex;
       _lastProgressPosition = resolvedPosition;
-      _lastProgressAt = null;
+      // Seed the timestamp when a new source is already playing so that
+      // _isPositionAdvancing() returns true immediately instead of showing
+      // a false "Buffering..." label for up to 900 ms.
+      _lastProgressAt = snapshot.isPlaying ? DateTime.now() : null;
       return;
     }
     if (resolvedPosition > _lastProgressPosition) {
