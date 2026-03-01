@@ -6,15 +6,24 @@ class ClerkConfig {
 
   static String get publishableKey {
     const fromDefine = String.fromEnvironment('CLERK_PUBLISHABLE_KEY');
-    final fromDotEnv = dotenv.maybeGet('CLERK_PUBLISHABLE_KEY')?.trim() ?? '';
-    final resolved = fromDefine.trim().isNotEmpty ? fromDefine.trim() : fromDotEnv;
-    if (resolved.isEmpty || resolved == _placeholder) {
+    final trimmedDefine = fromDefine.trim();
+    if (trimmedDefine.isNotEmpty && trimmedDefine != _placeholder) {
+      return trimmedDefine;
+    }
+    // Dart-define not set; fall back to local .env (development only).
+    String fromDotEnv = '';
+    try {
+      fromDotEnv = dotenv.maybeGet('CLERK_PUBLISHABLE_KEY')?.trim() ?? '';
+    } catch (_) {
+      // dotenv not initialized — .env absent or not bundled in release IPA.
+    }
+    if (fromDotEnv.isEmpty || fromDotEnv == _placeholder) {
       throw FlutterError(
         'Missing Clerk publishable key. Pass --dart-define=CLERK_PUBLISHABLE_KEY=pk_test_... '
         'or define CLERK_PUBLISHABLE_KEY in a local .env file.',
       );
     }
-    return resolved;
+    return fromDotEnv;
   }
 
   static const signInPath = '/auth';
