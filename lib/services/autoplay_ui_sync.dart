@@ -28,9 +28,18 @@ AutoplayUiSnapshot resolveAutoplayUiSnapshot({
   String fallbackReadyLabel = 'Ready',
 }) {
   final metricsMatchCurrent = metrics.sourceId == currentNoteId;
+  // When metrics haven't caught up to the new note yet, also treat
+  // transitioning/loading phases (when the user hasn't paused) as "playing"
+  // so the play/pause button icon doesn't flicker to the play icon
+  // for a frame before switching back to pause.
   final isEnginePlaying = metricsMatchCurrent
       ? metrics.playing
-      : (state.isPlaying && state.currentNote?.id == currentNoteId);
+      : (state.currentNote?.id == currentNoteId &&
+          (state.isPlaying ||
+              (!state.userPaused &&
+                  (state.phase == AutoplayPhase.transitioning ||
+                      state.phase == AutoplayPhase.loading ||
+                      state.phase == AutoplayPhase.buffering))));
   final isEngineBuffering = metricsMatchCurrent &&
       (metrics.processingState == PlaybackProcessingState.loading ||
           metrics.processingState == PlaybackProcessingState.buffering);

@@ -1030,14 +1030,18 @@ class _AutoplayProgressState extends State<_AutoplayProgress>
 
     // Only treat metrics as valid for this note when sourceId matches.
     // The previous `|| metrics.playing` guard could show stale position
-    // data from the previous track for one frame during a transition.
+    // data from the previous track for one frame during a transition,
+    // causing the progress bar to jump backwards then forward.
     final useLiveMetrics = _metrics.sourceId == widget.currentNoteId;
     final duration = useLiveMetrics && _metrics.duration.inMilliseconds > 0
         ? _metrics.duration
         : widget.fallbackDuration;
-    final position = useLiveMetrics ? _interpolatedPosition : Duration.zero;
-    final buffered =
-        useLiveMetrics ? _metrics.bufferedPosition : Duration.zero;
+    final position = useLiveMetrics
+        ? _interpolatedPosition
+        : Duration.zero;
+    final buffered = useLiveMetrics
+        ? _metrics.bufferedPosition
+        : Duration.zero;
     final ratio = duration.inMilliseconds == 0
         ? 0.0
         : (position.inMilliseconds / duration.inMilliseconds)
