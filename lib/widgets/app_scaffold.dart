@@ -1,9 +1,9 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 
 import '../app/app_scope.dart';
 import '../services/audio_playback_controller.dart';
@@ -67,8 +67,51 @@ class AppScaffold extends StatelessWidget {
   }
 }
 
-class _MiniPlayer extends StatelessWidget {
+class _MiniPlayer extends StatefulWidget {
   const _MiniPlayer();
+
+  @override
+  State<_MiniPlayer> createState() => _MiniPlayerState();
+}
+
+class _MiniPlayerState extends State<_MiniPlayer> {
+  static const _collapseDelay = Duration(seconds: 30);
+
+  Timer? _collapseTimer;
+  bool _isCollapsed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetCollapseTimer();
+  }
+
+  @override
+  void dispose() {
+    _collapseTimer?.cancel();
+    super.dispose();
+  }
+
+  void _resetCollapseTimer() {
+    _collapseTimer?.cancel();
+    _collapseTimer = Timer(_collapseDelay, () {
+      if (!mounted || _isCollapsed) {
+        return;
+      }
+      setState(() {
+        _isCollapsed = true;
+      });
+    });
+  }
+
+  void _registerInteraction() {
+    if (_isCollapsed) {
+      setState(() {
+        _isCollapsed = false;
+      });
+    }
+    _resetCollapseTimer();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +142,6 @@ class _MiniPlayer extends StatelessWidget {
             hashtagId == null ? null : appState.hashtagById(hashtagId);
         final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
         final bottomPadding = EchoLayout.space(context, 8);
-
         return StreamBuilder<PlaybackMetrics>(
           stream: audio.playbackMetrics,
           initialData: audio.currentMetrics,
@@ -121,13 +163,9 @@ class _MiniPlayer extends StatelessWidget {
                 padding: EdgeInsets.symmetric(
                   horizontal: EchoLayout.contentHorizontalPadding(context),
                 ),
-                child: GestureDetector(
-                  onTap: () {
-                    if (hashtagId == null || hashtagId.isEmpty) {
-                      return;
-                    }
-                    context.push('/player/$hashtagId');
-                  },
+                child: Listener(
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: (_) => _registerInteraction(),
                   // Outer container: carries shadow/glow outside the clip
                   child: Container(
                     decoration: BoxDecoration(
@@ -177,106 +215,43 @@ class _MiniPlayer extends StatelessWidget {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Row(
-                                children: [
-                                  _MiniWaveIndicator(
-                                    color: buttonFill,
-                                    reduceMotion: appState.settings.reduceMotion,
-                                    isActive: isEnginePlaying,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          hashtag?.name ?? 'Station',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: theme.textTheme.titleSmall
-                                              ?.copyWith(
-                                            color: tokens.textPrimary,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          note.transcriptPreview ?? statusText,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                            color: tokens.textSecondary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  IconButton(
-                                    tooltip: state.isMuted
-                                        ? 'Unmute current note'
-                                        : 'Mute current note',
-                                    onPressed: () => autoplay.toggleMute(),
-                                    icon: Icon(
-                                      state.isMuted
-                                          ? Icons.volume_off_rounded
-                                          : Icons.volume_up_rounded,
-                                    ),
-                                    iconSize: 19,
-                                    constraints: const BoxConstraints.tightFor(
-                                      width: 40,
-                                      height: 40,
-                                    ),
-                                    style: IconButton.styleFrom(
-                                      backgroundColor: Colors.transparent,
-                                      foregroundColor: state.isMuted
-                                          ? tokens.textPrimary
-                                          : tokens.textSecondary,
-                                    ),
-                                  ),
-                                  // Polished circular play/pause button
-                                  GestureDetector(
-                                    onTap: () => autoplay.togglePlayPause(),
-                                    child: Container(
-                                      width: 36,
-                                      height: 36,
-                                      margin: const EdgeInsets.only(right: 4),
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: buttonFill,
-                                        boxShadow: isEnginePlaying
-                                            ? [
-                                                BoxShadow(
-                                                  color: buttonFill.withValues(
-                                                    alpha: 0.45,
-                                                  ),
-                                                  blurRadius: 10,
-                                                  spreadRadius: 0,
-                                                ),
-                                              ]
-                                            : null,
-                                      ),
-                                      child: Icon(
-                                        isEnginePlaying
-                                            ? Icons.pause_rounded
-                                            : Icons.play_arrow_rounded,
-                                        color: Colors.black,
-                                        size: 20,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              _MiniPlayerHeader(
+                                appState: appState,
+                                hashtagName: hashtag?.name ?? 'Station',
+                                subtitle: note.transcriptPreview ?? statusText,
+                                isCollapsed: _isCollapsed,
+                                isMuted: state.isMuted,
+                                isEnginePlaying: isEnginePlaying,
+                                buttonFill: buttonFill,
+                                tokens: tokens,
+                                theme: theme,
+                                onMuteTap: () {
+                                  _registerInteraction();
+                                  autoplay.toggleMute();
+                                },
+                                onPlayPauseTap: () {
+                                  _registerInteraction();
+                                  autoplay.togglePlayPause();
+                                },
+                                tracker: _MiniPlayerTracker(
+                                  audio: audio,
+                                  currentNoteId: note.id,
+                                  fallbackDuration: note.duration,
+                                  textStyle: theme.textTheme.labelSmall
+                                      ?.copyWith(color: tokens.textSecondary),
+                                ),
                               ),
-                              const SizedBox(height: 10),
-                              _MiniPlayerProgress(
-                                audio: audio,
-                                currentNoteId: note.id,
-                                fallbackDuration: note.duration,
-                                trackColor: tokens.textSecondary
-                                    .withValues(alpha: 0.15),
-                                progressColor: buttonFill,
-                              ),
+                              if (!_isCollapsed) ...[
+                                const SizedBox(height: 10),
+                                _MiniPlayerProgress(
+                                  audio: audio,
+                                  currentNoteId: note.id,
+                                  fallbackDuration: note.duration,
+                                  trackColor: tokens.textSecondary
+                                      .withValues(alpha: 0.15),
+                                  progressColor: buttonFill,
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -497,4 +472,169 @@ class _MiniPlayerProgress extends StatelessWidget {
       },
     );
   }
+}
+
+class _MiniPlayerHeader extends StatelessWidget {
+  const _MiniPlayerHeader({
+    required this.appState,
+    required this.hashtagName,
+    required this.subtitle,
+    required this.isCollapsed,
+    required this.isMuted,
+    required this.isEnginePlaying,
+    required this.buttonFill,
+    required this.tokens,
+    required this.theme,
+    required this.onMuteTap,
+    required this.onPlayPauseTap,
+    required this.tracker,
+  });
+
+  final AppScopeState appState;
+  final String hashtagName;
+  final String subtitle;
+  final bool isCollapsed;
+  final bool isMuted;
+  final bool isEnginePlaying;
+  final Color buttonFill;
+  final EchoTokens tokens;
+  final ThemeData theme;
+  final VoidCallback onMuteTap;
+  final VoidCallback onPlayPauseTap;
+  final Widget tracker;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        if (!isCollapsed) ...[
+          _MiniWaveIndicator(
+            color: buttonFill,
+            reduceMotion: appState.settings.reduceMotion,
+            isActive: isEnginePlaying,
+          ),
+          const SizedBox(width: 10),
+        ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                hashtagName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: tokens.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              if (isCollapsed)
+                tracker
+              else
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: tokens.textSecondary,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          tooltip: isMuted ? 'Unmute current note' : 'Mute current note',
+          onPressed: onMuteTap,
+          icon: Icon(
+            isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+          ),
+          iconSize: 19,
+          constraints: const BoxConstraints.tightFor(
+            width: 40,
+            height: 40,
+          ),
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            foregroundColor: isMuted ? tokens.textPrimary : tokens.textSecondary,
+          ),
+        ),
+        GestureDetector(
+          onTap: onPlayPauseTap,
+          child: Container(
+            width: 36,
+            height: 36,
+            margin: const EdgeInsets.only(right: 4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: buttonFill,
+              boxShadow: isEnginePlaying
+                  ? [
+                      BoxShadow(
+                        color: buttonFill.withValues(alpha: 0.45),
+                        blurRadius: 10,
+                        spreadRadius: 0,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Icon(
+              isEnginePlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              color: Colors.black,
+              size: 20,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniPlayerTracker extends StatelessWidget {
+  const _MiniPlayerTracker({
+    required this.audio,
+    required this.currentNoteId,
+    required this.fallbackDuration,
+    this.textStyle,
+  });
+
+  final AudioPlaybackController audio;
+  final String currentNoteId;
+  final Duration fallbackDuration;
+  final TextStyle? textStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<PlaybackMetrics>(
+      stream: audio.playbackMetrics,
+      initialData: audio.currentMetrics,
+      builder: (context, snapshot) {
+        final metrics = snapshot.data ?? audio.currentMetrics;
+        final useLiveMetrics =
+            metrics.sourceId == currentNoteId || metrics.playing;
+        final duration = useLiveMetrics && metrics.duration.inMilliseconds > 0
+            ? metrics.duration
+            : fallbackDuration;
+        final position = useLiveMetrics ? metrics.position : Duration.zero;
+        return Text(
+          '${_formatDuration(position)} / ${_formatDuration(duration)}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: textStyle,
+        );
+      },
+    );
+  }
+}
+
+String _formatDuration(Duration duration) {
+  final totalSeconds = duration.inSeconds.clamp(0, 359999);
+  final hours = totalSeconds ~/ 3600;
+  final minutes = (totalSeconds % 3600) ~/ 60;
+  final seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
 }
