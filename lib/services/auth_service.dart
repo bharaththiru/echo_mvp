@@ -57,8 +57,27 @@ class AuthService {
       return null;
     }
     final dynamic dynamicUser = user;
-    return dynamicUser.primaryEmailAddress?.emailAddress?.toString() ??
-        dynamicUser.emailAddress?.toString();
+
+    final nestedPrimaryEmail = _readDynamicValue(
+      target: _readDynamicValue(target: dynamicUser, memberName: 'primaryEmailAddress'),
+      memberName: 'emailAddress',
+    );
+    final directEmail = _readDynamicValue(
+      target: dynamicUser,
+      memberName: 'emailAddress',
+    );
+    final fallbackIdentifier = _readDynamicValue(
+      target: dynamicUser,
+      memberName: 'identifier',
+    );
+
+    final candidate =
+        nestedPrimaryEmail ?? directEmail ?? fallbackIdentifier;
+    final resolved = candidate?.toString().trim();
+    if (resolved == null || resolved.isEmpty) {
+      return null;
+    }
+    return resolved;
   }
 
   void bind(void Function() onChanged) {
@@ -115,6 +134,25 @@ class AuthService {
       listener();
     }
   }
+}
+
+Object? _readDynamicValue({required dynamic target, required String memberName}) {
+  if (target == null) {
+    return null;
+  }
+  try {
+    switch (memberName) {
+      case 'primaryEmailAddress':
+        return target.primaryEmailAddress;
+      case 'emailAddress':
+        return target.emailAddress;
+      case 'identifier':
+        return target.identifier;
+    }
+  } catch (_) {
+    return null;
+  }
+  return null;
 }
 
 String? currentClerkUserId() => null;
