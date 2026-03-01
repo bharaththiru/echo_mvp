@@ -539,20 +539,49 @@ class FirebaseRepository {
     };
     final batch = _firestore.batch();
     final voiceNoteRef = _firestore.collection('voice_notes').doc(id);
+    final postRateLimitRef = _firestore
+        .collection('users')
+        .doc(authorId)
+        .collection('post_rate_limits')
+        .doc('hourly');
     final clipRef = _firestore.collection('clips').doc(id);
     final feedRef = _firestore
         .collection('stations')
         .doc(hashtagId)
         .collection('feed')
         .doc(id);
+    final previousRateLimitSnapshot = await postRateLimitRef.get();
+    final previousRateData = previousRateLimitSnapshot.data() ?? const {};
+    final previousWindowStart = _readTimestamp(previousRateData['window_start']);
+    final previousCount = _parseInt(previousRateData['count']);
+    final nowUtc = DateTime.now().toUtc();
+    final shouldResetWindow =
+        previousWindowStart == null ||
+        previousWindowStart.toUtc().isBefore(
+          nowUtc.subtract(const Duration(hours: 1)),
+        );
+    final nextCount = shouldResetWindow ? 1 : previousCount + 1;
+    final counterData = <String, dynamic>{
+      'count': nextCount,
+      'last_note_id': id,
+      'updated_at': FieldValue.serverTimestamp(),
+      'window_start': shouldResetWindow
+          ? FieldValue.serverTimestamp()
+          : Timestamp.fromDate(previousWindowStart.toUtc()),
+    };
+
     batch.set(voiceNoteRef, noteData, SetOptions(merge: true));
+    batch.set(postRateLimitRef, counterData, SetOptions(merge: true));
     batch.set(clipRef, clipData, SetOptions(merge: true));
     batch.set(feedRef, feedData, SetOptions(merge: true));
     try {
       await batch.commit();
     } catch (_) {
       // Backward-compatible fallback while feed-model rules/indexes roll out.
-      await voiceNoteRef.set(noteData, SetOptions(merge: true));
+      final fallbackBatch = _firestore.batch();
+      fallbackBatch.set(voiceNoteRef, noteData, SetOptions(merge: true));
+      fallbackBatch.set(postRateLimitRef, counterData, SetOptions(merge: true));
+      await fallbackBatch.commit();
     }
 
     return VoiceNote(
@@ -567,6 +596,73 @@ class FirebaseRepository {
       authorId: authorId,
       transcriptPreview: caption,
     );
+  }
+
+
+  Future<void> purgeOwnAccountData({required String userId}) async {
+    final trimmedUserId = userId.trim();
+    if (trimmedUserId.isEmpty) {
+      return;
+    }
+
+    await _deleteOwnVoiceNotes(trimmedUserId);
+    await _deleteUserSubcollection('users/$trimmedUserId/daily_skip_usage');
+    await _deleteUserSubcollection('users/$trimmedUserId/blocks');
+    await _deleteUserSubcollection('users/$trimmedUserId/post_rate_limits');
+    await _firestore.collection('users').doc(trimmedUserId).delete();
+  }
+
+  Future<void> _deleteOwnVoiceNotes(String userId) async {
+    QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
+    while (true) {
+      Query<Map<String, dynamic>> query = _firestore
+          .collection('voice_notes')
+          .where('author_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'active')
+          .orderBy('created_at', descending: true)
+          .orderBy(FieldPath.documentId, descending: true)
+          .limit(100);
+      if (cursor != null) {
+        query = query.startAfterDocument(cursor);
+      }
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        return;
+      }
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        final storagePath = (doc.data()['storage_path'] as String?)?.trim() ?? '';
+        if (storagePath.isNotEmpty) {
+          await deleteAudio(storagePath);
+        }
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      cursor = snapshot.docs.last;
+    }
+  }
+
+  Future<void> _deleteUserSubcollection(String path) async {
+    QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
+    while (true) {
+      Query<Map<String, dynamic>> query = _firestore
+          .collection(path)
+          .orderBy(FieldPath.documentId)
+          .limit(100);
+      if (cursor != null) {
+        query = query.startAfterDocument(cursor);
+      }
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        return;
+      }
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      cursor = snapshot.docs.last;
+    }
   }
 
   Future<Map<String, dynamic>> consumeSkip({required String userId}) async {

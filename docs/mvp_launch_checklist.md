@@ -51,8 +51,8 @@ This checklist covers everything that should be complete before shipping Echo to
 ## 🟡 Important (Ship Soon After Launch)
 
 ### Core Feature Completeness
-- [ ] **Inbox / Replies** — The Inbox tab shows "Replies are coming soon." Either implement a basic version or remove the tab from the nav bar so it's not a dead end for users.
-- [ ] **Push Notifications** — Notification preference toggles exist in Settings but nothing sends notifications. Either wire up Firebase Cloud Messaging (FCM) or hide the toggles until notifications are built.
+- [x] **Inbox / Replies nav dead-end removed** — Inbox tab has been removed from nav for MVP until replies are implemented. Reintroduce only with a basic end-to-end replies flow.
+- [x] **Push notification controls hidden** — Notification toggles/actions are removed from MVP UI until Firebase Cloud Messaging (FCM) delivery is implemented end-to-end.
 - [ ] **Transcripts** — The `transcriptsEnabled` setting exists but transcripts are never shown. Either implement (Cloud Function → Speech-to-Text → Firestore) or remove the setting until ready.
 
 ### Audio & Recording

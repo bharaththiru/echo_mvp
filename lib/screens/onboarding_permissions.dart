@@ -16,7 +16,6 @@ class OnboardingPermissions extends StatefulWidget {
 
 class _OnboardingPermissionsState extends State<OnboardingPermissions> {
   bool _micEnabled = false;
-  bool _notificationsEnabled = false;
 
   Future<void> _enableMic() async {
     final appState = AppScope.of(context);
@@ -34,14 +33,6 @@ class _OnboardingPermissionsState extends State<OnboardingPermissions> {
     );
   }
 
-  void _enableNotifications() {
-    final appState = AppScope.of(context);
-    setState(() => _notificationsEnabled = true);
-    appState.updateRepliesNotifications(true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Notifications preference saved.')),
-    );
-  }
 
   void _finish() {
     final appState = AppScope.of(context);
@@ -84,15 +75,6 @@ class _OnboardingPermissionsState extends State<OnboardingPermissions> {
                       icon: Icons.mic,
                       enabled: _micEnabled,
                       onEnable: _enableMic,
-                    ),
-                    const SizedBox(height: 16),
-                    _PermissionCard(
-                      title: 'Notifications',
-                      description:
-                          'Only for private replies if you enable them.',
-                      icon: Icons.notifications,
-                      enabled: _notificationsEnabled,
-                      onEnable: _enableNotifications,
                     ),
                   ],
                 ),

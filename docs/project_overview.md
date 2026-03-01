@@ -62,7 +62,7 @@ The project is configured as a Flutter app (Android + iOS), with Firebase Auth, 
 ## Navigation
 
 - `go_router` controls route flow.
-- Router uses onboarding gating + shell navigation (listen/record/inbox/profile tabs).
+- Router uses onboarding gating + shell navigation (listen/record/profile tabs).
 - Full-screen detail routes are separate (`/hashtag/:id`, `/player/:hashtagId`, settings, post options, auth).
 
 ## State model

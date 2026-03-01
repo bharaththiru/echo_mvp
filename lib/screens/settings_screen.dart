@@ -86,23 +86,7 @@ class SettingsScreen extends StatelessWidget {
                       value: settings.reduceMotion,
                       onChanged: appState.updateReduceMotion,
                     ),
-                    const SizedBox(height: 24),
-                    const EchoSectionTitle('Notifications'),
-                    const SizedBox(height: 12),
-                    _ToggleTile(
-                      title: 'Private replies',
-                      subtitle:
-                          'Get notified when someone replies to your post',
-                      value: settings.repliesNotifications,
-                      onChanged: appState.updateRepliesNotifications,
-                    ),
-                    const SizedBox(height: 12),
-                    _ToggleTile(
-                      title: 'New posts in saved hashtags',
-                      subtitle: 'Optional gentle reminders',
-                      value: settings.hashtagNotifications,
-                      onChanged: appState.updateHashtagNotifications,
-                    ),
+
                     const SizedBox(height: 24),
                     const EchoSectionTitle('Privacy and safety'),
                     const SizedBox(height: 12),
@@ -168,7 +152,7 @@ class SettingsScreen extends StatelessWidget {
                                     return AlertDialog(
                                       title: const Text('Delete account?'),
                                       content: const Text(
-                                        'This permanently deletes your Echo account from Clerk.',
+                                        'This deletes your Echo account and removes your uploaded voice notes.',
                                       ),
                                       actions: [
                                         TextButton(
