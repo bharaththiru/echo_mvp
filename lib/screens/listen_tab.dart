@@ -59,20 +59,41 @@ class _ListenTabState extends State<ListenTab> {
           parent: AlwaysScrollableScrollPhysics(),
         ),
         slivers: [
-          // ── Pinned title bar ──
+          // ── Scroll-away title bar ──
           SliverAppBar(
-            pinned: true,
+            pinned: false,
+            floating: false,
             automaticallyImplyLeading: false,
-            backgroundColor: tokens.bg,
+            backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
             elevation: 0,
             scrolledUnderElevation: 0,
             titleSpacing: contentPadding,
             toolbarHeight: EchoLayout.space(context, 52),
-            title: Text(
-              'Listen',
-              style: theme.textTheme.displaySmall?.copyWith(
-                fontWeight: FontWeight.w700,
+            title: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: EchoLayout.space(context, 14),
+                vertical: EchoLayout.space(context, 10),
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(EchoLayout.radius(context, 16)),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    tokens.surface1.withValues(alpha: 0.92),
+                    tokens.surface2.withValues(alpha: 0.78),
+                  ],
+                ),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
+              ),
+              child: Text(
+                'Listen',
+                style: theme.textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
