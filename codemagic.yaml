@@ -5,8 +5,8 @@ workflows:
     max_build_duration: 60
     environment:
       flutter: stable
-      xcode: 16.4
-      cocoapods: 1.15.2
+      xcode: "16.0"
+      cocoapods: 1.16.2
       groups:
         - "Clerk Auth"
     cache:
@@ -34,6 +34,14 @@ workflows:
           echo "Remaining -G occurrences (should be none):"
           find ios -type f \( -name "*.xcconfig" -o -name "project.pbxproj" \) -print0 | \
             xargs -0 grep -n " -G" || true
+      - name: Strip com.apple.provenance xattr
+        script: |
+          set -euo pipefail
+          # Xcode 16 / macOS 15 sets com.apple.provenance on framework bundles which
+          # causes codesign to reject them even with CODE_SIGNING_ALLOWED=NO.
+          # See: https://github.com/flutter/flutter/issues/180351
+          find . -name "*.framework" -exec xattr -r -d com.apple.provenance {} \; 2>/dev/null || true
+          find "$HOME/flutter" -name "*.framework" -exec xattr -r -d com.apple.provenance {} \; 2>/dev/null || true
       - name: Build iOS (Flutter, no codesign)
         script: |
           set -euo pipefail
