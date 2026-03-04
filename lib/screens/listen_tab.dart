@@ -76,7 +76,7 @@ class _ListenTabState extends State<ListenTab> {
                 vertical: EchoLayout.space(context, 10),
               ),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(EchoLayout.radius(context, 16)),
+                borderRadius: BorderRadius.circular(EchoLayout.space(context, 16)),
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
