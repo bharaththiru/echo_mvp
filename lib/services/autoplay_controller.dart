@@ -336,6 +336,7 @@ class AutoplayController extends ChangeNotifier {
   final List<String> _playbackQueueIds = <String>[];
   int _playbackQueueIndex = -1;
   bool _queueFillInFlight = false;
+  bool _completionEnqueued = false;
   bool _isDisposed = false;
   String? _positionNoteId;
   Duration _lastObservedPosition = Duration.zero;
@@ -1009,6 +1010,16 @@ class AutoplayController extends ChangeNotifier {
       await restart();
       return;
     }
+    if (audioState.phase == AudioPlaybackPhase.completed ||
+        _state.phase == AutoplayPhase.completed) {
+      _setState(_state.copyWith(
+        userPaused: false,
+        errorMessage: null,
+        statusText: null,
+      ));
+      await restart();
+      return;
+    }
     final currentNote = _state.currentNote;
     if (currentNote == null) {
       await _startAutoplay();
@@ -1131,6 +1142,7 @@ class AutoplayController extends ChangeNotifier {
 
   Future<void> restart() async {
     _playToken++;
+    _completionEnqueued = false;
     _cancelBoundaryFade();
     _cancelStallGuard();
     _cancelTransitionCue();
@@ -1924,6 +1936,13 @@ class AutoplayController extends ChangeNotifier {
         _lastObservedPosition = Duration.zero;
         _positionResetCount = 0;
         await _audio.seekToIndex(0, position: Duration.zero);
+        // If the engine is still in completed state after seek (just_audio
+        // edge case), fall back to _playIndex which sets up a fresh source.
+        if (_audio.state.phase == AudioPlaybackPhase.completed) {
+          _log('loop restart: still completed after seek, using _playIndex');
+          await _playIndex(firstStateIndex == -1 ? 0 : firstStateIndex);
+          return;
+        }
         await _audio.resume();
         _log('loop restart queueIndex=0 note=$firstId');
         return;
@@ -2662,8 +2681,7 @@ class AutoplayController extends ChangeNotifier {
         (mappedPhase == AutoplayPhase.loading ||
             mappedPhase == AutoplayPhase.buffering ||
             mappedPhase == AutoplayPhase.paused ||
-            mappedPhase == AutoplayPhase.idle ||
-            mappedPhase == AutoplayPhase.completed)) {
+            mappedPhase == AutoplayPhase.idle)) {
       mappedPhase = AutoplayPhase.playing;
     }
     final suppressPhase =
@@ -2768,11 +2786,16 @@ class AutoplayController extends ChangeNotifier {
     if (audioState.phase == AudioPlaybackPhase.completed &&
         !_state.isTransitioning &&
         !_state.isPreparing &&
-        previousPhase != AutoplayPhase.completed) {
+        previousPhase != AutoplayPhase.completed &&
+        !_completionEnqueued) {
+      _completionEnqueued = true;
       _log('queue completed');
       unawaited(
         _enqueueEvent(
-          () async => _handleQueueCompleted(),
+          () async {
+            _completionEnqueued = false;
+            await _handleQueueCompleted();
+          },
           reason: 'audioCompleted',
         ),
       );
@@ -3071,6 +3094,7 @@ class AutoplayController extends ChangeNotifier {
     _cancelBoundaryFade();
     _sessionToken++;
     _log('reset session hashtag=$hashtagId stop=$stopPlayback');
+    _completionEnqueued = false;
     _playedIds.clear();
     _recentlyPlayedIds.clear();
     _failedIds.clear();

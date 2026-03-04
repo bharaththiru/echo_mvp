@@ -33,7 +33,8 @@ AutoplayUiSnapshot resolveAutoplayUiSnapshot({
   // so the play/pause button icon doesn't flicker to the play icon
   // for a frame before switching back to pause.
   final isEnginePlaying = metricsMatchCurrent
-      ? metrics.playing
+      ? (metrics.playing &&
+          metrics.processingState != PlaybackProcessingState.completed)
       : (state.currentNote?.id == currentNoteId &&
           (state.isPlaying ||
               (!state.userPaused &&
@@ -104,14 +105,18 @@ String? resolveAutoplayStatusLabel(
   if (state.phase == AutoplayPhase.transitioning) {
     return 'Moving to next clip...';
   }
-  if (metricsMatchCurrent ? metrics.playing : state.isPlaying) {
+  final isActuallyPlaying = metricsMatchCurrent
+      ? (metrics.playing &&
+          metrics.processingState != PlaybackProcessingState.completed)
+      : state.isPlaying;
+  if (isActuallyPlaying) {
     return 'Now listening';
   }
   if (state.phase == AutoplayPhase.paused) {
     return 'Paused';
   }
-  if (state.phase == AutoplayPhase.completed && state.statusText != null) {
-    return state.statusText;
+  if (state.phase == AutoplayPhase.completed) {
+    return state.statusText ?? 'Moving to next clip...';
   }
   return state.statusText;
 }
