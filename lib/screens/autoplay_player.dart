@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
@@ -45,6 +46,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
           return;
         }
         _autoplay?.attach(targetId);
+        _autoplay?.syncFromPlayer();
       });
     }
     if (appState.hashtags.isEmpty && !appState.hashtagsLoading) {
@@ -74,6 +76,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
         return;
       }
       _autoplay?.attach(targetId);
+      _autoplay?.syncFromPlayer();
     });
   }
 
@@ -449,6 +452,13 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                 ),
                               ],
                             ),
+
+                            if (kDebugMode)
+                              _PlaybackDebugPanel(
+                                state: state,
+                                metrics: metrics,
+                                currentNoteId: note.id,
+                              ),
                             const SizedBox(height: 8),
                             Center(
                               child: PopupMenuButton<String>(
@@ -489,6 +499,51 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
             },
           );
         },
+      ),
+    );
+  }
+}
+
+
+class _PlaybackDebugPanel extends StatelessWidget {
+  const _PlaybackDebugPanel({
+    required this.state,
+    required this.metrics,
+    required this.currentNoteId,
+  });
+
+  final AutoplayState state;
+  final PlaybackMetrics metrics;
+  final String currentNoteId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = context.echo;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: tokens.surface2,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: DefaultTextStyle(
+          style: theme.textTheme.labelSmall?.copyWith(
+                color: tokens.textTertiary,
+                fontFamily: 'monospace',
+              ) ??
+              const TextStyle(fontSize: 11),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('debug: playing=${metrics.playing} phase=${metrics.processingState.name} autoplay=${state.phase.name}'),
+              Text('index=${state.currentIndex} clip=$currentNoteId metricsSource=${metrics.sourceId ?? '-'}'),
+              Text('position=${formatDuration(metrics.position)} duration=${formatDuration(metrics.duration)} buffered=${formatDuration(metrics.bufferedPosition)}'),
+            ],
+          ),
+        ),
       ),
     );
   }
