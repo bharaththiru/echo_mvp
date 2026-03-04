@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/app_scope.dart';
+import '../app/app_state.dart';
 import '../services/audio_playback_controller.dart';
 import '../services/autoplay_controller.dart';
 import '../services/autoplay_ui_sync.dart';
@@ -498,14 +499,14 @@ class _MiniPlayerHeader extends StatelessWidget {
     required this.tracker,
   });
 
-  final AppScopeState appState;
+  final AppState appState;
   final String hashtagName;
   final String subtitle;
   final bool isCollapsed;
   final bool isMuted;
   final bool isEnginePlaying;
   final Color buttonFill;
-  final EchoTokens tokens;
+  final EchoSemantic tokens;
   final ThemeData theme;
   final VoidCallback onMuteTap;
   final VoidCallback onPlayPauseTap;
