@@ -10,6 +10,7 @@ class AutoplayUiSnapshot {
     required this.isUiLoading,
     required this.showSpinner,
     required this.statusLabel,
+    required this.playbackStatus,
   });
 
   final bool metricsMatchCurrent;
@@ -19,7 +20,10 @@ class AutoplayUiSnapshot {
   final bool isUiLoading;
   final bool showSpinner;
   final String statusLabel;
+  final PlaybackViewStatus playbackStatus;
 }
+
+enum PlaybackViewStatus { loading, buffering, playing, paused, completed, error }
 
 AutoplayUiSnapshot resolveAutoplayUiSnapshot({
   required AutoplayState state,
@@ -56,8 +60,7 @@ AutoplayUiSnapshot resolveAutoplayUiSnapshot({
 
   final statusLabel = resolveAutoplayStatusLabel(
     state,
-    metrics: metrics,
-    currentNoteId: currentNoteId,
+    playbackStatus: playbackStatus,
   );
 
   return AutoplayUiSnapshot(
@@ -70,13 +73,54 @@ AutoplayUiSnapshot resolveAutoplayUiSnapshot({
     statusLabel: (statusLabel == null || statusLabel.trim().isEmpty)
         ? fallbackReadyLabel
         : statusLabel,
+    playbackStatus: playbackStatus,
   );
+}
+
+PlaybackViewStatus _resolvePlaybackStatus(PlaybackMetrics metrics) {
+  final processingState = metrics.processingState;
+  if (processingState == PlaybackProcessingState.error) {
+    return PlaybackViewStatus.error;
+  }
+  if (processingState == PlaybackProcessingState.completed) {
+    return PlaybackViewStatus.completed;
+  }
+  if (processingState == PlaybackProcessingState.loading) {
+    return PlaybackViewStatus.loading;
+  }
+  if (processingState == PlaybackProcessingState.buffering) {
+    return PlaybackViewStatus.buffering;
+  }
+  if (metrics.playing) {
+    return PlaybackViewStatus.playing;
+  }
+  return PlaybackViewStatus.paused;
+}
+
+PlaybackProcessingState _processingFromAutoplayPhase(AutoplayPhase phase) {
+  switch (phase) {
+    case AutoplayPhase.idle:
+      return PlaybackProcessingState.idle;
+    case AutoplayPhase.loading:
+      return PlaybackProcessingState.loading;
+    case AutoplayPhase.playing:
+    case AutoplayPhase.paused:
+      return PlaybackProcessingState.ready;
+    case AutoplayPhase.buffering:
+    case AutoplayPhase.transitioning:
+      return PlaybackProcessingState.buffering;
+    case AutoplayPhase.completed:
+      return PlaybackProcessingState.completed;
+    case AutoplayPhase.interrupted:
+      return PlaybackProcessingState.interrupted;
+    case AutoplayPhase.error:
+      return PlaybackProcessingState.error;
+  }
 }
 
 String? resolveAutoplayStatusLabel(
   AutoplayState state, {
-  required PlaybackMetrics metrics,
-  required String currentNoteId,
+  required PlaybackViewStatus playbackStatus,
 }) {
   if (state.transientMessage != null && state.transientMessage!.isNotEmpty) {
     return state.transientMessage;
@@ -118,5 +162,4 @@ String? resolveAutoplayStatusLabel(
   if (state.phase == AutoplayPhase.completed) {
     return state.statusText ?? 'Moving to next clip...';
   }
-  return state.statusText;
 }
