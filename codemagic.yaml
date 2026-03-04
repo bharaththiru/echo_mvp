@@ -61,6 +61,14 @@ workflows:
           # is kept in the repo for Sideloadly to apply at signing time.
           sed -i '' '/CODE_SIGN_ENTITLEMENTS/d' "$PBXPROJ" 2>/dev/null || \
           sed -i  '/CODE_SIGN_ENTITLEMENTS/d' "$PBXPROJ"
+
+          # Ensure CODE_SIGNING_REQUIRED and CODE_SIGNING_ALLOWED are set to NO
+          # for all Runner build configurations.  Without these Xcode may still
+          # demand a Development Team even with --no-codesign.
+          if ! grep -q 'CODE_SIGNING_REQUIRED' "$PBXPROJ"; then
+            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\n\t\t\t\tCODE_SIGNING_ALLOWED = NO;\n\t\t\t\tCODE_SIGNING_REQUIRED = NO;/g' "$PBXPROJ" 2>/dev/null || \
+            sed -i  's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;\n\t\t\t\tCODE_SIGNING_ALLOWED = NO;\n\t\t\t\tCODE_SIGNING_REQUIRED = NO;/g' "$PBXPROJ"
+          fi
       - name: Build iOS (Flutter, no codesign)
         script: |
           set -euo pipefail
