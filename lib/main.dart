@@ -9,6 +9,7 @@ import 'app/echo_app.dart';
 import 'config/clerk_config.dart';
 import 'firebase_options.dart';
 import 'theme/echo_theme.dart';
+import 'services/playback_perf_monitor.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +33,7 @@ Future<void> main() async {
   final appState = await AppState.create();
   final lightTheme = buildEchoTheme(Brightness.light);
   final darkTheme = buildEchoTheme(Brightness.dark);
+  PlaybackPerfMonitor(audio: appState.audio).start();
   runApp(
     ClerkAuth(
       config: ClerkAuthConfig(publishableKey: clerkKey),

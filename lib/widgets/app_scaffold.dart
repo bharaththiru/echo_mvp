@@ -143,7 +143,7 @@ class _MiniPlayerState extends State<_MiniPlayer> {
         final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
         final bottomPadding = EchoLayout.space(context, 8);
         return StreamBuilder<PlaybackMetrics>(
-          stream: audio.playbackMetrics,
+          stream: audio.playbackUiMetrics,
           initialData: audio.currentMetrics,
           builder: (context, snapshot) {
             final metrics = snapshot.data ?? audio.currentMetrics;
@@ -413,7 +413,7 @@ class _MiniPlayerProgress extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<PlaybackMetrics>(
-      stream: audio.playbackMetrics,
+      stream: audio.playbackUiMetrics,
       initialData: audio.currentMetrics,
       builder: (context, snapshot) {
         final metrics = snapshot.data ?? audio.currentMetrics;
@@ -615,7 +615,7 @@ class _MiniPlayerTracker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<PlaybackMetrics>(
-      stream: audio.playbackMetrics,
+      stream: audio.playbackUiMetrics,
       initialData: audio.currentMetrics,
       builder: (context, snapshot) {
         final metrics = snapshot.data ?? audio.currentMetrics;

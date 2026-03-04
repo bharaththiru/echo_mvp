@@ -90,6 +90,7 @@ abstract class AudioPlaybackController {
   AudioPlaybackState get state;
   PlaybackMetrics get currentMetrics;
   Stream<PlaybackMetrics> get playbackMetrics;
+  Stream<PlaybackMetrics> get playbackUiMetrics;
 
   Future<void> play({
     required String sourceId,
