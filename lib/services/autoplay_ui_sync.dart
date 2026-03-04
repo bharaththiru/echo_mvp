@@ -10,6 +10,7 @@ class AutoplayUiSnapshot {
     required this.isUiLoading,
     required this.showSpinner,
     required this.statusLabel,
+    required this.playbackStatus,
   });
 
   final bool metricsMatchCurrent;
@@ -19,7 +20,10 @@ class AutoplayUiSnapshot {
   final bool isUiLoading;
   final bool showSpinner;
   final String statusLabel;
+  final PlaybackViewStatus playbackStatus;
 }
+
+enum PlaybackViewStatus { loading, buffering, playing, paused, completed, error }
 
 AutoplayUiSnapshot resolveAutoplayUiSnapshot({
   required AutoplayState state,
@@ -28,35 +32,37 @@ AutoplayUiSnapshot resolveAutoplayUiSnapshot({
   String fallbackReadyLabel = 'Ready',
 }) {
   final metricsMatchCurrent = metrics.sourceId == currentNoteId;
-  // When metrics haven't caught up to the new note yet, also treat
-  // transitioning/loading phases (when the user hasn't paused) as "playing"
-  // so the play/pause button icon doesn't flicker to the play icon
-  // for a frame before switching back to pause.
-  final isEnginePlaying = metricsMatchCurrent
-      ? metrics.playing
-      : (state.currentNote?.id == currentNoteId &&
-          (state.isPlaying ||
-              (!state.userPaused &&
-                  (state.phase == AutoplayPhase.transitioning ||
-                      state.phase == AutoplayPhase.loading ||
-                      state.phase == AutoplayPhase.buffering))));
-  final isEngineBuffering = metricsMatchCurrent &&
-      (metrics.processingState == PlaybackProcessingState.loading ||
-          metrics.processingState == PlaybackProcessingState.buffering);
-  final hasPlaybackStarted = metricsMatchCurrent
-      ? (metrics.position > Duration.zero || metrics.playing)
-      : (state.position > Duration.zero || state.isPlaying);
-  final isUiLoading = !isEnginePlaying &&
-      ((metricsMatchCurrent &&
-              metrics.processingState == PlaybackProcessingState.loading) ||
-          ((state.phase == AutoplayPhase.loading || state.isPreparing) &&
-              !hasPlaybackStarted));
-  final showSpinner = isUiLoading || (isEngineBuffering && !isEnginePlaying);
+  final effectiveMetrics = metricsMatchCurrent
+      ? metrics
+      : PlaybackMetrics(
+          sourceId: currentNoteId,
+          queueIndex: state.currentIndex,
+          position: state.position,
+          duration: state.duration,
+          bufferedPosition: state.bufferedPosition,
+          playing: state.phase == AutoplayPhase.playing,
+          processingState: _processingFromAutoplayPhase(state.phase),
+          isPositionAdvancing: state.phase == AutoplayPhase.playing,
+        );
+
+  final playbackStatus = _resolvePlaybackStatus(effectiveMetrics);
+  final isEnginePlaying = playbackStatus == PlaybackViewStatus.playing;
+  final isEngineBuffering =
+      playbackStatus == PlaybackViewStatus.loading ||
+      playbackStatus == PlaybackViewStatus.buffering;
+  final hasPlaybackStarted =
+      effectiveMetrics.position > Duration.zero || effectiveMetrics.playing;
+  final isUiLoading = playbackStatus == PlaybackViewStatus.loading &&
+      ((state.phase == AutoplayPhase.loading || state.isPreparing)
+          ? !hasPlaybackStarted
+          : true);
+  final showSpinner =
+      playbackStatus == PlaybackViewStatus.loading ||
+      playbackStatus == PlaybackViewStatus.buffering;
 
   final statusLabel = resolveAutoplayStatusLabel(
     state,
-    metrics: metrics,
-    currentNoteId: currentNoteId,
+    playbackStatus: playbackStatus,
   );
 
   return AutoplayUiSnapshot(
@@ -69,13 +75,54 @@ AutoplayUiSnapshot resolveAutoplayUiSnapshot({
     statusLabel: (statusLabel == null || statusLabel.trim().isEmpty)
         ? fallbackReadyLabel
         : statusLabel,
+    playbackStatus: playbackStatus,
   );
+}
+
+PlaybackViewStatus _resolvePlaybackStatus(PlaybackMetrics metrics) {
+  final processingState = metrics.processingState;
+  if (processingState == PlaybackProcessingState.error) {
+    return PlaybackViewStatus.error;
+  }
+  if (processingState == PlaybackProcessingState.completed) {
+    return PlaybackViewStatus.completed;
+  }
+  if (processingState == PlaybackProcessingState.loading) {
+    return PlaybackViewStatus.loading;
+  }
+  if (processingState == PlaybackProcessingState.buffering) {
+    return PlaybackViewStatus.buffering;
+  }
+  if (metrics.playing) {
+    return PlaybackViewStatus.playing;
+  }
+  return PlaybackViewStatus.paused;
+}
+
+PlaybackProcessingState _processingFromAutoplayPhase(AutoplayPhase phase) {
+  switch (phase) {
+    case AutoplayPhase.idle:
+      return PlaybackProcessingState.idle;
+    case AutoplayPhase.loading:
+      return PlaybackProcessingState.loading;
+    case AutoplayPhase.playing:
+    case AutoplayPhase.paused:
+      return PlaybackProcessingState.ready;
+    case AutoplayPhase.buffering:
+    case AutoplayPhase.transitioning:
+      return PlaybackProcessingState.buffering;
+    case AutoplayPhase.completed:
+      return PlaybackProcessingState.completed;
+    case AutoplayPhase.interrupted:
+      return PlaybackProcessingState.interrupted;
+    case AutoplayPhase.error:
+      return PlaybackProcessingState.error;
+  }
 }
 
 String? resolveAutoplayStatusLabel(
   AutoplayState state, {
-  required PlaybackMetrics metrics,
-  required String currentNoteId,
+  required PlaybackViewStatus playbackStatus,
 }) {
   if (state.transientMessage != null && state.transientMessage!.isNotEmpty) {
     return state.transientMessage;
@@ -83,35 +130,26 @@ String? resolveAutoplayStatusLabel(
   if (state.errorMessage != null && state.errorMessage!.isNotEmpty) {
     return state.errorMessage;
   }
-  final metricsMatchCurrent = metrics.sourceId == currentNoteId;
-  final isEngineBuffering =
-      metricsMatchCurrent &&
-      (metrics.processingState == PlaybackProcessingState.loading ||
-          metrics.processingState == PlaybackProcessingState.buffering);
-  if (isEngineBuffering && !metrics.playing) {
-    return 'Buffering...';
+
+  switch (playbackStatus) {
+    case PlaybackViewStatus.loading:
+      if ((state.phase == AutoplayPhase.loading || state.isPreparing) &&
+          state.position <= Duration.zero) {
+        return 'Loading clip...';
+      }
+      return 'Loading...';
+    case PlaybackViewStatus.buffering:
+      return 'Buffering...';
+    case PlaybackViewStatus.playing:
+      return 'Now listening';
+    case PlaybackViewStatus.paused:
+      if (state.phase == AutoplayPhase.transitioning) {
+        return 'Moving to next clip...';
+      }
+      return 'Paused';
+    case PlaybackViewStatus.completed:
+      return state.statusText ?? 'Completed';
+    case PlaybackViewStatus.error:
+      return state.errorMessage ?? state.statusText ?? 'Playback issue';
   }
-  if (isEngineBuffering && metrics.playing && !metrics.isPositionAdvancing) {
-    return 'Buffering...';
-  }
-  final hasStarted = metricsMatchCurrent
-      ? (metrics.position > Duration.zero || metrics.playing)
-      : (state.position > Duration.zero || state.isPlaying);
-  if ((state.phase == AutoplayPhase.loading || state.isPreparing) &&
-      !hasStarted) {
-    return 'Loading clip...';
-  }
-  if (state.phase == AutoplayPhase.transitioning) {
-    return 'Moving to next clip...';
-  }
-  if (metricsMatchCurrent ? metrics.playing : state.isPlaying) {
-    return 'Now listening';
-  }
-  if (state.phase == AutoplayPhase.paused) {
-    return 'Paused';
-  }
-  if (state.phase == AutoplayPhase.completed && state.statusText != null) {
-    return state.statusText;
-  }
-  return state.statusText;
 }

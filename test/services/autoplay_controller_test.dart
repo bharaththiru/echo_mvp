@@ -68,6 +68,48 @@ void main() {
     expect(audio.playHistory, ['a', 'b', 'c']);
   });
 
+
+  test('play tap after completion seeks to start and resumes', () async {
+    final dataSource = FakeAutoplayDataSource({
+      hashtagId: [note('a')],
+    });
+    final audio = FakeAudioPlaybackController();
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
+
+    controller.attach(hashtagId);
+    await settle();
+
+    audio.complete();
+    await settle();
+
+    await controller.togglePlayPause();
+    await settle();
+
+    expect(audio.seekHistory, [Duration.zero]);
+    expect(audio.resumeCalls, 1);
+    expect(controller.state.phase, AutoplayPhase.playing);
+  });
+
+  test('play tap after completion advances to next queued clip', () async {
+    final dataSource = FakeAutoplayDataSource({
+      hashtagId: [note('a'), note('b')],
+    });
+    final audio = FakeAudioPlaybackController();
+    final controller = AutoplayController(dataSource: dataSource, feedQueueBuilder: dataSource, audio: audio);
+
+    controller.attach(hashtagId);
+    await settle();
+
+    audio.complete();
+    await settle();
+
+    await controller.togglePlayPause();
+    await settle();
+
+    expect(audio.playHistory.last, 'b');
+    expect(controller.state.currentNote?.id, 'b');
+  });
+
   test('resumes after interruption only when user did not pause', () async {
     final dataSource = FakeAutoplayDataSource({
       hashtagId: [note('a'), note('b')],
@@ -420,6 +462,7 @@ class FakeAudioPlaybackController extends ChangeNotifier
   int playQueueCalls = 0;
   int resumeCalls = 0;
   double lastVolume = 0.8;
+  final List<Duration> seekHistory = <Duration>[];
 
   @override
   AudioPlaybackState get state => _state;
@@ -600,6 +643,7 @@ class FakeAudioPlaybackController extends ChangeNotifier
 
   @override
   Future<void> seek(Duration position) async {
+    seekHistory.add(position);
     _state = _state.copyWith(position: position);
     notifyListeners();
   }

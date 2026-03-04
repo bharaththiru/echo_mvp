@@ -532,6 +532,7 @@ class AutoplayController extends ChangeNotifier {
     if (hashtagChanged) {
       _resetSession(hashtagId: hashtagId, stopPlayback: true);
     }
+    syncFromPlayer();
     unawaited(
       _enqueueEvent(
         () async => _ensureNotesLoaded(force: forceRefresh || hashtagChanged),
@@ -629,6 +630,7 @@ class AutoplayController extends ChangeNotifier {
     }
     if (!force && _state.queue.isNotEmpty) {
       _applyNotesSnapshot(_state.queue);
+      syncFromPlayer();
       return;
     }
     _setState(
@@ -1014,6 +1016,34 @@ class AutoplayController extends ChangeNotifier {
       await _startAutoplay();
       return;
     }
+    if (audioState.phase == AudioPlaybackPhase.completed) {
+      _resumeAfterInterruption = false;
+      _setState(
+        _state.copyWith(
+          userPaused: false,
+          phase: AutoplayPhase.playing,
+          statusText: null,
+          errorMessage: null,
+        ),
+      );
+      if (_playbackQueueIndex >= 0 &&
+          _playbackQueueIndex + 1 < _playbackQueueIds.length) {
+        await _audio.seekToIndex(_playbackQueueIndex + 1, position: Duration.zero);
+        await _audio.resume();
+        return;
+      }
+      final nextIndex = _nextPlayableIndex(
+        fromIndex: _state.currentIndex,
+        allowLoop: _loopEnabled,
+      );
+      if (nextIndex != null) {
+        await _playIndex(nextIndex, phaseOverride: AutoplayPhase.loading);
+        return;
+      }
+      await _audio.seek(Duration.zero);
+      await _audio.resume();
+      return;
+    }
     final isCurrentlyPlaying = audioState.isPlaying || _state.isPlaying;
     if (isCurrentlyPlaying) {
       _setState(
@@ -1041,6 +1071,10 @@ class AutoplayController extends ChangeNotifier {
       return;
     }
     await _playIndex(_state.currentIndex, phaseOverride: AutoplayPhase.loading);
+  }
+
+  void syncFromPlayer() {
+    _handleAudioChanged();
   }
 
   Future<void> skip() async {
