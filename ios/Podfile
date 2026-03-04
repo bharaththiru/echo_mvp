@@ -62,11 +62,16 @@ post_install do |installer|
     if target.respond_to?(:build_configurations)
       target.build_configurations.each do |config|
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-        
+
         # Xcode 16 specific compatibility settings
         config.build_settings['EXPLICIT_MODULE_BUILD'] = 'NO'
         config.build_settings['SWIFT_PRECOMPILE_MODULES'] = 'NO'
         config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
+
+        # Disable code signing for all pod targets (Xcode 14+ requires this
+        # explicitly for resource bundle targets; without it --no-codesign fails)
+        config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+        config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
       end
     end
 
