@@ -440,6 +440,9 @@ class FakeAudioPlaybackController extends ChangeNotifier
   Stream<PlaybackMetrics> get playbackMetrics =>
       Stream<PlaybackMetrics>.value(currentMetrics);
 
+  @override
+  Stream<PlaybackMetrics> get playbackUiMetrics => playbackMetrics;
+
   PlaybackProcessingState _processingFromPhase(AudioPlaybackPhase phase) {
     switch (phase) {
       case AudioPlaybackPhase.idle:

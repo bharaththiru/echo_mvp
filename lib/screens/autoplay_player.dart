@@ -237,7 +237,7 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
           final posterLabel = _resolvedPosterLabel(note);
 
           return StreamBuilder<PlaybackMetrics>(
-            stream: audio.playbackMetrics,
+            stream: audio.playbackUiMetrics,
             initialData: audio.currentMetrics,
             builder: (context, metricsSnapshot) {
               final metrics = metricsSnapshot.data ?? audio.currentMetrics;
@@ -965,7 +965,7 @@ class _AutoplayProgressState extends State<_AutoplayProgress>
     super.initState();
     _metrics = widget.audio.currentMetrics;
     _metricsAt = DateTime.now();
-    _metricsSub = widget.audio.playbackMetrics.listen(_onMetrics);
+    _metricsSub = widget.audio.playbackUiMetrics.listen(_onMetrics);
     _ticker = createTicker(_onTick)..start();
   }
 
@@ -976,7 +976,7 @@ class _AutoplayProgressState extends State<_AutoplayProgress>
       _metricsSub?.cancel();
       _metrics = widget.audio.currentMetrics;
       _metricsAt = DateTime.now();
-      _metricsSub = widget.audio.playbackMetrics.listen(_onMetrics);
+      _metricsSub = widget.audio.playbackUiMetrics.listen(_onMetrics);
     }
   }
 

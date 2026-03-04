@@ -67,6 +67,13 @@ class AudioController extends ChangeNotifier
   @override
   Stream<PlaybackMetrics> get playbackMetrics => _metrics.stream;
 
+  static const _uiMetricsInterval = Duration(milliseconds: 200);
+
+  @override
+  Stream<PlaybackMetrics> get playbackUiMetrics => _metrics.stream
+      .sampleTime(_uiMetricsInterval)
+      .startWith(_metrics.value);
+
   Future<bool> requestMicrophonePermission() {
     return _recordingService.requestMicrophonePermission();
   }
