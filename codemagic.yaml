@@ -56,9 +56,9 @@ workflows:
           sed -i '' 's|"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer"|"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = ""|g' "$PBXPROJ" 2>/dev/null || \
           sed -i  's|"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer"|"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = ""|g' "$PBXPROJ"
 
-          # Remove CODE_SIGN_ENTITLEMENTS references — the Sign in with Apple
-          # entitlement forces Xcode to require a Development Team even with
-          # --no-codesign.  Sideloadly re-applies entitlements at signing time.
+          # Safety net: strip any CODE_SIGN_ENTITLEMENTS that may have been
+          # re-added (e.g. by Xcode project migration).  The entitlements file
+          # is kept in the repo for Sideloadly to apply at signing time.
           sed -i '' '/CODE_SIGN_ENTITLEMENTS/d' "$PBXPROJ" 2>/dev/null || \
           sed -i  '/CODE_SIGN_ENTITLEMENTS/d' "$PBXPROJ"
       - name: Build iOS (Flutter, no codesign)
