@@ -29,10 +29,14 @@ workflows:
       - name: Strip -G flags from Xcode settings
         script: |
           set -euo pipefail
-          find ios -type f \( -name "*.xcconfig" -o -name "project.pbxproj" \) -print0 | \
-            xargs -0 perl -0777 -pi -e 's/(^|\s)-G(?=\s|$)//g; s/(^|\s)-G[^\s"]+//g; s/\s{2,}/ /g; s/\s+$//gm'
+          # Only strip -G flags from xcconfig files (CocoaPods-generated).
+          # Do NOT touch project.pbxproj — the whitespace cleanup destroys it.
+          find ios -type f -name "*.xcconfig" -print0 | \
+            xargs -0 sed -i '' 's/ -G[^ "]*//g' 2>/dev/null || \
+          find ios -type f -name "*.xcconfig" -print0 | \
+            xargs -0 sed -i  's/ -G[^ "]*//g'
           echo "Remaining -G occurrences (should be none):"
-          find ios -type f \( -name "*.xcconfig" -o -name "project.pbxproj" \) -print0 | \
+          find ios -type f -name "*.xcconfig" -print0 | \
             xargs -0 grep -n " -G" || true
       - name: Strip com.apple.provenance xattr
         script: |
