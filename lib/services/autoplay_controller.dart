@@ -337,6 +337,7 @@ class AutoplayController extends ChangeNotifier {
   int _playbackQueueIndex = -1;
   bool _queueFillInFlight = false;
   bool _completionEnqueued = false;
+  bool _userManualControl = false;
   bool _isDisposed = false;
   String? _positionNoteId;
   Duration _lastObservedPosition = Duration.zero;
@@ -1057,6 +1058,7 @@ class AutoplayController extends ChangeNotifier {
     }
     final isCurrentlyPlaying = audioState.isPlaying || _state.isPlaying;
     if (isCurrentlyPlaying) {
+      _userManualControl = true;
       _setState(
         _state.copyWith(
           userPaused: true,
@@ -1068,6 +1070,7 @@ class AutoplayController extends ChangeNotifier {
       await _audio.pause();
       return;
     }
+    _userManualControl = false;
     _resumeAfterInterruption = false;
     _setState(
       _state.copyWith(
@@ -1177,6 +1180,7 @@ class AutoplayController extends ChangeNotifier {
   Future<void> restart() async {
     _playToken++;
     _completionEnqueued = false;
+    _userManualControl = false;
     _cancelBoundaryFade();
     _cancelStallGuard();
     _cancelTransitionCue();
@@ -1234,6 +1238,9 @@ class AutoplayController extends ChangeNotifier {
       'play index=$index note=${note.id} queue=${_state.queue.length} phase=${phaseOverride ?? AutoplayPhase.loading}',
     );
     _cancelStallGuard();
+    // Clear cached path so a fresh Firebase download URL is resolved at
+    // playback time instead of reusing a potentially stale cached URL.
+    _cachedPaths.remove(note.id);
     _queueItemStatus[note.id] ??= _QueueItemStatus.pending;
     _resetMuteForNote(note.id);
     _setState(
@@ -1330,7 +1337,9 @@ class AutoplayController extends ChangeNotifier {
         return null;
       }
     }
+    debugPrint('[AutoplayController] resolving path for storagePath=${note.storagePath}'); // TODO: remove before release
     final path = await _dataSource.ensureLocalAudioPath(note);
+    debugPrint('[AutoplayController] resolved path=$path'); // TODO: remove before release
     if (!_isTokenCurrent(token)) {
       return path;
     }
@@ -1462,6 +1471,7 @@ class AutoplayController extends ChangeNotifier {
     _AdvanceReason reason, {
     bool stopCurrent = false,
   }) async {
+    _userManualControl = false;
     if (_isDisposed || _state.queue.isEmpty) {
       return;
     }
@@ -2821,9 +2831,11 @@ class AutoplayController extends ChangeNotifier {
         !_state.isTransitioning &&
         !_state.isPreparing &&
         previousPhase != AutoplayPhase.completed &&
-        !_completionEnqueued) {
+        !_completionEnqueued &&
+        !_userManualControl) {
       _completionEnqueued = true;
       _log('queue completed');
+      debugPrint('[AutoplayController] queue advancing from index=${_state.currentIndex} clip=${_state.currentNote?.id}'); // TODO: remove before release
       unawaited(
         _enqueueEvent(
           () async {
@@ -3129,6 +3141,7 @@ class AutoplayController extends ChangeNotifier {
     _sessionToken++;
     _log('reset session hashtag=$hashtagId stop=$stopPlayback');
     _completionEnqueued = false;
+    _userManualControl = false;
     _playedIds.clear();
     _recentlyPlayedIds.clear();
     _failedIds.clear();

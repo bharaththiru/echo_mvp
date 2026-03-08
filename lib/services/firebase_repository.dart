@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/hashtag.dart';
 import '../models/voice_note.dart';
@@ -773,8 +774,10 @@ class FirebaseRepository {
     if (cached != null && cached.expiresAt.isAfter(now)) {
       return cached.url;
     }
+    debugPrint('[FirebaseRepo] fetching download URL for path=$normalizedPath'); // TODO: remove before release
     final ref = _storage.ref(normalizedPath);
     final url = await ref.getDownloadURL();
+    debugPrint('[FirebaseRepo] got download URL=$url'); // TODO: remove before release
     _audioUrlCache[normalizedPath] = _CachedAudioUrl(
       url: url,
       expiresAt: now.add(_audioUrlCacheTtl),

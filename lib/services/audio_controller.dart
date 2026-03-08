@@ -27,6 +27,15 @@ class AudioController extends ChangeNotifier
   final BehaviorSubject<PlaybackMetrics> _metrics =
       BehaviorSubject<PlaybackMetrics>.seeded(PlaybackMetrics.empty);
   AudioPlaybackState _state = AudioPlaybackState.empty;
+
+  /// Service-lifetime notifiers that survive widget rebuilds.
+  final ValueNotifier<bool> isBufferingNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> isPlayingNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<Duration> positionNotifier =
+      ValueNotifier<Duration>(Duration.zero);
+  final ValueNotifier<Duration> durationNotifier =
+      ValueNotifier<Duration>(Duration.zero);
+
   int _operationToken = 0;
   bool _isDisposed = false;
   DateTime? _lastEngineUpdate;
@@ -127,6 +136,12 @@ class AudioController extends ChangeNotifier
       playing: snapshot.isPlaying,
       processingState: processingState,
     );
+    _syncNotifiers(
+      phase: nextPhase,
+      isPlaying: snapshot.isPlaying,
+      position: resolvedPosition,
+      duration: snapshot.duration,
+    );
     notifyListeners();
     _syncPositionTimer();
   }
@@ -224,6 +239,21 @@ class AudioController extends ChangeNotifier
         _syncPositionTimer();
         break;
     }
+  }
+
+  void _syncNotifiers({
+    required AudioPlaybackPhase phase,
+    required bool isPlaying,
+    required Duration position,
+    required Duration duration,
+  }) {
+    isBufferingNotifier.value =
+        phase == AudioPlaybackPhase.loading ||
+        phase == AudioPlaybackPhase.buffering;
+    isPlayingNotifier.value =
+        isPlaying && phase == AudioPlaybackPhase.playing;
+    positionNotifier.value = position;
+    durationNotifier.value = duration;
   }
 
   Duration _resolveSnapshotPosition(AudioEngineSnapshot snapshot) {
@@ -340,6 +370,7 @@ class AudioController extends ChangeNotifier
     notifyListeners();
     _syncPositionTimer();
     try {
+      debugPrint('[AudioController] play: sourceId=$sourceId path=$path'); // TODO: remove before release
       await _engine.stop();
       await _engine.setSource(
         sourceId: sourceId,
@@ -354,8 +385,10 @@ class AudioController extends ChangeNotifier
       if (token != _operationToken || _isDisposed) {
         return;
       }
+      debugPrint('[AudioController] play: starting playback phase=${_state.phase}'); // TODO: remove before release
       await _engine.play();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AudioController] play: error loading source: $e'); // TODO: remove before release
       if (token != _operationToken || _isDisposed) {
         return;
       }
@@ -488,6 +521,8 @@ class AudioController extends ChangeNotifier
       errorMessage: null,
     );
     _emitMetrics(playing: false, processingState: PlaybackProcessingState.ready);
+    isPlayingNotifier.value = false;
+    isBufferingNotifier.value = false;
     notifyListeners();
     _syncPositionTimer();
   }
@@ -499,13 +534,31 @@ class AudioController extends ChangeNotifier
     if (!isReady) {
       return;
     }
-    await _engine.play();
+    debugPrint('[AudioController] resume: phase=${_state.phase}'); // TODO: remove before release
+    if (_state.phase == AudioPlaybackPhase.idle) {
+      // Player source was unloaded — reload then play
+      debugPrint('[AudioController] resume: reloading source path=${_state.path}'); // TODO: remove before release
+      isBufferingNotifier.value = true;
+      await _engine.setSource(
+        sourceId: _state.sourceId!,
+        path: _state.path!,
+      );
+      await _engine.play();
+    } else if (_state.phase == AudioPlaybackPhase.completed) {
+      // Clip finished — seek to start then play
+      await _engine.seek(Duration.zero);
+      await _engine.play();
+    } else {
+      await _engine.play();
+    }
     _state = _state.copyWith(
       isPlaying: true,
       phase: AudioPlaybackPhase.playing,
       errorMessage: null,
     );
     _emitMetrics(playing: true, processingState: PlaybackProcessingState.ready);
+    isPlayingNotifier.value = true;
+    isBufferingNotifier.value = false;
     notifyListeners();
     _syncPositionTimer();
   }
@@ -530,6 +583,9 @@ class AudioController extends ChangeNotifier
       playing: false,
       processingState: PlaybackProcessingState.idle,
     );
+    isPlayingNotifier.value = false;
+    isBufferingNotifier.value = false;
+    positionNotifier.value = Duration.zero;
     notifyListeners();
     _syncPositionTimer();
   }
@@ -724,6 +780,10 @@ class AudioController extends ChangeNotifier
     _engineSub?.cancel();
     _engineEventSub?.cancel();
     _metrics.close();
+    isBufferingNotifier.dispose();
+    isPlayingNotifier.dispose();
+    positionNotifier.dispose();
+    durationNotifier.dispose();
     _engine.dispose();
     super.dispose();
   }
