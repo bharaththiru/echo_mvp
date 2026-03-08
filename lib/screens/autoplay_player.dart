@@ -323,14 +323,16 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                               ),
                             ),
                             SizedBox(height: EchoLayout.space(context, 14)),
-                            _AutoplayProgress(
-                              audio: audio,
-                              currentNoteId: note.id,
-                              fallbackDuration: note.duration,
-                              label: statusLabel,
-                              showSpinner: ui.showSpinner,
-                              reduceMotion: reduceMotion,
-                              isError: isError,
+                            RepaintBoundary(
+                              child: _AutoplayProgress(
+                                audio: audio,
+                                currentNoteId: note.id,
+                                fallbackDuration: note.duration,
+                                label: statusLabel,
+                                showSpinner: ui.showSpinner,
+                                reduceMotion: reduceMotion,
+                                isError: isError,
+                              ),
                             ),
                             if (state.phase == AutoplayPhase.error &&
                                 state.errorMessage != null)
@@ -386,54 +388,73 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                   iconSize: 26,
                                 ),
                                 const SizedBox(width: 16),
-                                // Play/pause button with ambient glow when playing
-                                Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    boxShadow: ui.isEnginePlaying
-                                        ? [
-                                            BoxShadow(
-                                              color: tokens.accentPrimary
-                                                  .withValues(alpha: 0.32),
-                                              blurRadius: 38,
-                                              spreadRadius: 2,
-                                            ),
-                                          ]
-                                        : [],
-                                  ),
-                                  child: SizedBox(
-                                    height: buttonSize,
-                                    width: buttonSize,
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        shape: const CircleBorder(),
-                                        padding: EdgeInsets.zero,
-                                        backgroundColor: tokens.accentPrimary,
-                                        foregroundColor: theme.colorScheme.onPrimary,
-                                        elevation: 0,
-                                        shadowColor: Colors.transparent,
-                                      ),
-                                      onPressed: () => autoplay.togglePlayPause(),
-                                      child: centerShowsSpinner
-                                          ? SizedBox(
-                                              height: 24,
-                                              width: 24,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<Color>(
-                                                      theme.colorScheme.onPrimary,
+                                // Play/pause button with ambient glow when playing.
+                                // ValueListenableBuilders survive widget rebuilds
+                                // without creating new stream subscriptions.
+                                ValueListenableBuilder<bool>(
+                                  valueListenable: audio.isPlayingNotifier,
+                                  builder: (context, isPlayingLive, _) {
+                                    return ValueListenableBuilder<bool>(
+                                      valueListenable: audio.isBufferingNotifier,
+                                      builder: (context, isBufferingLive, _) {
+                                        final showPlay = isPlayingLive || ui.isEnginePlaying;
+                                        final showBuffering = isBufferingLive && !showPlay;
+                                        return Container(
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            boxShadow: showPlay
+                                                ? [
+                                                    BoxShadow(
+                                                      color: tokens.accentPrimary
+                                                          .withValues(alpha: 0.32),
+                                                      blurRadius: 38,
+                                                      spreadRadius: 2,
                                                     ),
+                                                  ]
+                                                : [],
+                                          ),
+                                          child: SizedBox(
+                                            height: buttonSize,
+                                            width: buttonSize,
+                                            child: ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                shape: const CircleBorder(),
+                                                padding: EdgeInsets.zero,
+                                                backgroundColor: tokens.accentPrimary,
+                                                foregroundColor: theme.colorScheme.onPrimary,
+                                                elevation: 0,
+                                                shadowColor: Colors.transparent,
                                               ),
-                                            )
-                                          : Icon(
-                                              ui.isEnginePlaying
-                                                  ? Icons.pause_rounded
-                                                  : Icons.play_arrow_rounded,
-                                              size: 38,
+                                              onPressed: () => autoplay.togglePlayPause(),
+                                              child: AnimatedSwitcher(
+                                                duration: const Duration(milliseconds: 200),
+                                                child: showBuffering
+                                                    ? SizedBox(
+                                                        key: const ValueKey('buffering'),
+                                                        height: 24,
+                                                        width: 24,
+                                                        child: CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          valueColor:
+                                                              AlwaysStoppedAnimation<Color>(
+                                                                theme.colorScheme.onPrimary,
+                                                              ),
+                                                        ),
+                                                      )
+                                                    : Icon(
+                                                        key: ValueKey(showPlay ? 'pause' : 'play'),
+                                                        showPlay
+                                                            ? Icons.pause_rounded
+                                                            : Icons.play_arrow_rounded,
+                                                        size: 38,
+                                                      ),
+                                              ),
                                             ),
-                                    ),
-                                  ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
                                 ),
                                 const SizedBox(width: 16),
                                 IconButton(
@@ -1018,6 +1039,7 @@ class _AutoplayProgressState extends State<_AutoplayProgress>
   @override
   void initState() {
     super.initState();
+    // Seed from currentMetrics which is always up-to-date (service lifetime).
     _metrics = widget.audio.currentMetrics;
     _metricsAt = DateTime.now();
     _metricsSub = widget.audio.playbackUiMetrics.listen(_onMetrics);

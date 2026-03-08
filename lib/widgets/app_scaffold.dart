@@ -244,13 +244,15 @@ class _MiniPlayerState extends State<_MiniPlayer> {
                               ),
                               if (!_isCollapsed) ...[
                                 const SizedBox(height: 10),
-                                _MiniPlayerProgress(
-                                  audio: audio,
-                                  currentNoteId: note.id,
-                                  fallbackDuration: note.duration,
-                                  trackColor: tokens.textSecondary
-                                      .withValues(alpha: 0.15),
-                                  progressColor: buttonFill,
+                                RepaintBoundary(
+                                  child: _MiniPlayerProgress(
+                                    audio: audio,
+                                    currentNoteId: note.id,
+                                    fallbackDuration: note.duration,
+                                    trackColor: tokens.textSecondary
+                                        .withValues(alpha: 0.15),
+                                    progressColor: buttonFill,
+                                  ),
                                 ),
                               ],
                             ],
@@ -569,31 +571,41 @@ class _MiniPlayerHeader extends StatelessWidget {
             foregroundColor: isMuted ? tokens.textPrimary : tokens.textSecondary,
           ),
         ),
-        GestureDetector(
-          onTap: onPlayPauseTap,
-          child: Container(
-            width: 36,
-            height: 36,
-            margin: const EdgeInsets.only(right: 4),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: buttonFill,
-              boxShadow: isEnginePlaying
-                  ? [
-                      BoxShadow(
-                        color: buttonFill.withValues(alpha: 0.45),
-                        blurRadius: 10,
-                        spreadRadius: 0,
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Icon(
-              isEnginePlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              color: Colors.black,
-              size: 20,
-            ),
-          ),
+        ValueListenableBuilder<bool>(
+          valueListenable: appState.audio.isPlayingNotifier,
+          builder: (context, isPlayingLive, _) {
+            final showPlay = isPlayingLive || isEnginePlaying;
+            return GestureDetector(
+              onTap: onPlayPauseTap,
+              child: Container(
+                width: 36,
+                height: 36,
+                margin: const EdgeInsets.only(right: 4),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: buttonFill,
+                  boxShadow: showPlay
+                      ? [
+                          BoxShadow(
+                            color: buttonFill.withValues(alpha: 0.45),
+                            blurRadius: 10,
+                            spreadRadius: 0,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    key: ValueKey(showPlay ? 'mini_pause' : 'mini_play'),
+                    showPlay ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    color: Colors.black,
+                    size: 20,
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
