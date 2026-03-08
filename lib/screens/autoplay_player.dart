@@ -251,7 +251,6 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
               );
               final isError = state.phase == AutoplayPhase.error;
               final statusLabel = ui.statusLabel;
-              final centerShowsSpinner = ui.showSpinner && !ui.isEnginePlaying;
 
               return Column(
                 children: [
@@ -397,12 +396,12 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                     return ValueListenableBuilder<bool>(
                                       valueListenable: audio.isBufferingNotifier,
                                       builder: (context, isBufferingLive, _) {
-                                        final showPlay = isPlayingLive || ui.isEnginePlaying;
-                                        final showBuffering = isBufferingLive && !showPlay;
+                                        final isPlaying = isPlayingLive || ui.isEnginePlaying;
+                                        final showBuffering = isBufferingLive && !isPlaying;
                                         return Container(
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
-                                            boxShadow: showPlay
+                                            boxShadow: isPlaying
                                                 ? [
                                                     BoxShadow(
                                                       color: tokens.accentPrimary
@@ -442,8 +441,8 @@ class _AutoplayPlayerState extends State<AutoplayPlayer> {
                                                         ),
                                                       )
                                                     : Icon(
-                                                        key: ValueKey(showPlay ? 'pause' : 'play'),
-                                                        showPlay
+                                                        key: ValueKey(isPlaying ? 'pause' : 'play'),
+                                                        isPlaying
                                                             ? Icons.pause_rounded
                                                             : Icons.play_arrow_rounded,
                                                         size: 38,
